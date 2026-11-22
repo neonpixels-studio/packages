@@ -1,0 +1,3 @@
+import { useAuth } from "#imports";
+
+export const wrapped = useAuth;

@@ -1,0 +1,14 @@
+import { readFile } from "node:fs/promises";
+
+export async function load(path: string, _encoding?: string) {
+  try {
+    return await readFile(path, "utf8");
+  } catch (_error) {
+    return process.env.FALLBACK ?? "";
+  }
+}
+
+export const second = ((pair: [number, number]) => {
+  const [_first, last] = pair;
+  return last;
+})([1, 2]);
