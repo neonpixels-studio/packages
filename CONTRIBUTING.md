@@ -87,7 +87,7 @@ The tarball is what npm would serve, so it catches a wrong `files` list or `expo
 
 Pack-and-install above works offline. The other route is a preview build published by [pkg.pr.new](https://pkg.pr.new) (`.github/workflows/preview-release.yml`). Nothing goes to npm.
 
-A preview is published when a reviewer with write access approves a pull request, and on every push to `main`. A pull request that is not approved yet has no preview. The workflow comments an install link on the pull request and updates that one comment on later runs.
+A preview is published when a reviewer with write access approves a pull request's latest commit (approving an older commit publishes nothing), and on every push to `main`. A pull request that is not approved yet has no preview. The workflow comments an install link on the pull request and updates that one comment on later runs.
 
 The link takes one of three forms. `<name>` is the package directory name, as in `packages/<name>`:
 

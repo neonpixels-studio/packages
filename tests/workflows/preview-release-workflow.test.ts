@@ -34,8 +34,8 @@ describe("preview release workflow", () => {
   });
 
   it("runs the check job only for approving reviews", () => {
-    expect(PREVIEW_WORKFLOW_CODE).toContain(
-      "github.event.review.state == 'approved'",
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(
+      /^ {4}if: github\.event_name == 'push' \|\| github\.event\.review\.state == 'approved'$/m,
     );
   });
 
@@ -47,7 +47,25 @@ describe("preview release workflow", () => {
   });
 
   it("only passes the permission check for write, maintain, or admin", () => {
-    expect(PREVIEW_WORKFLOW_CODE).toContain("admin | maintain | write)");
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(/^\s+admin \| maintain \| write\)$/m);
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(
+      /\*\)\n(?:(?!allowed=true).*\n)*?\s+echo "allowed=false"/,
+    );
+    // Push branch plus the write-access branch: no other path grants access.
+    expect(PREVIEW_WORKFLOW_CODE.match(/allowed=true/g)).toHaveLength(2);
+  });
+
+  it("refuses approvals of a commit that is no longer the head", () => {
+    expect(PREVIEW_WORKFLOW_CODE).toContain(
+      '[ "${REVIEWED_COMMIT}" != "${HEAD_COMMIT}" ]',
+    );
+  });
+
+  it("scopes concurrency to the publish job so other reviews cannot cancel it", () => {
+    expect(PREVIEW_WORKFLOW_CODE).not.toMatch(/^concurrency:/m);
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(
+      /^ {2}publish:\n(?:.*\n)*? {4}concurrency:\n/m,
+    );
   });
 
   it("publishes only when the check allowed it", () => {

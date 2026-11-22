@@ -22,10 +22,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: preview-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 env:
   HUSKY: 0
 
@@ -47,10 +43,17 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REVIEWER: ${{ github.event.review.user.login }}
           REPOSITORY: ${{ github.repository }}
+          REVIEWED_COMMIT: ${{ github.event.review.commit_id }}
+          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" = "push" ]; then
             echo "allowed=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if [ "${REVIEWED_COMMIT}" != "${HEAD_COMMIT}" ]; then
+            echo "::notice::The approval is for an older commit than the head, so no preview is published. Approve the latest commit."
+            echo "allowed=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
           permission="$(gh api "repos/${REPOSITORY}/collaborators/${REVIEWER}/permission" --jq '.permission')"
@@ -72,6 +75,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # Scoped to this job so a comment-only or unauthorised review cannot cancel
+    # an approved build: those runs never get past `check`.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       # The reviewed commit, not the PR merge ref, so a push made after the
       # approval is never published without a fresh approval.
@@ -91,12 +99,13 @@ jobs:
       - name: Publish the preview
         run: |
           set -euo pipefail
-          mapfile -t package_dirs < <(
+          package_list="$(
             pnpm --filter "./packages/*" ls --depth -1 --json |
               jq -r --arg root "$(pwd -P)/" '.[] | select(.private != true) | .path | ltrimstr($root)'
-          )
-          if [ "${#package_dirs[@]}" -eq 0 ]; then
+          )"
+          if [ -z "${package_list}" ]; then
             echo "::notice::No publishable packages in ./packages, nothing to preview."
             exit 0
           fi
+          mapfile -t package_dirs <<< "${package_list}"
           pnpm exec pkg-pr-new publish --pnpm --comment=update "${package_dirs[@]}"
