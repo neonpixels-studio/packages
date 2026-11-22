@@ -8,6 +8,7 @@ import {
 import { SecretCryptoError } from "./errors.ts";
 import { assertKeySet, deriveKeyId, listKeys, type KeySet } from "./keys.ts";
 import {
+  AUTH_TAG_BYTE_LENGTH,
   formatPayload,
   IV_BYTE_LENGTH,
   parsePayload,
@@ -26,6 +27,12 @@ function assertAssociatedData(associatedData: string | undefined): void {
     throw new SecretCryptoError(
       "invalid-associated-data",
       "Associated data must be a string.",
+    );
+  }
+  if (!associatedData.isWellFormed()) {
+    throw new SecretCryptoError(
+      "invalid-associated-data",
+      "Associated data must be well-formed Unicode.",
     );
   }
   if (associatedData.length === 0) {
@@ -61,7 +68,7 @@ export function encrypt(
 ): string {
   assertKeySet(keys);
   assertAssociatedData(associatedData);
-  if (typeof plaintext !== "string") {
+  if (typeof plaintext !== "string" || !plaintext.isWellFormed()) {
     throw new SecretCryptoError(
       "invalid-plaintext",
       "Plaintext must be a string.",
@@ -69,7 +76,9 @@ export function encrypt(
   }
 
   const iv = randomBytes(IV_BYTE_LENGTH);
-  const cipher = createCipheriv(CIPHER_ALGORITHM, keys.primary, iv);
+  const cipher = createCipheriv(CIPHER_ALGORITHM, keys.primary, iv, {
+    authTagLength: AUTH_TAG_BYTE_LENGTH,
+  });
   applyAssociatedData(cipher, associatedData);
   const ciphertext = Buffer.concat([
     cipher.update(plaintext, "utf8"),
@@ -101,7 +110,9 @@ function decipherPayload(
   associatedData: string | undefined,
 ): string {
   try {
-    const decipher = createDecipheriv(CIPHER_ALGORITHM, key, parsed.iv);
+    const decipher = createDecipheriv(CIPHER_ALGORITHM, key, parsed.iv, {
+      authTagLength: AUTH_TAG_BYTE_LENGTH,
+    });
     decipher.setAuthTag(parsed.authTag);
     applyAssociatedData(decipher, associatedData);
     return Buffer.concat([
@@ -149,7 +160,9 @@ export function isEncryptedWithPrimaryKey(
 /**
  * Re-encrypts a payload under the primary key, for rotation. A payload that
  * already uses the primary key is returned unchanged. The associated data
- * must match the original and is reused for the new payload.
+ * must match the original and is reused for the new payload. A payload
+ * already on the primary key is not decrypted, so its associated data is not
+ * checked.
  */
 export function reencrypt(
   payload: string,

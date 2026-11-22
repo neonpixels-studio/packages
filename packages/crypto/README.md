@@ -28,10 +28,10 @@ const token = decrypt(payload, keys, `integration:${rowId}`);
 - `encrypt(plaintext, keys, associatedData?)` returns a payload string, written with `keys.primary`.
 - `decrypt(payload, keys, associatedData?)` returns the plaintext. The payload names its key, so it decrypts with any key in the set.
 - `isEncryptedWithPrimaryKey(payload, keys)` is `true` when the payload was written with the primary key.
-- `reencrypt(payload, keys, associatedData?)` returns the value encrypted under the primary key. A payload already on the primary key is returned unchanged.
+- `reencrypt(payload, keys, associatedData?)` returns the value encrypted under the primary key. A payload already on the primary key is returned unchanged without being decrypted, so its associated data is not checked.
 - `decodeKey(base64)` turns a base64 string into a 32-byte key and rejects anything else.
 - `deriveKeyId(key)` returns the key id stored in payloads.
-- `KeySet` is `{ primary: Uint8Array; previous?: Uint8Array[] }`. Keys must be exactly 32 bytes.
+- `KeySet` is `{ primary: Uint8Array; previous?: readonly Uint8Array[] }`. Keys must be exactly 32 bytes.
 
 Empty associated data is rejected, so "empty" and "none" can never differ between encrypt and decrypt.
 

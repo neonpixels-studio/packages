@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
+import { decodeStrictBase64, padBase64 } from "./base64.ts";
 import { SecretCryptoError } from "./errors.ts";
 
 export const KEY_BYTE_LENGTH = 32;
-const KEY_ID_HEX_LENGTH = 8;
+export const KEY_ID_HEX_LENGTH = 8;
 
 /**
  * The keys an app passes in. `primary` encrypts. `previous` keys only
@@ -27,6 +28,12 @@ export function listKeys(keys: KeySet): Uint8Array[] {
   if (typeof keys !== "object" || keys === null) {
     throw new SecretCryptoError("invalid-key", "A key set is required.");
   }
+  if (keys.previous !== undefined && !Array.isArray(keys.previous)) {
+    throw new SecretCryptoError(
+      "invalid-key",
+      "Previous keys must be an array.",
+    );
+  }
   const allKeys = [keys.primary, ...(keys.previous ?? [])];
   allKeys.forEach(assertKey);
   return allKeys;
@@ -36,25 +43,15 @@ export function assertKeySet(keys: KeySet): void {
   listKeys(keys);
 }
 
-const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
-
-/** Strict base64: rejects invalid characters and non-canonical input instead of dropping them. */
-export function decodeStrictBase64(text: string): Buffer | null {
-  if (!BASE64_PATTERN.test(text)) {
-    return null;
-  }
-  const decoded = Buffer.from(text, "base64");
-  const canonical = decoded.toString("base64").replace(/=+$/, "");
-  return canonical === text.replace(/=+$/, "") ? decoded : null;
-}
-
 /**
  * Decodes a base64 string (for example from a secret store) into a key.
  * Rejects text that is not valid base64 or does not decode to 32 bytes.
  */
 export function decodeKey(base64Key: string): Uint8Array {
   const decodedKey =
-    typeof base64Key === "string" ? decodeStrictBase64(base64Key.trim()) : null;
+    typeof base64Key === "string"
+      ? decodeStrictBase64(padBase64(base64Key.trim()))
+      : null;
   if (decodedKey === null) {
     throw new SecretCryptoError(
       "invalid-key",

@@ -29,6 +29,15 @@ function codeOf(action: () => unknown): string | undefined {
   return undefined;
 }
 
+function captureError(action: () => unknown): Error {
+  try {
+    action();
+  } catch (error) {
+    return error as Error;
+  }
+  throw new Error("Expected the action to throw.");
+}
+
 describe("known-answer vector", () => {
   it("decrypts a payload written by the current format", () => {
     expect(decrypt(KNOWN_PAYLOAD, { primary: OLD_KEY }, CONTEXT)).toBe(
@@ -158,21 +167,15 @@ describe("failures", () => {
     );
   });
 
-  it("rejects a tampered ciphertext", () => {
+  it.each([
+    ["iv", 2],
+    ["auth tag", 3],
+    ["ciphertext", 4],
+  ])("rejects a tampered %s", (_label, segmentIndex) => {
     const segments = encrypt(PLAINTEXT, keys).split(":");
-    const ciphertext = Buffer.from(segments[4] ?? "", "base64");
-    ciphertext[0] = (ciphertext[0] ?? 0) ^ 0xff;
-    segments[4] = ciphertext.toString("base64");
-    expect(codeOf(() => decrypt(segments.join(":"), keys))).toBe(
-      "decryption-failed",
-    );
-  });
-
-  it("rejects a tampered auth tag", () => {
-    const segments = encrypt(PLAINTEXT, keys).split(":");
-    const authTag = Buffer.from(segments[3] ?? "", "base64");
-    authTag[0] = (authTag[0] ?? 0) ^ 0xff;
-    segments[3] = authTag.toString("base64");
+    const bytes = Buffer.from(segments[segmentIndex] ?? "", "base64");
+    bytes[0] = (bytes[0] ?? 0) ^ 0xff;
+    segments[segmentIndex] = bytes.toString("base64");
     expect(codeOf(() => decrypt(segments.join(":"), keys))).toBe(
       "decryption-failed",
     );
@@ -215,22 +218,27 @@ describe("failures", () => {
     );
   });
 
-  it("rejects a tampered iv", () => {
-    const segments = encrypt(PLAINTEXT, keys).split(":");
-    const iv = Buffer.from(segments[2] ?? "", "base64");
-    iv[0] = (iv[0] ?? 0) ^ 0xff;
-    segments[2] = iv.toString("base64");
-    expect(codeOf(() => decrypt(segments.join(":"), keys))).toBe(
-      "decryption-failed",
-    );
-  });
-
   it("validates the previous keys when encrypting", () => {
     expect(
       codeOf(() =>
         encrypt(PLAINTEXT, { primary: OLD_KEY, previous: [new Uint8Array(5)] }),
       ),
     ).toBe("invalid-key");
+  });
+
+  it("rejects previous keys that are not an array", () => {
+    expect(
+      codeOf(() =>
+        encrypt(PLAINTEXT, { primary: OLD_KEY, previous: 5 as never }),
+      ),
+    ).toBe("invalid-key");
+  });
+
+  it("rejects strings that are not well-formed Unicode", () => {
+    expect(codeOf(() => encrypt("\uD800", keys))).toBe("invalid-plaintext");
+    expect(codeOf(() => encrypt(PLAINTEXT, keys, "\uD800"))).toBe(
+      "invalid-associated-data",
+    );
   });
 
   it("rejects an unsupported version", () => {
@@ -254,31 +262,31 @@ describe("failures", () => {
     ).toBe("invalid-key");
   });
 
-  it("never puts key material or plaintext in an error message", () => {
+  describe("error messages", () => {
     const secretPlaintext = "super-secret-plaintext-value";
     const payload = encrypt(secretPlaintext, keys, CONTEXT);
     const keyHex = Buffer.from(OLD_KEY).toString("hex");
     const keyBase64 = Buffer.from(OLD_KEY).toString("base64");
 
-    const failures = [
-      () => decrypt(payload, keys, "wrong"),
-      () => decrypt(payload, { primary: OTHER_KEY }),
-      () => decrypt("garbage", keys),
-      () => encrypt(secretPlaintext, { primary: Buffer.from(keyHex) }),
-    ];
-    for (const failure of failures) {
-      try {
-        failure();
-        expect.unreachable();
-      } catch (error) {
-        const text = `${String(error)} ${JSON.stringify(error)} ${String((error as Error).stack)}`;
-        expect(error).toBeInstanceOf(SecretCryptoError);
-        for (const forbidden of [secretPlaintext, keyHex, keyBase64, payload]) {
-          expect(text).not.toContain(forbidden);
-        }
-        expect((error as Error).cause).toBeUndefined();
-      }
-    }
+    it.each([
+      ["wrong associated data", () => decrypt(payload, keys, "wrong")],
+      ["unknown key", () => decrypt(payload, { primary: OTHER_KEY })],
+      ["malformed payload", () => decrypt("garbage", keys)],
+      [
+        "invalid key",
+        () => encrypt(secretPlaintext, { primary: Buffer.from(keyHex) }),
+      ],
+    ])("never include key material or plaintext: %s", (_label, failure) => {
+      const error = captureError(failure);
+      const text = `${String(error)} ${JSON.stringify(error)} ${error.stack}`;
+
+      expect(error).toBeInstanceOf(SecretCryptoError);
+      expect(error.cause).toBeUndefined();
+      expect(text).not.toContain(secretPlaintext);
+      expect(text).not.toContain(keyHex);
+      expect(text).not.toContain(keyBase64);
+      expect(text).not.toContain(payload);
+    });
   });
 });
 

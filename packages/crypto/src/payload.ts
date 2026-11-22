@@ -1,5 +1,6 @@
 import { SecretCryptoError } from "./errors.ts";
-import { decodeStrictBase64 } from "./keys.ts";
+import { decodeStrictBase64 } from "./base64.ts";
+import { KEY_ID_HEX_LENGTH } from "./keys.ts";
 
 export const PAYLOAD_VERSION = "v2";
 export const IV_BYTE_LENGTH = 12;
@@ -30,7 +31,7 @@ function malformed(): SecretCryptoError {
 }
 
 const VERSION_PATTERN = /^v\d+$/;
-const KEY_ID_PATTERN = /^[0-9a-f]{8}$/;
+const KEY_ID_PATTERN = new RegExp(`^[0-9a-f]{${KEY_ID_HEX_LENGTH}}$`);
 
 export function parsePayload(payload: string): ParsedPayload {
   if (typeof payload !== "string") {
