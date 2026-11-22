@@ -21,6 +21,7 @@
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@neon-pixels/prettier-config": "workspace:*",
+    "@neon-pixels/tsconfig": "workspace:*",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",

@@ -184,6 +184,9 @@ importers:
       '@neon-pixels/prettier-config':
         specifier: workspace:*
         version: link:packages/prettier-config
+      '@neon-pixels/tsconfig':
+        specifier: workspace:*
+        version: link:packages/tsconfig
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -217,6 +220,19 @@ importers:
       prettier-plugin-tailwindcss:
         specifier: ^0.8.0
         version: 0.8.1(prettier@3.10.1)
+
+  packages/tsconfig:
+    dependencies:
+      '@types/node':
+        specifier: '>=22'
+        version: 26.6.6
+    devDependencies:
+      '@neon-pixels/tsconfig':
+        specifier: workspace:*
+        version: 'link:'
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
 
 packages:
 
