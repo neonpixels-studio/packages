@@ -1,5 +1,6 @@
 export interface PackedManifest {
   name?: string;
+  version?: string;
   main?: string;
   module?: string;
   types?: string;

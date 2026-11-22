@@ -90,8 +90,7 @@ describe("ci workflow release checks", () => {
   });
 
   it("runs a publish dry run", () => {
-    expect(jobBlock(CI, "release-dry-run")).toContain("npm publish");
-    expect(jobBlock(CI, "release-dry-run")).toContain("--dry-run");
+    expect(jobBlock(CI, "release-dry-run")).toContain("dry-run-packed.ts");
   });
 });
 
