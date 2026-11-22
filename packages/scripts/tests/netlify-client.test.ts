@@ -1,0 +1,155 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  createNetlifyClient,
+  NetlifyFatalError,
+  parseDeploy,
+  parseDeployList,
+} from "../src/netlify/client.ts";
+
+function respond(status: number, body: unknown): typeof fetch {
+  return vi.fn(async () =>
+    Response.json(body, { status }),
+  ) as unknown as typeof fetch;
+}
+
+describe("parseDeploy", () => {
+  it("maps Netlify field names and nulls absent ones", () => {
+    expect(
+      parseDeploy({ id: "a", state: "ready", commit_ref: "abc", site_id: "s" }),
+    ).toMatchObject({
+      id: "a",
+      state: "ready",
+      commitRef: "abc",
+      siteId: "s",
+      title: null,
+      errorMessage: null,
+    });
+  });
+
+  it("rejects a non-object payload", () => {
+    expect(() => parseDeploy("nope")).toThrow(NetlifyFatalError);
+  });
+
+  it("rejects a non-list payload", () => {
+    expect(() => parseDeployList({})).toThrow(NetlifyFatalError);
+  });
+});
+
+describe("createNetlifyClient", () => {
+  it("lists production deploys with the token in the header only", async () => {
+    const fetchImpl = respond(200, [{ id: "a", state: "ready" }]);
+    const client = createNetlifyClient({
+      siteId: "site 1",
+      token: "secret-token",
+      fetchImpl,
+    });
+    const deploys = await client.listProductionDeploys();
+    expect(deploys).toHaveLength(1);
+    const [url, init] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/sites/site%201/deploys?production=true");
+    expect(String(url)).not.toContain("secret-token");
+    expect(init?.headers).toEqual({ Authorization: "Bearer secret-token" });
+  });
+
+  it.each([401, 403])(
+    "treats HTTP %i as fatal without the token",
+    async (status) => {
+      const client = createNetlifyClient({
+        siteId: "s",
+        token: "secret-token",
+        fetchImpl: respond(status, {}),
+      });
+      const failure = await client
+        .getDeploy("abc")
+        .catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(NetlifyFatalError);
+      expect(String((failure as Error).message)).not.toContain("secret-token");
+    },
+  );
+
+  it("treats 404 as fatal", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(404, {}),
+    });
+    await expect(client.listProductionDeploys()).rejects.toBeInstanceOf(
+      NetlifyFatalError,
+    );
+  });
+
+  it("treats a 500 as transient", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(500, {}),
+    });
+    const failure = await client
+      .listProductionDeploys()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(NetlifyFatalError);
+  });
+
+  it("encodes the deploy id in the path", async () => {
+    const fetchImpl = respond(200, { id: "x", state: "ready" });
+    const client = createNetlifyClient({ siteId: "s", token: "t", fetchImpl });
+    await client.getDeploy("a/b");
+    expect(String(vi.mocked(fetchImpl).mock.calls[0]?.[0])).toContain(
+      "/deploys/a%2Fb",
+    );
+  });
+
+  it("treats a 422 as fatal and a 429 as transient", async () => {
+    const fatal = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(422, {}),
+    });
+    await expect(fatal.listProductionDeploys()).rejects.toBeInstanceOf(
+      NetlifyFatalError,
+    );
+    const transient = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(429, {}),
+    });
+    const failure = await transient
+      .listProductionDeploys()
+      .catch((error: unknown) => error);
+    expect(failure).not.toBeInstanceOf(NetlifyFatalError);
+  });
+
+  it("treats an interrupted body as transient", async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("terminated"));
+      },
+    });
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: vi.fn(
+        async () => new Response(body, { status: 200 }),
+      ) as unknown as typeof fetch,
+    });
+    const failure = await client
+      .listProductionDeploys()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(NetlifyFatalError);
+  });
+
+  it("treats a non-JSON 200 as fatal", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: vi.fn(
+        async () => new Response("<html>", { status: 200 }),
+      ) as unknown as typeof fetch,
+    });
+    await expect(client.listProductionDeploys()).rejects.toBeInstanceOf(
+      NetlifyFatalError,
+    );
+  });
+});
