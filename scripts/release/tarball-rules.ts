@@ -14,6 +14,10 @@ export interface PackedManifest {
 const ALWAYS_PACKED_PATTERN =
   /^(package\.json|(readme|license|licence|changelog)(\.[^/]*)?)$/i;
 const TEST_PATTERN = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+export function isTestFile(file: string): boolean {
+  return TEST_PATTERN.test(file);
+}
+
 const SOURCE_MAP_PATTERN = /\.map$/;
 const SECRET_PATTERN =
   /(^|\/)(\.env(\..*)?|\.npmrc|\.netrc|id_(rsa|ed25519)|[^/]*\.(pem|key|p12|pfx))$/i;
@@ -100,7 +104,7 @@ function isAllowed(file: string, manifest: PackedManifest): boolean {
 
 function problemsForEntry(file: string, manifest: PackedManifest): string[] {
   const problems: string[] = [];
-  if (TEST_PATTERN.test(file)) {
+  if (isTestFile(file)) {
     problems.push(`contains a test file: ${file}`);
   }
   if (SOURCE_MAP_PATTERN.test(file)) {
@@ -115,13 +119,20 @@ function problemsForEntry(file: string, manifest: PackedManifest): string[] {
   return problems;
 }
 
+/** Node resolves extensionless and directory entry points, so accept those. */
+function resolvesToPackedFile(target: string, files: Set<string>): boolean {
+  return [target, `${target}.js`, `${target}/index.js`].some((candidate) =>
+    files.has(candidate),
+  );
+}
+
 function missingOutputProblems(
   files: string[],
   manifest: PackedManifest,
 ): string[] {
   const fileSet = new Set(files);
   const missingEntryPoints = entryPoints(manifest)
-    .filter((target) => !fileSet.has(target))
+    .filter((target) => !resolvesToPackedFile(target, fileSet))
     .map((target) => `is missing built output: ${target}`);
   const emptyFilesEntries = (manifest.files ?? [])
     .filter((pattern) => !pattern.startsWith("!"))

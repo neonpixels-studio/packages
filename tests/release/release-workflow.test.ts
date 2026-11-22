@@ -25,10 +25,16 @@ describe("release workflow", () => {
     expect(RELEASE).toMatch(/^on:\n {2}push:\n {4}branches: \[main\]$/m);
   });
 
-  it("never cancels a release in progress and runs one at a time", () => {
-    expect(RELEASE).toMatch(
-      /^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m,
-    );
+  it("queues the version and publish phases and never cancels them", () => {
+    for (const [job, group] of [
+      ["version", "release-version"],
+      ["publish", "release-publish"],
+    ] as const) {
+      expect(jobBlock(RELEASE, job)).toContain(
+        `concurrency:\n      group: ${group}\n      cancel-in-progress: false`,
+      );
+    }
+    expect(RELEASE).not.toMatch(/cancel-in-progress: true/);
   });
 
   it("starts with no permissions and grants each job its own", () => {
@@ -79,7 +85,8 @@ describe("ci workflow release checks", () => {
   it("gates pull requests on a changeset, except the release branch", () => {
     const block = jobBlock(CI, "changeset-check");
     expect(block).toContain("check-changeset.ts");
-    expect(block).toContain("github.head_ref != 'changeset-release/main'");
+    expect(block).toContain("github.head_ref == 'changeset-release/main'");
+    expect(block).toContain("head.repo.full_name == github.repository");
   });
 
   it("runs a publish dry run", () => {

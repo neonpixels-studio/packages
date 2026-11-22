@@ -75,4 +75,14 @@ describe("findTarballProblems", () => {
     const problems = findTarballProblems(CLEAN_ENTRIES, manifest);
     expect(problems).toEqual(["is missing built output: dist/cli.js"]);
   });
+
+  it("accepts extensionless and directory main entries", () => {
+    const entries = ["package/package.json", "package/dist/index.js"];
+    expect(
+      findTarballProblems(entries, { files: ["dist"], main: "dist/index" }),
+    ).toEqual([]);
+    expect(
+      findTarballProblems(entries, { files: ["dist"], main: "./dist" }),
+    ).toEqual([]);
+  });
 });

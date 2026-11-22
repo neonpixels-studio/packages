@@ -23,6 +23,7 @@ function readChangesets(range: string): string[] {
   return git([
     "diff",
     "--name-only",
+    "--no-renames",
     "--diff-filter=AM",
     range,
     "--",
@@ -53,7 +54,7 @@ function reportProblems({ missing, unknown, majorBumps }: GateResult): void {
 function main(): number {
   const range = `${process.argv[2] ?? DEFAULT_BASE_REF}...HEAD`;
   const result = checkChangesets({
-    changedFiles: git(["diff", "--name-only", range]),
+    changedFiles: git(["diff", "--name-only", "--no-renames", range]),
     changesetContents: readChangesets(range),
     packages: listWorkspacePackages(process.cwd()),
   });

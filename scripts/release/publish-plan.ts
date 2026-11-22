@@ -23,6 +23,7 @@ export interface PartitionedPlan {
 
 interface PartitionOptions {
   existsOnNpm: (name: string) => boolean;
+  isVersionPublished: (release: PlanRelease) => boolean;
   dependenciesOf: (release: PlanRelease) => string[];
 }
 
@@ -33,32 +34,35 @@ interface PartitionOptions {
  */
 export function partitionPlan(
   plan: PublishPlan,
-  { existsOnNpm, dependenciesOf }: PartitionOptions,
+  { existsOnNpm, isVersionPublished, dependenciesOf }: PartitionOptions,
 ): PartitionedPlan {
   const blocked = new Set<string>();
   const missingFromNpm: PlanRelease[] = [];
   const heldBack: HeldBackRelease[] = [];
 
-  const classify = (release: PlanRelease): boolean => {
+  const classify = (release: PlanRelease): PlanRelease | null => {
     if (release.kind !== "publish") {
-      return true;
+      return release;
     }
     if (!existsOnNpm(release.name)) {
       blocked.add(release.name);
       missingFromNpm.push(release);
-      return false;
+      return null;
     }
     const blockedBy = dependenciesOf(release).find((name) => blocked.has(name));
     if (blockedBy) {
       blocked.add(release.name);
       heldBack.push({ release, blockedBy });
-      return false;
+      return null;
     }
-    return true;
+    // Already on npm (a re-run after a partial release): only tag it.
+    return isVersionPublished(release)
+      ? { ...release, kind: "tag-only" }
+      : release;
   };
 
   const publishable = plan
-    .map((chunk) => chunk.filter(classify))
+    .map((chunk) => chunk.map(classify).filter((release) => release !== null))
     .filter((chunk) => chunk.length > 0);
   return { publishable, missingFromNpm, heldBack };
 }

@@ -37,16 +37,27 @@ export function packageExistsOnNpm(
   }
 }
 
+/** True when this exact version is already on npm (a re-run after a partial release). */
+export function isVersionPublished(
+  name: string,
+  version: string,
+  runNpm: RunNpm = runNpmCommand,
+): boolean {
+  return packageExistsOnNpm(`${name}@${version}`, runNpm);
+}
+
 const MINIMUM_NPM_VERSION = [11, 5, 1] as const;
 
 /** npm trusted publishing needs npm 11.5.1 or newer. */
 export function isNpmNewEnoughForTrustedPublishing(version: string): boolean {
   const parts = version.trim().split(".").map(Number);
-  for (const [index, minimum] of MINIMUM_NPM_VERSION.entries()) {
-    const actual = parts[index] ?? 0;
-    if (actual !== minimum) {
-      return actual > minimum;
-    }
+  const differingIndex = MINIMUM_NPM_VERSION.findIndex(
+    (minimum, index) => (parts[index] ?? 0) !== minimum,
+  );
+  if (differingIndex === -1) {
+    return true;
   }
-  return true;
+  return (
+    (parts[differingIndex] ?? 0) > (MINIMUM_NPM_VERSION[differingIndex] ?? 0)
+  );
 }

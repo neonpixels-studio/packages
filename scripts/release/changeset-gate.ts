@@ -1,4 +1,4 @@
-import { matchesFilesEntry } from "./tarball-rules.ts";
+import { isTestFile, matchesFilesEntry } from "./tarball-rules.ts";
 import type { WorkspacePackage } from "./workspace.ts";
 
 export interface GateInput {
@@ -20,13 +20,6 @@ export interface GateResult {
 const BUMP_TYPES = new Set(["major", "minor", "patch"]);
 const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---/;
 const RELEASE_LINE_PATTERN = /^["']?([^"':]+)["']?\s*:\s*(\w+)\s*$/;
-const TEST_FILE_PATTERN =
-  /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
-
-function isTestOnly(file: string): boolean {
-  return TEST_FILE_PATTERN.test(file);
-}
-
 function isDocsOnly(file: string): boolean {
   return file.endsWith(".md");
 }
@@ -37,7 +30,7 @@ function changesPublishedOutput(
   file: string,
 ): boolean {
   const relative = file.slice(workspacePackage.directory.length + 1);
-  if (isTestOnly(relative) || isDocsOnly(relative)) {
+  if (isTestFile(relative) || isDocsOnly(relative)) {
     return false;
   }
   if (relative === "package.json" || !workspacePackage.files) {

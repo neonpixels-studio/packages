@@ -99,6 +99,18 @@ describe("check-changeset.ts", () => {
     expect(gate().status).toBe(0);
   });
 
+  it("catches a package file moved out of the package", () => {
+    repoWithPackage();
+    commit({
+      "packages/alpha/src/util.ts": "export const util = 1;\n".repeat(20),
+    });
+    git("checkout", "-q", "-B", "main");
+    git("checkout", "-q", "-b", "mover");
+    git("mv", "packages/alpha/src/util.ts", "util.ts");
+    git("commit", "-q", "-m", "move out");
+    expect(gate().status).toBe(1);
+  });
+
   it("passes a tooling-only change", () => {
     repoWithPackage();
     commit({ ".github/workflows/ci.yml": "name: CI", "tests/a.test.ts": "" });
@@ -236,6 +248,48 @@ echo "npm error code E404" >&2; exit 1
     const { bin, log } = stubBinaries([]);
     const result = publish(writePlan([[release("@neon-pixels/new")]]), bin);
     expect(result.status).toBe(1);
+    expect(() => readFileSync(log)).toThrow();
+  });
+
+  it("holds back a package whose real tarball depends on a missing one", () => {
+    const { bin, log } = stubBinaries(["@neon-pixels/alpha"]);
+    const packDirectory = join(workspace, "packed");
+    const fixture = join(workspace, "fixture");
+    write(
+      join(fixture, "package.json"),
+      JSON.stringify({
+        name: "@neon-pixels/alpha",
+        version: "0.2.0",
+        dependencies: { "@neon-pixels/new": "^0.2.0" },
+      }),
+    );
+    mkdirSync(join(packDirectory, "packages"), { recursive: true });
+    execFileSync(
+      "npm",
+      ["pack", "--pack-destination", join(packDirectory, "packages")],
+      {
+        cwd: fixture,
+        stdio: "pipe",
+      },
+    );
+    const tarball = { path: "packages/neon-pixels-alpha-0.2.0.tgz" };
+    write(
+      join(packDirectory, "publish-plan.json"),
+      JSON.stringify({
+        version: 1,
+        plan: [
+          [{ ...release("@neon-pixels/new"), tarball }],
+          [{ ...release("@neon-pixels/alpha"), tarball }],
+        ],
+      }),
+    );
+
+    const result = publish(packDirectory, bin);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "@neon-pixels/alpha was not published because it depends on @neon-pixels/new",
+    );
     expect(() => readFileSync(log)).toThrow();
   });
 

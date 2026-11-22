@@ -48,7 +48,7 @@ jobs:
   # Fails a pull request that changes a published package without a changeset.
   # Skipped on the release branch, whose commit consumes the changesets.
   changeset-check:
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: github.event_name == 'pull_request' && !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -17,11 +17,13 @@ const PLAN: PublishPlan = [
 ];
 
 const noDependencies = () => [];
+const neverPublished = () => false;
 
 describe("partitionPlan", () => {
   it("keeps publishable packages and reports the ones missing from npm", () => {
     const { publishable, missingFromNpm } = partitionPlan(PLAN, {
       existsOnNpm: (name) => name !== "@neon-pixels/new",
+      isVersionPublished: neverPublished,
       dependenciesOf: noDependencies,
     });
     expect(publishable).toEqual([
@@ -36,6 +38,7 @@ describe("partitionPlan", () => {
   it("drops chunks that end up empty", () => {
     const { publishable } = partitionPlan(PLAN, {
       existsOnNpm: (name) => name !== "@neon-pixels/alpha",
+      isVersionPublished: neverPublished,
       dependenciesOf: noDependencies,
     });
     expect(publishable).toHaveLength(1);
@@ -54,6 +57,7 @@ describe("partitionPlan", () => {
     };
     const { publishable, heldBack } = partitionPlan(plan, {
       existsOnNpm: (name) => name !== "@neon-pixels/new",
+      isVersionPublished: neverPublished,
       dependenciesOf: (entry) => dependencies[entry.name] ?? [],
     });
     expect(publishable).toEqual([[release("@neon-pixels/gamma")]]);
@@ -65,10 +69,23 @@ describe("partitionPlan", () => {
     );
   });
 
+  it("turns an already-published version into a tag-only release", () => {
+    const { publishable } = partitionPlan(PLAN, {
+      existsOnNpm: () => true,
+      isVersionPublished: (entry) => entry.name === "@neon-pixels/alpha",
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable[0]).toEqual([
+      { ...release("@neon-pixels/alpha"), kind: "tag-only" },
+    ]);
+    expect(publishable[1]).toEqual(PLAN[1]);
+  });
+
   it("keeps tag-only releases", () => {
     const tagOnly = { kind: "tag-only", name: "x", version: "1.0.0" } as const;
     const { publishable } = partitionPlan([[tagOnly]], {
       existsOnNpm: () => false,
+      isVersionPublished: neverPublished,
       dependenciesOf: noDependencies,
     });
     expect(publishable).toEqual([[tagOnly]]);

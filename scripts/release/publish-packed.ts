@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   isNpmNewEnoughForTrustedPublishing,
+  isVersionPublished,
   packageExistsOnNpm,
 } from "./npm-registry.ts";
 import {
@@ -82,6 +83,8 @@ function main(): number {
     planFile.plan,
     {
       existsOnNpm: packageExistsOnNpm,
+      isVersionPublished: (release) =>
+        isVersionPublished(release.name, release.version),
       dependenciesOf: (release) => dependenciesIn(packDirectory, release),
     },
   );

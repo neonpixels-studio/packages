@@ -15,12 +15,10 @@ on:
 # Each job declares only what it needs.
 permissions: {}
 
-# One release at a time. cancel-in-progress stays false so a publish that is
-# already running is never interrupted; GitHub only drops runs still queued
-# behind it, in favor of the newest push.
-concurrency:
-  group: release
-  cancel-in-progress: false
+# Concurrency is per job, not per workflow. A workflow-level group keeps one
+# pending run, so a later push could displace a queued run of the publish phase.
+# Here each phase queues behind itself, and select-mode (read-only) always runs.
+# cancel-in-progress is false everywhere, so nothing is cancelled mid-publish.
 
 env:
   HUSKY: 0
@@ -53,6 +51,9 @@ jobs:
   version:
     needs: select-mode
     if: needs.select-mode.outputs.mode == 'version'
+    concurrency:
+      group: release-version
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -121,6 +122,9 @@ jobs:
 
   publish:
     needs: pack
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
