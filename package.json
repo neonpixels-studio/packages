@@ -20,6 +20,7 @@
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
+    "@neon-pixels/eslint-config": "workspace:*",
     "@neon-pixels/prettier-config": "workspace:*",
     "@neon-pixels/scripts": "workspace:*",
     "@neon-pixels/tsconfig": "workspace:*",

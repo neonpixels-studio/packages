@@ -1,0 +1,10 @@
+<script setup lang="ts">
+const route = useRoute();
+</script>
+
+<template>
+  <main>
+    <h1>{{ route.path }}</h1>
+    <img src="/logo.svg" alt="Logo" />
+  </main>
+</template>

@@ -1,0 +1,3 @@
+import { useUser as rawUser } from "@clerk/vue";
+
+export const wrapped = rawUser;

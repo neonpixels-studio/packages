@@ -1,0 +1,9 @@
+<script setup lang="ts">
+import { ref } from "vue";
+
+const html = ref<string>("<b>hi</b>");
+</script>
+
+<template>
+  <div v-html="html" />
+</template>
