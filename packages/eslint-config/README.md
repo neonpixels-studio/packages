@@ -68,7 +68,17 @@ export default defineConfig(
 
 Nuxt auto-imports (`useRoute`, `ref`, your own composables, module composables) are resolved by the project, not by this package. The package keeps no list of globals. Instead, wrap the config with `withNuxt()` from `@nuxt/eslint`: the module generates `.nuxt/eslint.config.mjs` on `nuxt prepare` / `nuxt dev`, and its `withNuxt` adds a globals block built from the project's real auto-import registry (layers, modules, `composables/`, `utils/`). That list updates itself when you add a composable, so it cannot go stale. This is why `@nuxt/eslint` is a peer for this entry point, and why `no-undef` still reports auto-imports if you use the config without `withNuxt`.
 
-Add `@nuxt/eslint` to `modules` in `nuxt.config.ts`, run `pnpm nuxt prepare`, then:
+Add `@nuxt/eslint` to `modules` in `nuxt.config.ts` with `standalone` turned off, so `withNuxt()` adds only the Nuxt-specific parts (auto-import globals, Nuxt rules) and this package supplies the base, Vue, and TypeScript rules. Without it, two copies of the Vue and TypeScript rule sets run and ESLint can throw on duplicate plugin instances.
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ["@nuxt/eslint"],
+  eslint: { config: { standalone: false } },
+});
+```
+
+Run `pnpm nuxt prepare`, then:
 
 ```js
 // eslint.config.mjs

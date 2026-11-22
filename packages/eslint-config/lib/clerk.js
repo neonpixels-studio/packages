@@ -32,6 +32,10 @@ export const clerkWrapperRestriction = {
   },
 };
 
+function isBlankPattern(/** @type {unknown} */ pattern) {
+  return typeof pattern !== "string" || pattern === "";
+}
+
 /**
  * Turns the Clerk restriction off for the files the app uses to wrap Clerk.
  * Spread it after the entry point's config.
@@ -40,9 +44,15 @@ export const clerkWrapperRestriction = {
  * @returns {import("eslint").Linter.Config}
  */
 export function allowClerkComposables(files) {
+  const patterns = [files].flat();
+  if (!patterns.length || patterns.some(isBlankPattern)) {
+    throw new TypeError(
+      "allowClerkComposables() needs at least one non-empty glob pattern.",
+    );
+  }
   return {
     name: "neon-pixels/clerk-wrapper-exemption",
-    files: [files].flat(),
+    files: patterns,
     rules: {
       "no-restricted-imports": "off",
       "no-restricted-syntax": "off",

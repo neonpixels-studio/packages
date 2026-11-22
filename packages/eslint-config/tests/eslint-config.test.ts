@@ -70,6 +70,16 @@ describe("vitepress entry point", () => {
     expect(ruleIds).toEqual([NO_V_HTML]);
   });
 
+  it("allows the single-word theme Layout.vue", async () => {
+    expect(
+      await lintFixture(
+        vitepressConfig,
+        "vitepress/clean.vue",
+        "docs/.vitepress/theme/Layout.vue",
+      ),
+    ).toEqual([]);
+  });
+
   it("applies the accessibility recommended rules", async () => {
     expect(
       await lintFixture(
@@ -216,6 +226,49 @@ describe("nuxt entry point", () => {
         "app/composables/other.ts",
       ),
     ).toContain(CLERK_SYNTAX);
+  });
+
+  it("accepts several patterns, for scripts and components alike", async () => {
+    const config = [
+      ...nuxtConfig,
+      {
+        languageOptions: {
+          globals: { useAuth: "readonly", useUser: "readonly" },
+        },
+      },
+      allowClerkComposables([
+        "app/composables/a.ts",
+        "app/composables/UserBadge.vue",
+      ]),
+    ];
+    expect(
+      await lintFixture(config, "nuxt/clerk-call.ts", "app/composables/a.ts"),
+    ).toEqual([]);
+    expect(
+      await lintFixture(
+        config,
+        "nuxt/clerk-template.vue",
+        "app/composables/UserBadge.vue",
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects missing or empty patterns", () => {
+    expect(() => allowClerkComposables([])).toThrow(TypeError);
+    expect(() => allowClerkComposables("")).toThrow(TypeError);
+    expect(() => allowClerkComposables(undefined as unknown as string)).toThrow(
+      TypeError,
+    );
+  });
+
+  it("forbids the composables imported from #imports", async () => {
+    expect(
+      await lintFixture(
+        nuxtConfig,
+        "nuxt/clerk-nuxt-import.ts",
+        "app/composables/raw.ts",
+      ),
+    ).toEqual([CLERK_IMPORTS]);
   });
 
   it("is not exempt by default anywhere", async () => {
