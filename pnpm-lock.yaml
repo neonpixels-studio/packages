@@ -187,6 +187,9 @@ importers:
       '@neon-pixels/scripts':
         specifier: workspace:*
         version: link:packages/scripts
+      '@neon-pixels/tsconfig':
+        specifier: workspace:*
+        version: link:packages/tsconfig
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -230,6 +233,18 @@ importers:
         version: 0.8.1(prettier@3.10.1)
 
   packages/scripts: {}
+
+  packages/tsconfig:
+    devDependencies:
+      '@neon-pixels/tsconfig':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
 
 packages:
 
