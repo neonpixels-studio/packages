@@ -1,0 +1,123 @@
+# Publishes preview builds of the packages to pkg.pr.new. Nothing goes to npm;
+# only the "Version Packages" pull request publishes there (release.yml).
+#
+# Two triggers:
+#   - a pull request receives an approving review from someone with write
+#     access: previews the reviewed commit, installable by PR number or SHA
+#   - every push to main: previews main, installable as `@main`
+#
+# Threat model: on a public repo anyone can submit an approving review, and a
+# pull request may come from a fork. So the `check` job verifies, through the
+# GitHub API, that the approver has write access before `publish` runs at all.
+# `publish` builds the reviewed commit, which is code a write-access reviewer
+# has read. It still runs with a read-only token, no secrets, and no persisted
+# git credentials. This workflow never uses pull_request_target.
+# Limit: a pull request event runs the workflow file from the pull request's own
+# merge ref, so a fork can edit this file and drop the gate. The gate protects
+# same-repo pull requests and stranger approvals; for forks, keep Settings >
+# Actions > General > "Require approval for all external contributors" on.
+name: Preview release
+
+on:
+  pull_request_review:
+    types: [submitted]
+  push:
+    branches: [main]
+
+permissions: {}
+
+env:
+  HUSKY: 0
+
+jobs:
+  check:
+    # Skips every review that is not an approval.
+    if: github.event_name == 'push' || github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.permission.outputs.allowed }}
+    steps:
+      - name: Check the approver has write access
+        id: permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REVIEWER: ${{ github.event.review.user.login }}
+          REPOSITORY: ${{ github.repository }}
+          REVIEWED_COMMIT: ${{ github.event.review.commit_id }}
+          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "push" ]; then
+            echo "allowed=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if [ "${REVIEWED_COMMIT}" != "${HEAD_COMMIT}" ]; then
+            echo "::notice::The approval is for an older commit than the head, so no preview is published. Approve the latest commit."
+            echo "allowed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          case "${REVIEWER}" in
+            *"[bot]")
+              echo "::notice::${REVIEWER} is an app, so no preview is published."
+              echo "allowed=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+              ;;
+          esac
+          permission="$(gh api "repos/${REPOSITORY}/collaborators/${REVIEWER}/permission" --jq '.permission')"
+          echo "Reviewer ${REVIEWER} has the ${permission} permission."
+          case "${permission}" in
+            # The legacy `.permission` field folds maintain into write.
+            admin | write)
+              echo "allowed=true" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::notice::${REVIEWER} lacks write access, so no preview is published."
+              echo "allowed=false" >> "${GITHUB_OUTPUT}"
+              ;;
+          esac
+
+  publish:
+    needs: check
+    if: needs.check.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # Scoped to this job so a comment-only or unauthorised review cannot cancel
+    # an approved build: those runs never get past `check`.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      # The reviewed commit, not the PR merge ref, so a push made after the
+      # approval is never published without a fresh approval.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.review.commit_id || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # One publish for every public package, because pkg.pr.new must run once
+      # per workflow. Private workspace packages are left out. `--pnpm` packs
+      # with pnpm so `workspace:` ranges resolve (and catalogs, if ever added).
+      - name: Publish the preview
+        run: |
+          set -euo pipefail
+          package_list="$(
+            pnpm --filter "./packages/*" ls --depth -1 --json |
+              jq -r --arg root "$(pwd -P)/" '.[] | select(.private != true) | .path | ltrimstr($root)'
+          )"
+          if [ -z "${package_list}" ]; then
+            echo "::notice::No publishable packages in ./packages, nothing to preview."
+            exit 0
+          fi
+          mapfile -t package_dirs <<< "${package_list}"
+          pnpm exec pkg-pr-new publish --pnpm --comment=update "${package_dirs[@]}"
