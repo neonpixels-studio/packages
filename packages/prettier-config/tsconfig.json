@@ -8,5 +8,5 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["*.js", "tests"]
+  "include": ["*.js", "*.d.ts", "tests"]
 }

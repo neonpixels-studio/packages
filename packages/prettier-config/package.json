@@ -10,13 +10,21 @@
     "directory": "packages/prettier-config"
   },
   "exports": {
-    ".": "./index.js",
-    "./tailwind": "./tailwind.js",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./tailwind": {
+      "types": "./tailwind.d.ts",
+      "default": "./tailwind.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
-    "tailwind.js"
+    "index.d.ts",
+    "tailwind.js",
+    "tailwind.d.ts"
   ],
   "publishConfig": {
     "access": "public"
@@ -28,7 +36,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "prettier": ">=3.0.0",
+    "prettier": "^3.0.0",
     "prettier-plugin-tailwindcss": ">=0.8.0 <1"
   },
   "peerDependenciesMeta": {

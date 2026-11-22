@@ -32,6 +32,10 @@ describe("default entry point", () => {
 
 describe("/tailwind entry point", () => {
   it("adds only the Tailwind plugin to the defaults", () => {
+    expect({ ...tailwindConfig, plugins: undefined }).toEqual({
+      ...defaultConfig,
+      plugins: undefined,
+    });
     expect(tailwindConfig.plugins).toEqual([
       ...(defaultConfig.plugins ?? []),
       expect.any(URL),
