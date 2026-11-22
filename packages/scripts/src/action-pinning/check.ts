@@ -6,10 +6,11 @@ export interface PinningViolation {
 }
 
 const USES_PATTERN =
-  /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:'([^']*)'|"([^"]*)"|(\S+))(.*)$/;
+  /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:'([^']*)'|"([^"]*)"|([^\s,}]+))(.*)$/;
+const BARE_USES_PATTERN = /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:#.*)?$/;
 const COMMIT_REFERENCE_PATTERN = /^[^@\s]+@[0-9a-f]{40}$/;
 const DOCKER_DIGEST_PATTERN = /^docker:\/\/\S+@sha256:[0-9a-f]{64}$/;
-const VERSION_COMMENT_PATTERN = /^\s+#\s*v?\d/;
+const VERSION_COMMENT_PATTERN = /#\s*v?\d/;
 const DOCKER_PREFIX = "docker://";
 
 function isLocalReference(reference: string): boolean {
@@ -40,6 +41,14 @@ function violationForLine(
   text: string,
   index: number,
 ): PinningViolation | null {
+  if (BARE_USES_PATTERN.test(text)) {
+    return {
+      file,
+      line: index + 1,
+      reference: "uses:",
+      reason: "has its value on a following line, put it on the same line",
+    };
+  }
   const match = USES_PATTERN.exec(text);
   if (!match) {
     return null;

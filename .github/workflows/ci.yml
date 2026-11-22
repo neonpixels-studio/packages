@@ -144,11 +144,11 @@ jobs:
         with:
           node-version-file: .nvmrc
       # The gate is this repo's own @neon-pixels/scripts package, so it has to
-      # be built first. Dependency install scripts stay disabled so none run
-      # before the audit.
+      # be built first (only that package, with its own toolchain). Dependency
+      # install scripts stay disabled.
       - run: pnpm install --frozen-lockfile --ignore-scripts
         env:
           HUSKY: 0
-      - run: pnpm build
+      - run: pnpm --filter @neon-pixels/scripts build
       - name: Audit production dependencies (fail on high/critical)
         run: pnpm exec np-audit-gate

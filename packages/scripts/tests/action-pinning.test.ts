@@ -60,6 +60,15 @@ describe("findPinningViolations", () => {
   it("checks flow mappings and quoted keys", () => {
     expect(check("- { uses: actions/checkout@v4 }")).toHaveLength(1);
     expect(check('  "uses": actions/checkout@v4')).toHaveLength(1);
+    expect(
+      check(`- { uses: actions/checkout@${SHA}, with: { ref: main } } # v4`),
+    ).toEqual([]);
+    expect(check(`- { uses: actions/checkout@${SHA} } # v4`)).toEqual([]);
+  });
+
+  it("fails a uses key whose value is on the next line", () => {
+    expect(check("- uses:")[0]?.reason).toContain("following line");
+    expect(check("  uses: # note")).toHaveLength(1);
   });
 
   it("accepts a docker image pinned by digest", () => {

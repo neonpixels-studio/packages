@@ -18,13 +18,13 @@ function describeAdvisory(advisory: Advisory): string {
 }
 
 function countBySeverity(advisories: Advisory[]): Record<string, number> {
-  const counts: Record<string, number> = Object.fromEntries(
+  const counts = new Map<string, number>(
     REPORTED_SEVERITIES.map((severity) => [severity, 0]),
   );
   for (const advisory of advisories) {
-    counts[advisory.severity] = (counts[advisory.severity] ?? 0) + 1;
+    counts.set(advisory.severity, (counts.get(advisory.severity) ?? 0) + 1);
   }
-  return counts;
+  return Object.fromEntries(counts);
 }
 
 function expiredFailures(entries: AllowlistEntry[], now: Date): string[] {

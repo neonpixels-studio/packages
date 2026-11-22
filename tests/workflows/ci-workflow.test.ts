@@ -41,7 +41,7 @@ describe("ci workflow", () => {
     );
     const steps = [
       "pnpm install --frozen-lockfile --ignore-scripts",
-      "run: pnpm build",
+      "run: pnpm --filter @neon-pixels/scripts build",
       "pnpm exec np-audit-gate",
     ].map((step) => auditJob.indexOf(step));
     expect(steps).not.toContain(-1);

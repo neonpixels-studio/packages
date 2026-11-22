@@ -40,6 +40,11 @@ describe("evaluateAudit", () => {
     expect(result.severityCounts["moderate"]).toBe(1);
   });
 
+  it("counts odd severity names as plain keys", () => {
+    const odd = { ...HIGH, severity: "constructor" };
+    expect(evaluateAudit([odd], [], NOW).severityCounts["constructor"]).toBe(1);
+  });
+
   it("passes an allowlisted advisory and lists it as accepted", () => {
     const result = evaluateAudit([HIGH], [ENTRY], NOW);
     expect(result.failures).toEqual([]);
