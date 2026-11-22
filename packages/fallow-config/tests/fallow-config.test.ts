@@ -110,4 +110,15 @@ describe("extended by a consumer through npm:", () => {
 
     expect(resolveConfig(projectDir).duplicates.minOccurrences).toBe(4);
   });
+
+  it("keeps sibling health thresholds when a consumer overrides one", () => {
+    const projectDir = createConsumerProject({
+      ...EXTENDS_BASE,
+      health: { maxCyclomatic: 25 },
+    });
+    const resolved = resolveConfig(projectDir);
+
+    expect(resolved.health.maxCyclomatic).toBe(25);
+    expect(resolved.health.maxCognitive).toBe(15);
+  });
 });
