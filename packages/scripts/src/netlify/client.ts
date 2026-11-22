@@ -79,7 +79,10 @@ function failureFor(status: number): Error {
 async function readJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
     throw new NetlifyFatalError(
       `Netlify returned a body that is not JSON (HTTP ${response.status}).`,
     );

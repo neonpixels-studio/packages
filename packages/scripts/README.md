@@ -1,6 +1,6 @@
 # @neon-pixels/scripts
 
-CI and deploy scripts for Neon Pixels projects. They are command-line tools with no library API. The gates print one line per failure and exit non-zero; `np-should-deploy` fails only on a usage error (see below). None prints environment variables or tokens.
+CI and deploy scripts for Neon Pixels projects. They are command-line tools with no library API. The gates print one line per failure and exit non-zero; `np-should-deploy` fails only on a usage error or when it cannot write `GITHUB_OUTPUT` (see below). None prints environment variables or tokens.
 
 ## Install
 
@@ -71,7 +71,7 @@ Environment variables, all passed by the workflow:
 - `CURRENT_SHA`: the commit on `main` to compare against the live deploy.
 - `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
 
-Every uncertain case deploys: a missing variable, a Netlify lookup error, or no successful production deploy on record all give `skip=false`, because a redundant deploy is cheap and a silently skipped one leaves a commit unshipped. It exits 0 either way; it only fails on a usage error such as an unknown flag.
+Every uncertain case deploys: a missing variable, a Netlify lookup error, or no successful production deploy on record all give `skip=false`, because a redundant deploy is cheap and a silently skipped one leaves a commit unshipped. It exits 0 either way; it only fails on a usage error such as an unknown flag, or when `GITHUB_OUTPUT` cannot be written.
 
 ## `np-verify-netlify-deploy`
 

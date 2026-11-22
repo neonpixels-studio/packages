@@ -76,6 +76,11 @@ describe("findTriggeredDeploy", () => {
     ).toBeNull();
   });
 
+  it("ignores a non-production deploy with the title", () => {
+    const preview = deploy({ context: "deploy-preview" });
+    expect(findTriggeredDeploy([preview], target)).toBeNull();
+  });
+
   it("ignores deploys created before the trigger beyond the clock skew", () => {
     const stale = deploy({ createdAt: "2026-11-22T09:50:00Z" });
     expect(findTriggeredDeploy([stale], target)).toBeNull();

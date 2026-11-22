@@ -120,6 +120,26 @@ describe("createNetlifyClient", () => {
     expect(failure).not.toBeInstanceOf(NetlifyFatalError);
   });
 
+  it("treats an interrupted body as transient", async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("terminated"));
+      },
+    });
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: vi.fn(
+        async () => new Response(body, { status: 200 }),
+      ) as unknown as typeof fetch,
+    });
+    const failure = await client
+      .listProductionDeploys()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(NetlifyFatalError);
+  });
+
   it("treats a non-JSON 200 as fatal", async () => {
     const client = createNetlifyClient({
       siteId: "s",

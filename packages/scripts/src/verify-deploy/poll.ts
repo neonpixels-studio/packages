@@ -1,5 +1,8 @@
-import { NetlifyFatalError, type NetlifyClient } from "../netlify/client.ts";
-import type { NetlifyDeploy } from "../netlify/client.ts";
+import {
+  NetlifyFatalError,
+  type NetlifyClient,
+  type NetlifyDeploy,
+} from "../netlify/client.ts";
 import { describeError } from "../workflow-command.ts";
 import {
   describeOwnershipProblem,

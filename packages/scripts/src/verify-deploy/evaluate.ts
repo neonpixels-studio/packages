@@ -49,6 +49,7 @@ export function findTriggeredDeploy(
   return (
     deploys.find(
       (deploy) =>
+        deploy.context === PRODUCTION_CONTEXT &&
         deploy.title === target.title &&
         deploy.createdAt !== null &&
         Date.parse(deploy.createdAt) >= earliest,

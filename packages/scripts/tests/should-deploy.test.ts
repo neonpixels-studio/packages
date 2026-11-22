@@ -156,6 +156,14 @@ describe("runShouldDeploy", () => {
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
 
+  it("exits 1 when the decision cannot be written", async () => {
+    const testEnvironment = environment(full, async () => []);
+    testEnvironment.appendOutput = () => {
+      throw new Error("EACCES");
+    };
+    expect(await runShouldDeploy([], testEnvironment)).toBe(1);
+  });
+
   it("fails on an unknown flag", async () => {
     const testEnvironment = environment(full, async () => []);
     expect(await runShouldDeploy(["--nope"], testEnvironment)).toBe(1);
