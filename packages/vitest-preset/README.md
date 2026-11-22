@@ -65,6 +65,6 @@ The `nuxt` preset assigns these to `globalThis` before your setup files run, so 
 - `defineNuxtRouteMiddleware` and `defineEventHandler`: identity functions
 - `useRuntimeConfig`: returns `{ public: {} }`
 - `useHead`: no-op
-- `createError`: returns an `Error` carrying `statusCode`, `statusMessage`, and `data`; accepts a message string or an options object like h3
+- `createError`: returns an `Error` carrying `statusCode`, `statusMessage`, and `data`; accepts a message string or an options object like h3. Targets h3 v1 (Nuxt 4): it reads `statusCode` and `statusMessage`, not h3 v2's `status` and `statusText`.
 
 Anything else your code auto-imports (your own composables, `useFetch`) you stub in your setup file.

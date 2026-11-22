@@ -9,7 +9,7 @@ import {
 const EXPECTED_FILES: Record<string, string[]> = {
   node: ["environment.fixture.ts"],
   vitepress: ["browser.fixture.ts", "Greeting.fixture.ts"],
-  nuxt: ["browser.fixture.ts", "Greeting.fixture.ts"],
+  nuxt: ["browser.fixture.ts", "Counter.fixture.ts", "Greeting.fixture.ts"],
   "nuxt-stubs": ["nuxt.fixture.ts"],
 };
 
