@@ -12,6 +12,10 @@
 # `publish` builds the reviewed commit, which is code a write-access reviewer
 # has read. It still runs with a read-only token, no secrets, and no persisted
 # git credentials. This workflow never uses pull_request_target.
+# Limit: a pull request event runs the workflow file from the pull request's own
+# merge ref, so a fork can edit this file and drop the gate. The gate protects
+# same-repo pull requests and stranger approvals; for forks, keep Settings >
+# Actions > General > "Require approval for all external contributors" on.
 name: Preview release
 
 on:
@@ -56,6 +60,13 @@ jobs:
             echo "allowed=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
+          case "${REVIEWER}" in
+            *"[bot]")
+              echo "::notice::${REVIEWER} is an app, so no preview is published."
+              echo "allowed=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+              ;;
+          esac
           permission="$(gh api "repos/${REPOSITORY}/collaborators/${REVIEWER}/permission" --jq '.permission')"
           echo "Reviewer ${REVIEWER} has the ${permission} permission."
           case "${permission}" in

@@ -56,9 +56,19 @@ describe("preview release workflow", () => {
   });
 
   it("refuses approvals of a commit that is no longer the head", () => {
-    expect(PREVIEW_WORKFLOW_CODE).toContain(
-      '[ "${REVIEWED_COMMIT}" != "${HEAD_COMMIT}" ]',
+    const staleGuard = PREVIEW_WORKFLOW_CODE.match(
+      /\[ "\$\{REVIEWED_COMMIT\}" != "\$\{HEAD_COMMIT\}" \]; then\n(?:(?!allowed=true|gh api).*\n)*?\s+echo "allowed=false".*\n\s+exit 0\n\s+fi/,
     );
+    expect(staleGuard).not.toBeNull();
+    expect(staleGuard?.index).toBeLessThan(
+      PREVIEW_WORKFLOW_CODE.indexOf("gh api"),
+    );
+  });
+
+  it("skips app reviewers before calling the permission API", () => {
+    const botGuard = PREVIEW_WORKFLOW_CODE.indexOf('*"[bot]")');
+    expect(botGuard).toBeGreaterThan(-1);
+    expect(botGuard).toBeLessThan(PREVIEW_WORKFLOW_CODE.indexOf("gh api"));
   });
 
   it("scopes concurrency to the publish job so other reviews cannot cancel it", () => {
