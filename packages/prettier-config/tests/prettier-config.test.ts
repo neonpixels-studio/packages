@@ -38,7 +38,7 @@ describe("/tailwind entry point", () => {
     });
     expect(tailwindConfig.plugins).toEqual([
       ...(defaultConfig.plugins ?? []),
-      expect.any(URL),
+      expect.any(String),
     ]);
     expect(String(tailwindConfig.plugins?.at(-1))).toContain(
       "prettier-plugin-tailwindcss",

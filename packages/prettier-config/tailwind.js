@@ -1,4 +1,4 @@
-import { URL } from "node:url";
+import { fileURLToPath } from "node:url";
 import base from "./index.js";
 
 // Resolved from this package so the plugin is found under strict layouts
