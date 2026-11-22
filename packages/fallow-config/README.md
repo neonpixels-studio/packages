@@ -8,7 +8,7 @@ Shared [fallow](https://fallow.tools) configuration for Neon Pixels projects.
 pnpm add -D fallow @neon-pixels/fallow-config
 ```
 
-fallow is a peer dependency, so install it yourself. It must be a version that supports `extends` with an `npm:` package (verified on 3.45).
+fallow is a peer dependency, so install it yourself. It must be a version that supports `extends` with an `npm:` package (3.45 or newer).
 
 ## Usage
 
