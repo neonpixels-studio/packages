@@ -39,14 +39,20 @@ describe("release workflow", () => {
 
   it("starts with no permissions and grants each job its own", () => {
     expect(RELEASE).toMatch(/^permissions: \{\}$/m);
-    for (const job of ["select-mode", "version", "pack", "publish"]) {
+    for (const job of [
+      "select-mode",
+      "version",
+      "pack",
+      "check-tarballs",
+      "publish",
+    ]) {
       expect(jobBlock(RELEASE, job)).toMatch(/^ {4}permissions:\n/m);
     }
   });
 
   it("gives id-token: write to the publish job only", () => {
     expect(jobBlock(RELEASE, "publish")).toContain("id-token: write");
-    for (const job of ["select-mode", "version", "pack"]) {
+    for (const job of ["select-mode", "version", "pack", "check-tarballs"]) {
       expect(jobBlock(RELEASE, job)).not.toContain("id-token");
     }
   });
@@ -71,8 +77,17 @@ describe("release workflow", () => {
   });
 
   it("checks tarballs before the publish job can start", () => {
-    expect(jobBlock(RELEASE, "pack")).toContain("check-tarballs.ts");
-    expect(jobBlock(RELEASE, "publish")).toMatch(/needs: pack/);
+    expect(jobBlock(RELEASE, "check-tarballs")).toContain("check-tarballs.ts");
+    expect(jobBlock(RELEASE, "publish")).toMatch(
+      /needs: \[pack, check-tarballs\]/,
+    );
+  });
+
+  it("never downloads an artifact in the job that uploaded it", () => {
+    expect(jobBlock(RELEASE, "pack")).not.toMatch(
+      /uses: actions\/download-artifact@/,
+    );
+    expect(jobBlock(RELEASE, "check-tarballs")).toMatch(/needs: pack/);
   });
 
   it("dispatches ci.yml on the release branch so the PR gets checks", () => {
