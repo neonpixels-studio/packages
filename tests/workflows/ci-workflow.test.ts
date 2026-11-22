@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const CI_WORKFLOW = readFileSync(
   fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url)),
   "utf-8",
-);
+).replaceAll("\r\n", "\n");
 
 describe("ci workflow", () => {
   it.each(["ci", "gitleaks", "dependency-audit"])(
