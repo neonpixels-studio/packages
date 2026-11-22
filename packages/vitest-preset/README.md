@@ -44,6 +44,8 @@ The presets take no options. Aliases, `include` globs, and setup files belong to
 | `@neon-pixels/vitest-preset/vitepress` | `happy-dom` | Shared exclusions, `TZ=UTC`, the Vue plugin, the `Comment`/`Text` global fix       |
 | `@neon-pixels/vitest-preset/nuxt`      | `happy-dom` | Everything in `vitepress`, plus stubs for Nuxt and Vue auto-imports (listed below) |
 
+The `vitepress` and `nuxt` presets already register `@vitejs/plugin-vue`. Do not add it again in your own config, or `.vue` files are transformed twice.
+
 Every preset excludes `**/e2e/**`, `**/.netlify/**`, `**/.nuxt/**`, and `**/.output/**` on top of Vitest's default exclusions.
 
 ### The `Comment` and `Text` global fix
@@ -58,8 +60,8 @@ The `nuxt` preset assigns these to `globalThis` before your setup files run, so 
 
 - Vue auto-imports: `computed`, `defineComponent`, `nextTick`, `onBeforeUnmount`, `onMounted`, `onScopeDispose`, `onUnmounted`, `reactive`, `ref`, `useAttrs`, `useSlots`, `watch`, `watchEffect`
 - `defineNuxtRouteMiddleware` and `defineEventHandler`: identity functions
-- `useRuntimeConfig`: returns `{}`
+- `useRuntimeConfig`: returns `{ public: {} }`
 - `useHead`: no-op
-- `createError`: returns an `Error` carrying `statusCode`, `statusMessage`, and `data`
+- `createError`: returns an `Error` carrying `statusCode`, `statusMessage`, and `data`; accepts a message string or an options object like h3
 
 Anything else your code auto-imports (your own composables, `useFetch`) you stub in your setup file.

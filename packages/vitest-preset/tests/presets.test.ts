@@ -1,20 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { ranFiles, runFixture } from "./helpers/runFixture.ts";
+import {
+  ranFiles,
+  runFixture,
+  type FixtureFile,
+} from "./helpers/runFixture.ts";
 
 const EXPECTED_FILES: Record<string, string[]> = {
   node: ["environment.fixture.ts"],
   vitepress: ["browser.fixture.ts", "Greeting.fixture.ts"],
-  nuxt: ["browser.fixture.ts", "nuxt.fixture.ts", "Greeting.fixture.ts"],
+  nuxt: ["browser.fixture.ts", "Greeting.fixture.ts"],
+  "nuxt-stubs": ["nuxt.fixture.ts"],
 };
+
+function describeFailures(file: FixtureFile): string[] {
+  const failedTests = file.assertionResults
+    .filter((assertion) => assertion.status !== "passed")
+    .map(
+      (assertion) =>
+        `${assertion.fullName}: ${assertion.failureMessages.join("\n")}`,
+    );
+  const loadFailure =
+    file.status === "passed" ? [] : [`${file.name}: ${file.message}`];
+  return [...failedTests, ...loadFailure];
+}
 
 describe.each(Object.keys(EXPECTED_FILES))("%s preset", (name) => {
   it("passes every test in its fixture project", async () => {
     const result = await runFixture(name);
-    const failures = result.testResults.flatMap((file) =>
-      file.assertionResults
-        .filter((assertion) => assertion.status !== "passed")
-        .map((assertion) => `${assertion.fullName}: ${file.message}`),
-    );
+    const failures = result.testResults.flatMap(describeFailures);
     expect(failures).toEqual([]);
     expect(result.success).toBe(true);
   }, 60_000);

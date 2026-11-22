@@ -5,11 +5,16 @@ declare const computed: typeof import("vue").computed;
 declare const defineEventHandler: <T>(handler: T) => T;
 declare const defineNuxtRouteMiddleware: <T>(handler: T) => T;
 declare const useRuntimeConfig: () => Record<string, unknown>;
-declare const createError: (input: {
-  statusCode: number;
-  statusMessage: string;
-  data?: unknown;
-}) => Error & { statusCode: number; data?: unknown };
+declare const createError: (
+  input:
+    | string
+    | {
+        statusCode?: number;
+        statusMessage?: string;
+        message?: string;
+        data?: unknown;
+      },
+) => Error & { statusCode?: number; statusMessage?: string; data?: unknown };
 
 it("provides Vue auto-imports without importing them", () => {
   const count = ref(2);
@@ -25,7 +30,7 @@ it("returns the inner function from handler wrappers", () => {
 });
 
 it("returns an empty runtime config", () => {
-  expect(useRuntimeConfig()).toEqual({});
+  expect(useRuntimeConfig()).toEqual({ public: {} });
 });
 
 it("creates errors that carry the status fields", () => {
@@ -37,7 +42,16 @@ it("creates errors that carry the status fields", () => {
   expect(error).toBeInstanceOf(Error);
   expect(error).toMatchObject({
     message: "Not found",
+    statusMessage: "Not found",
     statusCode: 404,
     data: { id: 1 },
+  });
+});
+
+it("accepts a message string or a message option like h3", () => {
+  expect(createError("Boom")).toMatchObject({ message: "Boom" });
+  expect(createError({ statusCode: 400, message: "Bad" })).toMatchObject({
+    message: "Bad",
+    statusCode: 400,
   });
 });

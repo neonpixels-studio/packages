@@ -38,18 +38,30 @@ const vueAutoImports = {
 /** @param {unknown} handler */
 const identity = (handler) => handler;
 
+/**
+ * h3's createError as a real Error carrying the status fields, so tests can
+ * assert with `rejects.toMatchObject({ statusCode })`. Takes a message string
+ * or an options object, like h3.
+ * @param {string | { statusCode?: number, statusMessage?: string, message?: string, data?: unknown }} input
+ */
+function createError(input) {
+  const options = typeof input === "string" ? { message: input } : input;
+  const { statusCode, statusMessage, message, data } = options;
+  return Object.assign(new Error(message ?? statusMessage), {
+    statusCode,
+    statusMessage,
+    data,
+  });
+}
+
 const nuxtAndNitroStubs = {
   defineNuxtRouteMiddleware: identity,
   defineEventHandler: identity,
   // Empty so code reading runtime config finds nothing. Tests that need values
   // stub their own with `vi.stubGlobal`.
-  useRuntimeConfig: () => ({}),
+  useRuntimeConfig: () => ({ public: {} }),
   useHead: () => {},
-  // h3's createError as a real Error carrying the status fields, so tests can
-  // assert with `rejects.toMatchObject({ statusCode })`.
-  /** @param {{ statusCode: number, statusMessage: string, data?: unknown }} input */
-  createError: ({ statusCode, statusMessage, data }) =>
-    Object.assign(new Error(statusMessage), { statusCode, data }),
+  createError,
 };
 
 Object.assign(globalThis, vueAutoImports, nuxtAndNitroStubs);
