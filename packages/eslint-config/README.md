@@ -102,6 +102,8 @@ Name your wrappers something other than `useAuth` and `useUser`, or the call che
 
 #### Overriding
 
+`allowClerkComposables()` switches off `no-restricted-imports`, `no-restricted-syntax`, and `vue/no-restricted-syntax` entirely for the files it matches, so put any restrictions of your own for those files in a block after it.
+
 A later `no-restricted-imports` or `no-restricted-syntax` block in your config replaces the Clerk rule for the files it matches (flat config does not merge rule options). Re-include the restriction in your own block if you need extra restrictions on the same files.
 
 ## License

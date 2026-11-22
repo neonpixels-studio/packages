@@ -70,6 +70,16 @@ describe("vitepress entry point", () => {
     expect(ruleIds).toEqual([NO_V_HTML]);
   });
 
+  it("keeps the multi-word rule for other components", async () => {
+    expect(
+      await lintFixture(
+        vitepressConfig,
+        "vitepress/clean.vue",
+        "docs/Title.vue",
+      ),
+    ).toEqual(["error:vue/multi-word-component-names"]);
+  });
+
   it("allows the single-word theme Layout.vue", async () => {
     expect(
       await lintFixture(
@@ -256,6 +266,7 @@ describe("nuxt entry point", () => {
   it("rejects missing or empty patterns", () => {
     expect(() => allowClerkComposables([])).toThrow(TypeError);
     expect(() => allowClerkComposables("")).toThrow(TypeError);
+    expect(() => allowClerkComposables("  ")).toThrow(TypeError);
     expect(() => allowClerkComposables(undefined as unknown as string)).toThrow(
       TypeError,
     );

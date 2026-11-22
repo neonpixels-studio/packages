@@ -33,7 +33,7 @@ export const clerkWrapperRestriction = {
 };
 
 function isBlankPattern(/** @type {unknown} */ pattern) {
-  return typeof pattern !== "string" || pattern === "";
+  return typeof pattern !== "string" || pattern.trim() === "";
 }
 
 /**

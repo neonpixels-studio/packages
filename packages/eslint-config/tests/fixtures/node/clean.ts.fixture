@@ -7,3 +7,8 @@ export async function load(path: string, _encoding?: string) {
     return process.env.FALLBACK ?? "";
   }
 }
+
+export const second = ((pair: [number, number]) => {
+  const [_first, last] = pair;
+  return last;
+})([1, 2]);
