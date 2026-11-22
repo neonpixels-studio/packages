@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { PackedManifest } from "./tarball-rules.ts";
 
+const TARBALL_PATTERN = /\.tgz$/;
 const MAX_TAR_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 function tar(args: string[]): string {
@@ -26,4 +29,15 @@ export function readInstalledDependencies(tarball: string): string[] {
     manifest.peerDependencies,
     manifest.optionalDependencies,
   ].flatMap((group) => Object.keys(group ?? {}));
+}
+
+/** Every .tgz under a directory, searching subdirectories. */
+export function findTarballs(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return findTarballs(path);
+    }
+    return TARBALL_PATTERN.test(entry.name) ? [path] : [];
+  });
 }
