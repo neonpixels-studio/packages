@@ -82,3 +82,24 @@ pnpm add -D /tmp/neon-pixels-packs/neon-pixels-<name>-<version>.tgz
 ```
 
 The tarball is what npm would serve, so it catches a wrong `files` list or `exports` map that a workspace link hides. Re-pack and re-install after each change. Do not commit the tarball path to the app.
+
+### Trying an unreleased package from a pull request or `main`
+
+Pack-and-install above works offline. The other route is a preview build published by [pkg.pr.new](https://pkg.pr.new) (`.github/workflows/preview-release.yml`). Nothing goes to npm.
+
+A preview is published when a reviewer with write access approves a pull request, and on every push to `main`. A pull request that is not approved yet has no preview. The workflow comments an install link on the pull request and updates that one comment on later runs.
+
+The link takes one of three forms. `<name>` is the package directory name, as in `packages/<name>`:
+
+```sh
+# By pull request number (follows the latest approved commit)
+pnpm add -D https://pkg.pr.new/@neon-pixels/<name>@<pull-request-number>
+# By commit (pinned)
+pnpm add -D https://pkg.pr.new/@neon-pixels/<name>@<short-sha>
+# Latest main
+pnpm add -D https://pkg.pr.new/@neon-pixels/<name>@main
+```
+
+The short form above (`https://pkg.pr.new/@neon-pixels/<name>@...`) only works once the package exists on npm, because pkg.pr.new reads the package's npm metadata to shorten the URL. Before that, use the long form the pull request comment shows, which includes `neonpixels-studio/packages`.
+
+A preview link may sit in an app's draft pull request while you test. Replace it with a released version before that pull request merges. A preview URL is not a version: it can disappear, and the app's lockfile would keep pointing at it.
