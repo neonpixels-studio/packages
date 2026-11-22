@@ -21,11 +21,13 @@
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@neon-pixels/prettier-config": "workspace:*",
+    "@neon-pixels/scripts": "workspace:*",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "prettier": "^3.10.1",
+    "tsdown": "^0.23.7",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0",
     "vitest": "^5.1.1"

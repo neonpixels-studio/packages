@@ -31,7 +31,11 @@ describe("ci workflow", () => {
     );
   });
 
-  it("audits only high severity production advisories", () => {
-    expect(CI_WORKFLOW).toContain("pnpm audit --prod --audit-level high");
+  it("audits production dependencies with the shared audit gate", () => {
+    expect(CI_WORKFLOW).toContain("pnpm exec np-audit-gate");
+  });
+
+  it("checks action pinning with the shared check", () => {
+    expect(CI_WORKFLOW).toContain("pnpm exec np-check-action-pinning");
   });
 });
