@@ -20,7 +20,9 @@ describe("ci workflow", () => {
   });
 
   it("cancels superseded runs", () => {
-    expect(CI_WORKFLOW).toMatch(/cancel-in-progress: true/);
+    expect(CI_WORKFLOW).toContain(
+      "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+    );
   });
 
   it("audits only high severity production advisories", () => {

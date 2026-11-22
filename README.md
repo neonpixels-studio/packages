@@ -5,13 +5,12 @@ Public `@neon-pixels` packages, shared across Neon Pixels apps. A pnpm workspace
 ## Requirements
 
 - Node.js `26.13.1` (see `.nvmrc`; `engines.node` is the supported floor)
-- pnpm, pinned by `packageManager` in `package.json`. Run `corepack enable` and the right version is used automatically.
+- pnpm, pinned by `packageManager` in `package.json`. [Install pnpm](https://pnpm.io/installation); Node 25+ no longer ships Corepack, so on older Node you can instead run `corepack enable`.
 - [gitleaks](https://github.com/gitleaks/gitleaks#installing) (optional) for the local pre-commit secret scan. CI always runs it.
 
 ## Setup
 
 ```sh
-corepack enable
 pnpm install
 ```
 
