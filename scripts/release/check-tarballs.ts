@@ -1,12 +1,13 @@
 // Fails when a packed tarball is missing built output, or contains tests,
 // source maps, secrets, or files outside the package's `files` list.
-// Usage: node scripts/release/check-tarballs.ts <directory-with-tarballs>
-import { execFileSync } from "node:child_process";
+// Usage: node scripts/release/check-tarballs.ts <directory-with-tarballs> [--require-tarballs]
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { findTarballProblems, type PackedManifest } from "./tarball-rules.ts";
+import { listTarballEntries, readTarballManifest } from "./tarball-reader.ts";
+import { findTarballProblems } from "./tarball-rules.ts";
 
 const TARBALL_PATTERN = /\.tgz$/;
+const REQUIRE_FLAG = "--require-tarballs";
 
 function listTarballs(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -18,19 +19,9 @@ function listTarballs(directory: string): string[] {
   });
 }
 
-function tar(args: string[]): string {
-  return execFileSync("tar", args, {
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-}
-
 function checkTarball(tarball: string): string[] {
-  const entries = tar(["-tzf", tarball]).split("\n").filter(Boolean);
-  const manifest = JSON.parse(
-    tar(["-xzOf", tarball, "package/package.json"]),
-  ) as PackedManifest;
-  return findTarballProblems(entries, manifest).map(
+  const manifest = readTarballManifest(tarball);
+  return findTarballProblems(listTarballEntries(tarball), manifest).map(
     (problem) => `${manifest.name ?? tarball} ${problem}`,
   );
 }
@@ -38,11 +29,18 @@ function checkTarball(tarball: string): string[] {
 function main(): number {
   const directory = process.argv[2];
   if (!directory) {
-    throw new Error("Usage: check-tarballs.ts <directory>");
+    throw new Error(
+      "Usage: check-tarballs.ts <directory> [--require-tarballs]",
+    );
   }
 
   const tarballs = listTarballs(directory);
   const problems = tarballs.flatMap(checkTarball);
+  if (tarballs.length === 0 && process.argv.includes(REQUIRE_FLAG)) {
+    problems.push(
+      `no tarballs found in ${directory}, but a release was expected`,
+    );
+  }
   for (const problem of problems) {
     console.error(`::error::${problem}`);
   }

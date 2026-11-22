@@ -54,6 +54,7 @@ describe("checkChangesets", () => {
     expect(check(["packages/alpha/src/index.ts"], [ALPHA_CHANGESET])).toEqual({
       missing: [],
       unknown: [],
+      majorBumps: [],
     });
   });
 
@@ -83,6 +84,25 @@ describe("checkChangesets", () => {
   it("does not match a package directory by prefix", () => {
     const result = check(["packages/alpha-extra/src/index.ts"]);
     expect(result.missing).toEqual([]);
+  });
+
+  it("rejects a major bump while versions stay below 1.0", () => {
+    const major = ALPHA_CHANGESET.replace("minor", "major");
+    expect(check([], [major]).majorBumps).toEqual(["@neon-pixels/alpha"]);
+  });
+
+  it("ignores files in a package that its files list does not publish", () => {
+    const packages: WorkspacePackage[] = [{ ...PACKAGES[0]!, files: ["dist"] }];
+    const run = (file: string) =>
+      checkChangesets({
+        changedFiles: [file],
+        changesetContents: [],
+        packages,
+      }).missing;
+    expect(run("packages/alpha/tsconfig.json")).toEqual([]);
+    expect(run("packages/alpha/vitest.config.ts")).toEqual([]);
+    expect(run("packages/alpha/package.json")).toEqual(["@neon-pixels/alpha"]);
+    expect(run("packages/alpha/dist/index.js")).toEqual(["@neon-pixels/alpha"]);
   });
 
   it("reports changeset package names that are not in the workspace", () => {

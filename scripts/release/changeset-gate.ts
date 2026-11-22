@@ -1,3 +1,4 @@
+import { matchesFilesEntry } from "./tarball-rules.ts";
 import type { WorkspacePackage } from "./workspace.ts";
 
 export interface GateInput {
@@ -12,6 +13,8 @@ export interface GateResult {
   missing: string[];
   /** Package names in a changeset that are not in the workspace. */
   unknown: string[];
+  /** Packages a changeset bumps by major; versions stay below 1.0. */
+  majorBumps: string[];
 }
 
 const BUMP_TYPES = new Set(["major", "minor", "patch"]);
@@ -28,18 +31,40 @@ function isDocsOnly(file: string): boolean {
   return file.endsWith(".md");
 }
 
-function changesPublishedOutput(file: string): boolean {
-  return !isTestOnly(file) && !isDocsOnly(file);
+/** True when the file lands in the published tarball, so users could notice it. */
+function changesPublishedOutput(
+  workspacePackage: WorkspacePackage,
+  file: string,
+): boolean {
+  const relative = file.slice(workspacePackage.directory.length + 1);
+  if (isTestOnly(relative) || isDocsOnly(relative)) {
+    return false;
+  }
+  if (relative === "package.json" || !workspacePackage.files) {
+    return true;
+  }
+  return workspacePackage.files.some((pattern) =>
+    matchesFilesEntry(relative, pattern),
+  );
 }
 
-export function parseChangesetPackages(contents: string): string[] {
+interface ChangesetRelease {
+  name: string;
+  bump: string;
+}
+
+function parseReleases(contents: string): ChangesetRelease[] {
   const frontmatter = FRONTMATTER_PATTERN.exec(contents)?.[1] ?? "";
   return frontmatter.split(/\r?\n/).flatMap((line) => {
     const match = RELEASE_LINE_PATTERN.exec(line.trim());
     return match?.[1] && BUMP_TYPES.has(match[2] ?? "")
-      ? [match[1].trim()]
+      ? [{ name: match[1].trim(), bump: match[2] ?? "" }]
       : [];
   });
+}
+
+export function parseChangesetPackages(contents: string): string[] {
+  return parseReleases(contents).map((release) => release.name);
 }
 
 function findChangedPackages(
@@ -52,16 +77,15 @@ function findChangedPackages(
       changedFiles.some(
         (file) =>
           file.startsWith(`${workspacePackage.directory}/`) &&
-          changesPublishedOutput(file),
+          changesPublishedOutput(workspacePackage, file),
       ),
     )
     .map((workspacePackage) => workspacePackage.name);
 }
 
 export function checkChangesets(input: GateInput): GateResult {
-  const named = new Set(
-    input.changesetContents.flatMap(parseChangesetPackages),
-  );
+  const releases = input.changesetContents.flatMap(parseReleases);
+  const named = new Set(releases.map((release) => release.name));
   const known = new Set(
     input.packages.map((workspacePackage) => workspacePackage.name),
   );
@@ -71,5 +95,8 @@ export function checkChangesets(input: GateInput): GateResult {
       (name) => !named.has(name),
     ),
     unknown: [...named].filter((name) => !known.has(name)),
+    majorBumps: releases
+      .filter((release) => release.bump === "major")
+      .map((release) => release.name),
   };
 }

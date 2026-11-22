@@ -12,11 +12,14 @@ import {
   packageExistsOnNpm,
 } from "./npm-registry.ts";
 import {
-  countPublishes,
+  describeHeldBackPackage,
   describeMissingPackage,
   partitionPlan,
+  type HeldBackRelease,
+  type PlanRelease,
   type PublishPlan,
 } from "./publish-plan.ts";
+import { readInstalledDependencies } from "./tarball-reader.ts";
 
 const PLAN_FILE = "publish-plan.json";
 
@@ -43,6 +46,29 @@ function runChangesetPublish(packDirectory: string): number {
   return result.status ?? 1;
 }
 
+function readPlanFile(planPath: string): PlanFile {
+  return JSON.parse(readFileSync(planPath, "utf-8"));
+}
+
+function dependenciesIn(packDirectory: string, release: PlanRelease): string[] {
+  return release.tarball
+    ? readInstalledDependencies(join(packDirectory, release.tarball.path))
+    : [];
+}
+
+function reportUnpublished(
+  missingFromNpm: PlanRelease[],
+  heldBack: HeldBackRelease[],
+): void {
+  const messages = [
+    ...missingFromNpm.map((release) => describeMissingPackage(release.name)),
+    ...heldBack.map(describeHeldBackPackage),
+  ];
+  for (const message of messages) {
+    console.error(`::error title=Package not published::${message}`);
+  }
+}
+
 function main(): number {
   const packDirectory = process.argv[2];
   if (!packDirectory) {
@@ -51,24 +77,24 @@ function main(): number {
   assertTrustedPublishingTooling();
 
   const planPath = join(packDirectory, PLAN_FILE);
-  const planFile = JSON.parse(readFileSync(planPath, "utf-8")) as PlanFile;
-  const { publishable, missingFromNpm } = partitionPlan(
+  const planFile = readPlanFile(planPath);
+  const { publishable, missingFromNpm, heldBack } = partitionPlan(
     planFile.plan,
-    packageExistsOnNpm,
+    {
+      existsOnNpm: packageExistsOnNpm,
+      dependenciesOf: (release) => dependenciesIn(packDirectory, release),
+    },
   );
 
   let exitCode = 0;
-  if (countPublishes(publishable) > 0) {
+  // Tag-only releases count too: they still need their git tags created.
+  if (publishable.length > 0) {
     writeFileSync(planPath, JSON.stringify({ ...planFile, plan: publishable }));
     exitCode = runChangesetPublish(packDirectory);
   }
 
-  for (const release of missingFromNpm) {
-    console.error(
-      `::error title=Package not on npm::${describeMissingPackage(release.name)}`,
-    );
-  }
-  return missingFromNpm.length > 0 ? 1 : exitCode;
+  reportUnpublished(missingFromNpm, heldBack);
+  return missingFromNpm.length + heldBack.length > 0 ? 1 : exitCode;
 }
 
 process.exitCode = main();

@@ -6,6 +6,9 @@ export interface PackedManifest {
   bin?: string | Record<string, string>;
   exports?: unknown;
   files?: string[];
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
 }
 
 const ALWAYS_PACKED_PATTERN =
@@ -55,7 +58,7 @@ function pathPrefixes(file: string): string[] {
 }
 
 /** A `files` entry covers a file when it matches the file or any parent directory. */
-function matchesFilesEntry(file: string, pattern: string): boolean {
+export function matchesFilesEntry(file: string, pattern: string): boolean {
   const matcher = globToRegExp(normalizeTarget(pattern).replace(/\/+$/, ""));
   return pathPrefixes(file).some((prefix) => matcher.test(prefix));
 }

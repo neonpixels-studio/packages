@@ -142,6 +142,19 @@ describe("check-tarballs.ts", () => {
     expect(result.output).toContain("missing built output: dist/index.js");
   });
 
+  it("fails when tarballs are required but none exist", () => {
+    mkdirSync(join(workspace, "empty"));
+    const directory = join(workspace, "empty");
+    expect(runNode([script("check-tarballs.ts"), directory]).status).toBe(0);
+    const required = runNode([
+      script("check-tarballs.ts"),
+      directory,
+      "--require-tarballs",
+    ]);
+    expect(required.status).toBe(1);
+    expect(required.output).toContain("no tarballs found");
+  });
+
   it("fails a tarball that ships a test", () => {
     const destination = packFixture({
       "dist/index.js": "",
@@ -224,6 +237,17 @@ echo "npm error code E404" >&2; exit 1
     const result = publish(writePlan([[release("@neon-pixels/new")]]), bin);
     expect(result.status).toBe(1);
     expect(() => readFileSync(log)).toThrow();
+  });
+
+  it("still tags when the plan holds only tag-only releases", () => {
+    const { bin, log } = stubBinaries([]);
+    const tagOnly = {
+      kind: "tag-only",
+      name: "@neon-pixels/alpha",
+      version: "0.2.0",
+    };
+    expect(publish(writePlan([[tagOnly]]), bin).status).toBe(0);
+    expect(readFileSync(log, "utf-8")).toContain("changeset publish");
   });
 
   it("succeeds when every package exists", () => {

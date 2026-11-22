@@ -117,7 +117,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/packed
       - name: Check the tarballs
-        run: node scripts/release/check-tarballs.ts "$RUNNER_TEMP/packed"
+        run: node scripts/release/check-tarballs.ts "$RUNNER_TEMP/packed" --require-tarballs
 
   publish:
     needs: pack

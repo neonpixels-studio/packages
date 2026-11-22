@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  countPublishes,
   describeMissingPackage,
   partitionPlan,
   type PublishPlan,
@@ -17,12 +16,14 @@ const PLAN: PublishPlan = [
   [release("@neon-pixels/new"), release("@neon-pixels/beta")],
 ];
 
+const noDependencies = () => [];
+
 describe("partitionPlan", () => {
   it("keeps publishable packages and reports the ones missing from npm", () => {
-    const { publishable, missingFromNpm } = partitionPlan(
-      PLAN,
-      (name) => name !== "@neon-pixels/new",
-    );
+    const { publishable, missingFromNpm } = partitionPlan(PLAN, {
+      existsOnNpm: (name) => name !== "@neon-pixels/new",
+      dependenciesOf: noDependencies,
+    });
     expect(publishable).toEqual([
       [release("@neon-pixels/alpha")],
       [release("@neon-pixels/beta")],
@@ -33,16 +34,44 @@ describe("partitionPlan", () => {
   });
 
   it("drops chunks that end up empty", () => {
-    const { publishable } = partitionPlan(
-      PLAN,
-      (name) => name !== "@neon-pixels/alpha",
-    );
+    const { publishable } = partitionPlan(PLAN, {
+      existsOnNpm: (name) => name !== "@neon-pixels/alpha",
+      dependenciesOf: noDependencies,
+    });
     expect(publishable).toHaveLength(1);
   });
 
-  it("counts only publish releases", () => {
+  it("holds back packages that depend on a blocked package, transitively", () => {
+    const plan: PublishPlan = [
+      [release("@neon-pixels/new")],
+      [release("@neon-pixels/alpha")],
+      [release("@neon-pixels/beta")],
+      [release("@neon-pixels/gamma")],
+    ];
+    const dependencies: Record<string, string[]> = {
+      "@neon-pixels/alpha": ["@neon-pixels/new"],
+      "@neon-pixels/beta": ["@neon-pixels/alpha"],
+    };
+    const { publishable, heldBack } = partitionPlan(plan, {
+      existsOnNpm: (name) => name !== "@neon-pixels/new",
+      dependenciesOf: (entry) => dependencies[entry.name] ?? [],
+    });
+    expect(publishable).toEqual([[release("@neon-pixels/gamma")]]);
+    expect(heldBack.map((held) => [held.release.name, held.blockedBy])).toEqual(
+      [
+        ["@neon-pixels/alpha", "@neon-pixels/new"],
+        ["@neon-pixels/beta", "@neon-pixels/alpha"],
+      ],
+    );
+  });
+
+  it("keeps tag-only releases", () => {
     const tagOnly = { kind: "tag-only", name: "x", version: "1.0.0" } as const;
-    expect(countPublishes([[tagOnly, release("a")]])).toBe(1);
+    const { publishable } = partitionPlan([[tagOnly]], {
+      existsOnNpm: () => false,
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable).toEqual([[tagOnly]]);
   });
 
   it("names the package and the Adding a new package steps in the message", () => {

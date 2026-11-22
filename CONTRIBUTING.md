@@ -12,7 +12,7 @@ Every package is published publicly as `@neon-pixels/*` and they all share one v
 
 Publishing uses npm trusted publishing (OIDC). There is no npm token anywhere in this repository, and the publish step must stay in `release.yml` itself, because npm matches the trusted publisher on the calling workflow's filename.
 
-If a package name does not exist on npm yet, the publish step fails naming it and pointing here. Every other package still publishes. Complete "Adding a new package" for that name, then re-run the failed workflow.
+If a package name does not exist on npm yet, the publish step fails naming it and pointing here. Every other package still publishes, except any that depend on the missing one (they are held back so nobody installs a broken dependency). Complete "Adding a new package" for that name, then re-run the failed workflow.
 
 Never run `npm publish`, `pnpm publish`, `changeset version`, or `changeset publish` by hand, and never create tags yourself.
 
