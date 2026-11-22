@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The release workflow dispatches CI on the "Version Packages" branch.
+  # Pull requests opened with GITHUB_TOKEN do not trigger pull_request runs.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -42,6 +45,54 @@ jobs:
       - run: pnpm test:ci
       - run: pnpm build
 
+  # Fails a pull request that changes a published package without a changeset.
+  # Skipped on the release branch, whose commit consumes the changesets.
+  changeset-check:
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/release/check-changeset.ts "origin/${BASE_REF}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  # Packs every package exactly as the release would, checks the tarballs, and
+  # runs `npm publish --dry-run` on each. Nothing is published.
+  release-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: 0
+      - run: pnpm build
+      - name: Pack every package
+        run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "$RUNNER_TEMP/dry-run"
+      - name: Check the tarballs
+        run: |
+          mkdir -p "$RUNNER_TEMP/dry-run"
+          node scripts/release/check-tarballs.ts "$RUNNER_TEMP/dry-run"
+      - name: Publish dry run
+        run: |
+          shopt -s nullglob
+          for tarball in "$RUNNER_TEMP"/dry-run/*.tgz; do
+            npm publish "$tarball" --dry-run --access public
+          done
+
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -71,7 +122,7 @@ jobs:
             --exit-code 1 \
             --log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
       - name: Scan full history for secrets
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           gitleaks git \
             --config .gitleaks.toml \

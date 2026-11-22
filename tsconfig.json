@@ -1,8 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["tests", "*.config.ts"],
+  "include": ["tests", "scripts", "*.config.ts"],
   "exclude": ["node_modules", "dist", "packages"]
 }
