@@ -49,26 +49,24 @@ const IMPLICIT_ANY_SOURCE = `export function double(value) {
 }
 `;
 
-// The nuxt entry mirrors Nuxt's generated `.nuxt/tsconfig.app.json`: its own
-// compilerOptions on top of an `extends` of the base.
 interface Stack {
   project: string;
   tsconfig: object;
 }
 
+function rootStack(entryPoint: string): Stack {
+  return {
+    project: "tsconfig.json",
+    tsconfig: { extends: entryPoint, include: ["src"] },
+  };
+}
+
 const STACKS = {
-  base: {
-    project: "tsconfig.json",
-    tsconfig: { extends: "@neon-pixels/tsconfig", include: ["src"] },
-  },
-  node: {
-    project: "tsconfig.json",
-    tsconfig: { extends: "@neon-pixels/tsconfig/node", include: ["src"] },
-  },
-  vitepress: {
-    project: "tsconfig.json",
-    tsconfig: { extends: "@neon-pixels/tsconfig/vitepress", include: ["src"] },
-  },
+  base: rootStack("@neon-pixels/tsconfig"),
+  node: rootStack("@neon-pixels/tsconfig/node"),
+  vitepress: rootStack("@neon-pixels/tsconfig/vitepress"),
+  // The nuxt entry mirrors Nuxt's generated `.nuxt/tsconfig.app.json`: its own
+  // compilerOptions on top of an `extends` of the base.
   nuxt: {
     project: ".nuxt/tsconfig.app.json",
     tsconfig: {
@@ -154,5 +152,9 @@ describe("stack specific options", () => {
 
   it("vitepress base provides DOM types", () => {
     expect(typecheck("vitepress", DOM_GLOBAL_SOURCE).status).toBe(0);
+  });
+
+  it("node base does not provide DOM types", () => {
+    expect(typecheck("node", DOM_GLOBAL_SOURCE).output).toContain("TS2584");
   });
 });
