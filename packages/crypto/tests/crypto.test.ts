@@ -126,6 +126,11 @@ describe("rotation", () => {
     ).toBe("malformed-payload");
   });
 
+  it("refuses to re-encrypt a value from an unknown key", () => {
+    const payload = encrypt(PLAINTEXT, { primary: OTHER_KEY });
+    expect(codeOf(() => reencrypt(payload, rotatedKeys))).toBe("unknown-key");
+  });
+
   it("refuses to re-encrypt with the wrong associated data", () => {
     const oldPayload = encrypt(PLAINTEXT, { primary: OLD_KEY }, CONTEXT);
     expect(codeOf(() => reencrypt(oldPayload, rotatedKeys, "other"))).toBe(
@@ -218,6 +223,16 @@ describe("failures", () => {
     );
   });
 
+  it("validates the key set when checking the primary key", () => {
+    expect(
+      codeOf(() =>
+        isEncryptedWithPrimaryKey(KNOWN_PAYLOAD, {
+          primary: new Uint8Array(16),
+        }),
+      ),
+    ).toBe("invalid-key");
+  });
+
   it("validates the previous keys when encrypting", () => {
     expect(
       codeOf(() =>
@@ -307,6 +322,11 @@ describe("decodeKey", () => {
     ["empty", ""],
     ["invalid characters", "!!!!".repeat(11)],
     ["base64url instead of base64", "_-_-".repeat(11)],
+    [
+      "non-canonical",
+      Buffer.from(OLD_KEY).toString("base64").replace(/E=$/, "F="),
+    ],
+    ["not a string", undefined as never],
     ["wrong length", Buffer.alloc(16).toString("base64")],
   ])("rejects a key that is %s", (_label, base64Key) => {
     expect(codeOf(() => decodeKey(base64Key))).toBe("invalid-key");

@@ -43,6 +43,21 @@ function assertAssociatedData(associatedData: string | undefined): void {
   }
 }
 
+function assertPlaintext(plaintext: string): void {
+  if (typeof plaintext !== "string") {
+    throw new SecretCryptoError(
+      "invalid-plaintext",
+      "Plaintext must be a string.",
+    );
+  }
+  if (!plaintext.isWellFormed()) {
+    throw new SecretCryptoError(
+      "invalid-plaintext",
+      "Plaintext must be well-formed Unicode.",
+    );
+  }
+}
+
 function applyAssociatedData(
   cipher: CipherGCM | DecipherGCM,
   associatedData: string | undefined,
@@ -68,12 +83,7 @@ export function encrypt(
 ): string {
   assertKeySet(keys);
   assertAssociatedData(associatedData);
-  if (typeof plaintext !== "string" || !plaintext.isWellFormed()) {
-    throw new SecretCryptoError(
-      "invalid-plaintext",
-      "Plaintext must be a string.",
-    );
-  }
+  assertPlaintext(plaintext);
 
   const iv = randomBytes(IV_BYTE_LENGTH);
   const cipher = createCipheriv(CIPHER_ALGORITHM, keys.primary, iv, {

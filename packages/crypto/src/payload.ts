@@ -3,6 +3,7 @@ import { decodeStrictBase64 } from "./base64.ts";
 import { KEY_ID_HEX_LENGTH } from "./keys.ts";
 
 export const PAYLOAD_VERSION = "v2";
+const PAYLOAD_SEPARATOR = ":";
 export const IV_BYTE_LENGTH = 12;
 export const AUTH_TAG_BYTE_LENGTH = 16;
 
@@ -20,7 +21,7 @@ export function formatPayload(parts: ParsedPayload): string {
     parts.iv.toString("base64"),
     parts.authTag.toString("base64"),
     parts.ciphertext.toString("base64"),
-  ].join(":");
+  ].join(PAYLOAD_SEPARATOR);
 }
 
 function malformed(): SecretCryptoError {
@@ -38,7 +39,7 @@ export function parsePayload(payload: string): ParsedPayload {
     throw malformed();
   }
   const [version, keyId, ivBase64, authTagBase64, ciphertextBase64, ...rest] =
-    payload.split(":");
+    payload.split(PAYLOAD_SEPARATOR);
   if (version === undefined || !VERSION_PATTERN.test(version)) {
     throw malformed();
   }
