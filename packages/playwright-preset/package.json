@@ -1,0 +1,51 @@
+{
+  "name": "@neon-pixels/playwright-preset",
+  "version": "0.1.0",
+  "description": "Shared Playwright configuration for Neon Pixels projects.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neonpixels-studio/packages.git",
+    "directory": "packages/playwright-preset"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./clerk": {
+      "types": "./clerk.d.ts",
+      "default": "./clerk.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "clerk.js",
+    "clerk.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@clerk/testing": "^2.0.0",
+    "@playwright/test": "^1.50.0"
+  },
+  "peerDependenciesMeta": {
+    "@clerk/testing": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@clerk/testing": "^2.3.6",
+    "@playwright/test": "^1.65.1"
+  }
+}
