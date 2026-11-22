@@ -12,6 +12,9 @@ export function decodeStrictBase64(text: string): Buffer | null {
 
 /** Restores the padding that some secret stores strip. */
 export function padBase64(text: string): string {
+  if (/={3,}$/.test(text)) {
+    return text;
+  }
   const unpadded = text.replace(/={1,2}$/, "");
   const missing =
     (BASE64_GROUP_LENGTH - (unpadded.length % BASE64_GROUP_LENGTH)) %
