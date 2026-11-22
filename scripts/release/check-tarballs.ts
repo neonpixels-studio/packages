@@ -1,23 +1,14 @@
 // Fails when a packed tarball is missing built output, or contains tests,
 // source maps, secrets, or files outside the package's `files` list.
 // Usage: node scripts/release/check-tarballs.ts <directory-with-tarballs> [--require-tarballs]
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-import { listTarballEntries, readTarballManifest } from "./tarball-reader.ts";
+import {
+  findTarballs,
+  listTarballEntries,
+  readTarballManifest,
+} from "./tarball-reader.ts";
 import { findTarballProblems } from "./tarball-rules.ts";
 
-const TARBALL_PATTERN = /\.tgz$/;
 const REQUIRE_FLAG = "--require-tarballs";
-
-function listTarballs(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      return listTarballs(path);
-    }
-    return TARBALL_PATTERN.test(entry.name) ? [path] : [];
-  });
-}
 
 function checkTarball(tarball: string): string[] {
   const manifest = readTarballManifest(tarball);
@@ -34,7 +25,7 @@ function main(): number {
     );
   }
 
-  const tarballs = listTarballs(directory);
+  const tarballs = findTarballs(directory);
   const problems = tarballs.flatMap(checkTarball);
   if (tarballs.length === 0 && process.argv.includes(REQUIRE_FLAG)) {
     problems.push(
