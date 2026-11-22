@@ -91,6 +91,34 @@ describe("parseAuditReport", () => {
     ]);
   });
 
+  it("lowercases severities so a differently cased high still blocks", () => {
+    const [advisory] = parseAuditReport(
+      npmReport([
+        { name: "a", url: "https://x/GHSA-aaaa-bbbb-cccc", severity: "HIGH" },
+      ]),
+    );
+    expect(advisory?.severity).toBe("high");
+  });
+
+  it("does not let a moderate advisory hide a high one with the same id and package", () => {
+    const advisories = parseAuditReport(
+      npmReport([
+        { name: "a", severity: "high" },
+        { name: "a", severity: "moderate" },
+      ]),
+    );
+    expect(advisories.map((advisory) => advisory.severity)).toEqual([
+      "high",
+      "moderate",
+    ]);
+  });
+
+  it("reads a pnpm error message", () => {
+    expect(() =>
+      parseAuditReport(JSON.stringify({ error: { message: "ECONNREFUSED" } })),
+    ).toThrow("ECONNREFUSED");
+  });
+
   it("accepts a clean report", () => {
     expect(parseAuditReport(JSON.stringify({ vulnerabilities: {} }))).toEqual(
       [],
@@ -118,7 +146,7 @@ describe("isBlocking", () => {
     ["high", true],
     ["moderate", false],
     ["low", false],
-    ["unknown", false],
+    ["unknown", true],
   ])("%s -> %s", (severity, expected) => {
     expect(
       isBlocking({ id: "x", severity, packageName: "p", title: "t" }),

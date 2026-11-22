@@ -1,3 +1,5 @@
+import { UNIDENTIFIED_ADVISORY_ID } from "./report.ts";
+
 export interface AllowlistEntry {
   id: string;
   reason: string;
@@ -7,6 +9,12 @@ export interface AllowlistEntry {
   package?: string;
 }
 
+const ENTRY_FIELDS: ReadonlySet<string> = new Set([
+  "id",
+  "reason",
+  "expires",
+  "package",
+]);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type JsonObject = Record<string, unknown>;
@@ -42,22 +50,33 @@ function assertCalendarDate(date: string, position: number): void {
   }
 }
 
+// A misspelled key (such as "pakage") must not silently widen an entry.
+function assertKnownFields(entry: JsonObject, position: number): void {
+  const unknownField = Object.keys(entry).find(
+    (field) => !ENTRY_FIELDS.has(field),
+  );
+  if (unknownField) {
+    throw new Error(
+      `allowlist entry ${position} has an unknown field "${unknownField}"`,
+    );
+  }
+}
+
 function parseEntry(entry: unknown, index: number): AllowlistEntry {
   const position = index + 1;
   if (!isObject(entry)) {
     throw new Error(`allowlist entry ${position} is not an object`);
   }
+  assertKnownFields(entry, position);
   const expires = readRequiredText(entry, "expires", position);
   assertCalendarDate(expires, position);
-  const packageName = entry["package"];
-  if (packageName !== undefined && typeof packageName !== "string") {
-    throw new Error(`allowlist entry ${position} has a non-string "package"`);
-  }
   return {
     id: readRequiredText(entry, "id", position),
     reason: readRequiredText(entry, "reason", position),
     expires,
-    ...(packageName ? { package: packageName } : {}),
+    ...("package" in entry
+      ? { package: readRequiredText(entry, "package", position) }
+      : {}),
   };
 }
 
@@ -83,6 +102,9 @@ export function entryCovers(
   entry: AllowlistEntry,
   advisory: { id: string; packageName: string },
 ): boolean {
+  if (advisory.id === UNIDENTIFIED_ADVISORY_ID) {
+    return false;
+  }
   const sameId = entry.id.toLowerCase() === advisory.id.toLowerCase();
   const samePackage =
     entry.package === undefined || entry.package === advisory.packageName;

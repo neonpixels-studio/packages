@@ -5,9 +5,12 @@ export interface Advisory {
   title: string;
 }
 
-export const BLOCKING_SEVERITIES: ReadonlySet<string> = new Set([
-  "high",
-  "critical",
+// Anything not known to be harmless blocks, so a new or oddly spelled
+// severity can never slip through.
+const NON_BLOCKING_SEVERITIES: ReadonlySet<string> = new Set([
+  "info",
+  "low",
+  "moderate",
 ]);
 export const UNIDENTIFIED_ADVISORY_ID = "UNIDENTIFIED";
 
@@ -56,7 +59,7 @@ function advisoryId(source: JsonObject): string {
 function toAdvisory(source: JsonObject, packageName: unknown): Advisory {
   return {
     id: advisoryId(source),
-    severity: readString(source["severity"], "unknown"),
+    severity: readString(source["severity"], "unknown").toLowerCase(),
     packageName: readString(packageName, "unknown"),
     title: readString(source["title"], "no title"),
   };
@@ -81,12 +84,16 @@ function advisoriesFromPnpmReport(advisories: JsonObject): Advisory[] {
     .map((advisory) => toAdvisory(advisory, advisory["module_name"]));
 }
 
-// Distinct on id AND package: the allowlist matches on the same pair, so
-// merging two packages that share an advisory would let one hide the other.
+// Distinct on id, package, and severity: the allowlist matches on id and
+// package, so merging two packages that share an advisory would let one hide
+// the other, and merging severities could let a moderate entry hide a high one.
 function dedupe(advisories: Advisory[]): Advisory[] {
   const byKey = new Map<string, Advisory>();
   for (const advisory of advisories) {
-    byKey.set(`${advisory.id}::${advisory.packageName}`, advisory);
+    byKey.set(
+      `${advisory.id}::${advisory.packageName}::${advisory.severity}`,
+      advisory,
+    );
   }
   return [...byKey.values()];
 }
@@ -101,7 +108,7 @@ function readAuditError(report: JsonObject): string | null {
   }
   return readString(
     error["summary"],
-    readString(error["code"], "unknown error"),
+    readString(error["message"], readString(error["code"], "unknown error")),
   );
 }
 
@@ -143,5 +150,5 @@ export function parseAuditReport(rawJson: string): Advisory[] {
 }
 
 export function isBlocking(advisory: Advisory): boolean {
-  return BLOCKING_SEVERITIES.has(advisory.severity);
+  return !NON_BLOCKING_SEVERITIES.has(advisory.severity);
 }

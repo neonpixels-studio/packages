@@ -11,17 +11,16 @@ export interface GateResult {
   severityCounts: Record<string, number>;
 }
 
+const REPORTED_SEVERITIES = ["critical", "high", "moderate", "low"];
+
 function describeAdvisory(advisory: Advisory): string {
   return `${advisory.id} [${advisory.severity}] ${advisory.packageName}`;
 }
 
 function countBySeverity(advisories: Advisory[]): Record<string, number> {
-  const counts: Record<string, number> = {
-    critical: 0,
-    high: 0,
-    moderate: 0,
-    low: 0,
-  };
+  const counts: Record<string, number> = Object.fromEntries(
+    REPORTED_SEVERITIES.map((severity) => [severity, 0]),
+  );
   for (const advisory of advisories) {
     counts[advisory.severity] = (counts[advisory.severity] ?? 0) + 1;
   }
@@ -67,6 +66,12 @@ export function evaluateAudit(
   };
 }
 
+function otherSeverityRows(counts: Record<string, number>): string[] {
+  return Object.entries(counts)
+    .filter(([severity]) => !REPORTED_SEVERITIES.includes(severity))
+    .map(([severity, count]) => `| ${severity} | ${count} |`);
+}
+
 /** Markdown for the GitHub step summary. */
 export function formatSummary(result: GateResult): string {
   const { severityCounts } = result;
@@ -79,10 +84,13 @@ export function formatSummary(result: GateResult): string {
     `| High | ${severityCounts["high"] ?? 0} |`,
     `| Moderate | ${severityCounts["moderate"] ?? 0} |`,
     `| Low | ${severityCounts["low"] ?? 0} |`,
+    ...otherSeverityRows(severityCounts),
   ];
   if (result.accepted.length > 0) {
     lines.push("", "Allowlisted high/critical advisories:");
-    lines.push(...result.accepted.map((a) => `- ${describeAdvisory(a)}`));
+    lines.push(
+      ...result.accepted.map((advisory) => `- ${describeAdvisory(advisory)}`),
+    );
   }
   if (result.staleEntries.length > 0) {
     lines.push("", "Stale allowlist entries (safe to remove):");

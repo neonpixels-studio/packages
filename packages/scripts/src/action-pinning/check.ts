@@ -5,7 +5,8 @@ export interface PinningViolation {
   reason: string;
 }
 
-const USES_PATTERN = /^\s*(?:-\s+)?uses:\s*(?:'([^']*)'|"([^"]*)"|(\S+))(.*)$/;
+const USES_PATTERN =
+  /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:'([^']*)'|"([^"]*)"|(\S+))(.*)$/;
 const COMMIT_REFERENCE_PATTERN = /^[^@\s]+@[0-9a-f]{40}$/;
 const DOCKER_DIGEST_PATTERN = /^docker:\/\/\S+@sha256:[0-9a-f]{64}$/;
 const VERSION_COMMENT_PATTERN = /^\s+#\s*v?\d/;
@@ -24,7 +25,9 @@ function isPinned(reference: string): boolean {
 
 function pinningProblem(reference: string, trailer: string): string | null {
   if (!isPinned(reference)) {
-    return "is not pinned to a full commit SHA";
+    return reference.startsWith(DOCKER_PREFIX)
+      ? "is not pinned to a @sha256 digest"
+      : "is not pinned to a full commit SHA";
   }
   if (!VERSION_COMMENT_PATTERN.test(trailer)) {
     return "has no trailing version comment (for example `# v4.1.0`)";

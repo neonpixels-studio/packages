@@ -35,6 +35,19 @@ describe("ci workflow", () => {
     expect(CI_WORKFLOW).toContain("pnpm exec np-audit-gate");
   });
 
+  it("builds the gate after a script-free install and before running it", () => {
+    const auditJob = CI_WORKFLOW.slice(
+      CI_WORKFLOW.indexOf("  dependency-audit:"),
+    );
+    const steps = [
+      "pnpm install --frozen-lockfile --ignore-scripts",
+      "run: pnpm build",
+      "pnpm exec np-audit-gate",
+    ].map((step) => auditJob.indexOf(step));
+    expect(steps).not.toContain(-1);
+    expect(steps).toEqual([...steps].sort((first, second) => first - second));
+  });
+
   it("checks action pinning with the shared check", () => {
     expect(CI_WORKFLOW).toContain("pnpm exec np-check-action-pinning");
   });

@@ -25,7 +25,13 @@ describe("parseAllowlist", () => {
     ["missing expiry", { ...VALID, expires: undefined }, '"expires"'],
     ["bad date format", { ...VALID, expires: "01/01/2027" }, "invalid"],
     ["impossible date", { ...VALID, expires: "2027-02-30" }, "invalid"],
-    ["numeric package", { ...VALID, package: 3 }, "non-string"],
+    ["blank package", { ...VALID, package: "" }, 'needs a non-empty "package"'],
+    [
+      "misspelled field",
+      { ...VALID, pakage: "vite" },
+      'unknown field "pakage"',
+    ],
+    ["numeric package", { ...VALID, package: 3 }, '"package" string'],
   ])("rejects an entry with %s", (_name, entry, message) => {
     expect(() => parseAllowlist(JSON.stringify([entry]))).toThrow(message);
   });
@@ -54,6 +60,13 @@ describe("entryCovers", () => {
     expect(entryCovers({ ...VALID, id: "GHSA-zzzz-zzzz-zzzz" }, advisory)).toBe(
       false,
     );
+  });
+
+  it("never covers an advisory it could not identify", () => {
+    const entry = { ...VALID, id: "UNIDENTIFIED" };
+    expect(
+      entryCovers(entry, { id: "UNIDENTIFIED", packageName: "vite" }),
+    ).toBe(false);
   });
 
   it("scopes to the package when one is given", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findPinningViolations,
   formatViolation,
+  type PinningViolation,
 } from "../src/action-pinning/check.ts";
 
 const SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1";
@@ -40,7 +41,6 @@ describe("findPinningViolations", () => {
     ["a short SHA", "actions/checkout@3d3c42e"],
     ["an uppercase SHA", `actions/checkout@${SHA.toUpperCase()}`],
     ["no ref", "actions/checkout"],
-    ["a docker tag", "docker://alpine:3.20"],
   ])("rejects %s", (_name, reference) => {
     const [violation] = check(`      - uses: ${reference} # v1`);
     expect(violation).toMatchObject({
@@ -49,6 +49,17 @@ describe("findPinningViolations", () => {
       reference,
       reason: "is not pinned to a full commit SHA",
     });
+  });
+
+  it("reports an unpinned docker image as needing a digest", () => {
+    expect(check("- uses: docker://alpine:3.20 # v3")[0]?.reason).toBe(
+      "is not pinned to a @sha256 digest",
+    );
+  });
+
+  it("checks flow mappings and quoted keys", () => {
+    expect(check("- { uses: actions/checkout@v4 }")).toHaveLength(1);
+    expect(check('  "uses": actions/checkout@v4')).toHaveLength(1);
   });
 
   it("accepts a docker image pinned by digest", () => {
@@ -72,9 +83,11 @@ describe("findPinningViolations", () => {
       `  - uses: actions/setup-node@${SHA} # v7`,
       "  - uses: other/action@main",
     ].join("\n");
-    expect(findPinningViolations("w.yml", content).map((v) => v.line)).toEqual([
-      3, 5,
-    ]);
+    expect(
+      findPinningViolations("w.yml", content).map(
+        (violation) => violation.line,
+      ),
+    ).toEqual([3, 5]);
   });
 
   it("handles CRLF line endings", () => {
@@ -85,7 +98,7 @@ describe("findPinningViolations", () => {
 describe("formatViolation", () => {
   it("is a single line naming file, line, reference, and reason", () => {
     const [violation] = check("- uses: actions/checkout@v4");
-    expect(formatViolation(violation!)).toBe(
+    expect(formatViolation(violation as PinningViolation)).toBe(
       "ci.yml:1 actions/checkout@v4 is not pinned to a full commit SHA",
     );
   });

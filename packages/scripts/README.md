@@ -19,7 +19,7 @@ pnpm exec np-audit-gate --allowlist path/to/audit-allowlist.json
 
 Run it from the project root. It picks the package manager from the lockfile (`pnpm-lock.yaml`, `package-lock.json`, or `npm-shrinkwrap.json`) and runs `pnpm audit --prod --json` or `npm audit --omit=dev --json`. A project with no lockfile, or with both kinds, fails.
 
-The gate fails closed: empty output, an audit error (registry down), or an unrecognized JSON shape fails instead of passing, and an advisory it cannot identify is never allowlisted.
+The gate fails closed: empty output, an audit error (registry down), or an unrecognized JSON shape fails instead of passing, an advisory it cannot identify is never allowlisted, and any severity other than info, low, or moderate blocks.
 
 When `GITHUB_STEP_SUMMARY` is set, it appends a severity table, the allowlisted advisories, and any stale allowlist entries.
 
@@ -40,9 +40,9 @@ By default the gate reads `audit-allowlist.json` in the working directory. The f
 - `id` is the advisory id as the audit reports it (matched case-insensitively).
 - `reason` says why it is accepted, so a reviewer can judge it.
 - `expires` is a `YYYY-MM-DD` date (UTC). On that date the entry fails the gate until someone re-reviews it and moves the date. An expired entry fails even if it matches nothing.
-- `package` (optional) limits the entry to the advisory in that package. Without it the entry covers the advisory in every package.
+- `package` (optional, but never blank) limits the entry to the advisory in that package. Without it the entry covers the advisory in every package.
 
-An entry that no longer matches any high or critical advisory is reported as stale. It does not fail the gate, but you should remove it.
+Unknown fields are rejected, so a typo cannot widen an entry. An entry that no longer matches any high or critical advisory is reported as stale. It does not fail the gate, but you should remove it.
 
 ## `np-check-action-pinning`
 
