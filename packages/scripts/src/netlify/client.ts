@@ -5,6 +5,10 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const DEPLOYS_PAGE_SIZE = 20;
 const AUTH_FAILURE_STATUSES = new Set([401, 403]);
 const NOT_FOUND_STATUS = 404;
+const REQUEST_TIMEOUT_STATUS = 408;
+const TOO_MANY_REQUESTS_STATUS = 429;
+const CLIENT_ERROR_MIN_STATUS = 400;
+const SERVER_ERROR_MIN_STATUS = 500;
 
 export interface NetlifyDeploy {
   id: string;
@@ -61,6 +65,27 @@ export function parseDeployList(value: unknown): NetlifyDeploy[] {
   return value.map(parseDeploy);
 }
 
+// A client error other than a timeout or rate limit will not change on retry.
+function failureFor(status: number): Error {
+  const message = `Netlify API responded with HTTP ${status}`;
+  const retryable =
+    status >= SERVER_ERROR_MIN_STATUS ||
+    status < CLIENT_ERROR_MIN_STATUS ||
+    status === REQUEST_TIMEOUT_STATUS ||
+    status === TOO_MANY_REQUESTS_STATUS;
+  return retryable ? new Error(message) : new NetlifyFatalError(message);
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new NetlifyFatalError(
+      `Netlify returned a body that is not JSON (HTTP ${response.status}).`,
+    );
+  }
+}
+
 export interface NetlifyClientOptions {
   siteId: string;
   token: string;
@@ -89,9 +114,9 @@ export function createNetlifyClient(
       );
     }
     if (!response.ok) {
-      throw new Error(`Netlify API responded with HTTP ${response.status}`);
+      throw failureFor(response.status);
     }
-    return response.json();
+    return readJson(response);
   }
 
   return {

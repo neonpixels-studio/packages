@@ -116,6 +116,15 @@ describe("runShouldDeploy", () => {
     );
   });
 
+  it("escapes error text from the lookup", async () => {
+    const testEnvironment = environment(full, async () => {
+      throw new Error("a\n::error::x");
+    });
+    await runShouldDeploy([], testEnvironment);
+    const output = JSON.stringify(vi.mocked(console.log).mock.calls);
+    expect(output).toContain("a%0A::error::x");
+  });
+
   it("does not query Netlify when the current commit is unknown", async () => {
     const list = vi.fn(async () => [deploy()]);
     const testEnvironment = environment({ ...full, CURRENT_SHA: "" }, list);

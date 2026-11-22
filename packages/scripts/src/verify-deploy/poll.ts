@@ -122,6 +122,8 @@ export async function verifyDeploy(
     if (environment.now() >= deadline) {
       return timeoutResult(request, step.observation);
     }
-    await environment.sleep(request.intervalMs);
+    await environment.sleep(
+      Math.min(request.intervalMs, deadline - environment.now()),
+    );
   }
 }

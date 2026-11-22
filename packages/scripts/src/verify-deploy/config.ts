@@ -5,6 +5,7 @@ import type { VerifyRequest } from "./poll.ts";
 export const DEFAULT_TIMEOUT_SECONDS = 20 * 60;
 export const DEFAULT_INTERVAL_SECONDS = 15;
 const MILLISECONDS_PER_SECOND = 1000;
+const MAX_SECONDS = 6 * 60 * 60;
 
 export type Variables = Record<string, string | undefined>;
 
@@ -29,8 +30,10 @@ function parseSeconds(
     return fallback;
   }
   const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    throw new Error(`--${flag} must be a positive number of seconds`);
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > MAX_SECONDS) {
+    throw new Error(
+      `--${flag} must be a whole number of seconds from 1 to ${MAX_SECONDS}`,
+    );
   }
   return seconds;
 }

@@ -94,4 +94,4 @@ Environment variables, all passed by the workflow:
 | `--timeout-seconds`  | `1200`  | Give up after this long |
 | `--interval-seconds` | `15`    | Wait between polls      |
 
-`error`, `cancelled`, `rejected`, and `skipped` deploys fail immediately. Transient API errors (5xx, network) are retried until the timeout, and one last poll always runs at the deadline. A rejected token or an unknown site id fails immediately.
+`error`, `cancelled`, `rejected`, and `skipped` deploys fail immediately. Transient API errors (5xx, network) are retried until the timeout, and one last poll always runs at the deadline. Both flags take whole seconds from 1 to 21600. A rejected token or an unknown site id fails immediately.

@@ -90,4 +90,46 @@ describe("createNetlifyClient", () => {
     expect(failure).toBeInstanceOf(Error);
     expect(failure).not.toBeInstanceOf(NetlifyFatalError);
   });
+
+  it("encodes the deploy id in the path", async () => {
+    const fetchImpl = respond(200, { id: "x", state: "ready" });
+    const client = createNetlifyClient({ siteId: "s", token: "t", fetchImpl });
+    await client.getDeploy("a/b");
+    expect(String(vi.mocked(fetchImpl).mock.calls[0]?.[0])).toContain(
+      "/deploys/a%2Fb",
+    );
+  });
+
+  it("treats a 422 as fatal and a 429 as transient", async () => {
+    const fatal = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(422, {}),
+    });
+    await expect(fatal.listProductionDeploys()).rejects.toBeInstanceOf(
+      NetlifyFatalError,
+    );
+    const transient = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(429, {}),
+    });
+    const failure = await transient
+      .listProductionDeploys()
+      .catch((error: unknown) => error);
+    expect(failure).not.toBeInstanceOf(NetlifyFatalError);
+  });
+
+  it("treats a non-JSON 200 as fatal", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: vi.fn(
+        async () => new Response("<html>", { status: 200 }),
+      ) as unknown as typeof fetch,
+    });
+    await expect(client.listProductionDeploys()).rejects.toBeInstanceOf(
+      NetlifyFatalError,
+    );
+  });
 });

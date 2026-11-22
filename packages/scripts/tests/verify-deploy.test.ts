@@ -222,6 +222,17 @@ describe("verifyDeploy", () => {
     expect(list).toHaveBeenCalledTimes(1);
   });
 
+  it("never sleeps past the deadline", async () => {
+    const { environment, sleeps } = harness({
+      listProductionDeploys: async () => [deploy({ state: "building" })],
+    });
+    await verifyDeploy(
+      { ...request, timeoutMs: 20, intervalMs: 15 },
+      environment,
+    );
+    expect(sleeps).toEqual([15, 5]);
+  });
+
   it("times out after one last poll", async () => {
     const list = vi.fn(async () => [deploy({ state: "building" })]);
     const { environment } = harness({ listProductionDeploys: list });
@@ -285,11 +296,14 @@ describe("readConfig", () => {
     expect(request.intervalMs).toBe(5000);
   });
 
-  it.each(["0", "-1", "abc", ""])("rejects --timeout-seconds %j", (value) => {
-    expect(() => readConfig(["--timeout-seconds", value], variables)).toThrow(
-      "--timeout-seconds",
-    );
-  });
+  it.each(["0", "-1", "abc", "", "0.5", "21601"])(
+    "rejects --timeout-seconds %j",
+    (value) => {
+      expect(() => readConfig(["--timeout-seconds", value], variables)).toThrow(
+        "--timeout-seconds",
+      );
+    },
+  );
 
   it("names every missing variable without needing a value", () => {
     expect(() => readConfig([], {})).toThrow(
@@ -306,11 +320,14 @@ describe("readConfig", () => {
     expect(request.target).toEqual({ kind: "deploy-id", deployId: DEPLOY_ID });
   });
 
-  it.each(["0", "-5", "soon"])("rejects --interval-seconds %j", (value) => {
-    expect(() => readConfig(["--interval-seconds", value], variables)).toThrow(
-      "--interval-seconds",
-    );
-  });
+  it.each(["0", "-5", "soon", "0.5", "99999999"])(
+    "rejects --interval-seconds %j",
+    (value) => {
+      expect(() =>
+        readConfig(["--interval-seconds", value], variables),
+      ).toThrow("--interval-seconds");
+    },
+  );
 
   it("rejects a malformed deploy id", () => {
     expect(() =>
@@ -376,6 +393,18 @@ describe("runVerifyNetlifyDeploy", () => {
     const output = JSON.stringify(vi.mocked(console.error).mock.calls);
     expect(output).toContain("::error::");
     expect(output).not.toContain("secret-token");
+  });
+
+  it("escapes Netlify text in the annotation", async () => {
+    await runVerifyNetlifyDeploy(
+      [],
+      environment([
+        deploy({ state: "error", errorMessage: "one\n::add-mask::x" }),
+      ]),
+    );
+    const [line] = vi.mocked(console.error).mock.calls[0] ?? [];
+    expect(String(line)).toContain("%0A::add-mask::x");
+    expect(String(line)).not.toContain("\n");
   });
 
   it("verifies a known deploy id", async () => {

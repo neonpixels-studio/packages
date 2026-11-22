@@ -36,10 +36,7 @@ async function lookUpLastDeployedSha(
     const client = environment.createClient(siteId, token);
     return findLastDeployedSha(await client.listProductionDeploys());
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    console.log(
-      `np-should-deploy: could not read the last deploy (${reason}).`,
-    );
+    log(`could not read the last deploy (${describeError(error)}).`);
     return null;
   }
 }
