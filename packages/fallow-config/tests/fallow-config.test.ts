@@ -16,6 +16,7 @@ import packageJson from "../package.json" with { type: "json" };
 const PACKAGE_DIR = resolve(fileURLToPath(import.meta.url), "../..");
 const FALLOW_BIN = join(PACKAGE_DIR, "node_modules/.bin/fallow");
 const PACKAGE_NAME = "@neon-pixels/fallow-config";
+const FALLOW_TIMEOUT_MS = 30_000;
 const FALLOW_SCHEMA_URL = "https://fallow.tools/schema.json";
 const EXTENDS_BASE = { extends: `npm:${PACKAGE_NAME}` };
 
@@ -44,6 +45,7 @@ function resolveConfig(projectDir: string) {
   const output = execFileSync(FALLOW_BIN, ["config"], {
     cwd: projectDir,
     encoding: "utf8",
+    timeout: FALLOW_TIMEOUT_MS,
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output);
