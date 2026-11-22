@@ -1,6 +1,6 @@
 # @neon-pixels/scripts
 
-CI gate scripts for Neon Pixels projects. Both are command-line tools with no library API. Each prints one line per failure and exits non-zero. Neither prints environment variables or tokens.
+CI and deploy scripts for Neon Pixels projects. They are command-line tools with no library API. Each prints one line per failure and exits non-zero. Neither prints environment variables or tokens.
 
 ## Install
 
@@ -57,3 +57,41 @@ Run it from the repository root. It fails if it finds no workflow files, so a wr
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 ```
+
+## `np-should-deploy`
+
+Decides whether `main` has commits newer than the live Netlify production deploy, for a scheduled deploy workflow. It writes `skip=true` (the commit is already live) or `skip=false` to the file named by `GITHUB_OUTPUT`, and prints the reason.
+
+```sh
+pnpm exec np-should-deploy
+```
+
+Environment variables, all passed by the workflow:
+
+- `CURRENT_SHA`: the commit on `main` to compare against the live deploy.
+- `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
+
+Every uncertain case deploys: a missing variable, a Netlify lookup error, or no successful production deploy on record all give `skip=false`, because a redundant deploy is cheap and a silently skipped one leaves a commit unshipped. It exits 0 either way; it only fails on a usage error such as an unknown flag.
+
+## `np-verify-netlify-deploy`
+
+Waits for the production deploy a build hook started, and fails unless it reaches `ready` (and, when `EXPECTED_COMMIT_SHA` is set, was built from that commit). A hook answers with an empty body, so the deploy is found by the title the trigger step sent and the time it fired. Failure messages are written as `::error::` workflow annotations with Netlify's text escaped.
+
+```sh
+pnpm exec np-verify-netlify-deploy
+pnpm exec np-verify-netlify-deploy --timeout-seconds 1800 --interval-seconds 30
+```
+
+Environment variables, all passed by the workflow:
+
+- `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
+- `NETLIFY_TRIGGER_TITLE` and `NETLIFY_TRIGGERED_AT`: the title sent to the hook and when it was called (ISO 8601). A deploy created up to two minutes before that time still counts, to absorb clock skew.
+- `EXPECTED_COMMIT_SHA` (optional): the commit that was checked before triggering. The hook builds whatever `main` is when Netlify picks the job up, so a `ready` deploy of any other commit, or one with no recorded commit, fails.
+- `NETLIFY_VERIFY_DEPLOY_ID` (optional): verify one known deploy (24 lowercase hex characters) instead of searching by title. The trigger variables are then not needed. The deploy must belong to `NETLIFY_SITE_ID` and be a production deploy.
+
+| Flag                 | Default | Meaning                 |
+| -------------------- | ------- | ----------------------- |
+| `--timeout-seconds`  | `1200`  | Give up after this long |
+| `--interval-seconds` | `15`    | Wait between polls      |
+
+`error`, `cancelled`, `rejected`, and `skipped` deploys fail immediately. Transient API errors (5xx, network) are retried until the timeout, and one last poll always runs at the deadline. A rejected token or an unknown site id fails immediately.

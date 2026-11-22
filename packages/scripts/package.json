@@ -1,7 +1,7 @@
 {
   "name": "@neon-pixels/scripts",
   "version": "0.1.0",
-  "description": "CI gate scripts for Neon Pixels projects: dependency audit gate and GitHub Actions pinning check.",
+  "description": "CI gate scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, and Netlify production deploy checks.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -11,7 +11,9 @@
   },
   "bin": {
     "np-audit-gate": "./dist/audit-gate.js",
-    "np-check-action-pinning": "./dist/check-action-pinning.js"
+    "np-check-action-pinning": "./dist/check-action-pinning.js",
+    "np-should-deploy": "./dist/should-deploy.js",
+    "np-verify-netlify-deploy": "./dist/verify-netlify-deploy.js"
   },
   "exports": {
     "./package.json": "./package.json"
