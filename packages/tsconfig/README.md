@@ -53,7 +53,7 @@ Nuxt's own options win where they overlap, so the generated paths, `moduleResolu
 
 ## What the consuming repo still sets
 
-- `paths`, `baseUrl`, and path aliases
+- `paths` and path aliases
 - `include` and `exclude`
 - `outDir`, `rootDir`, and anything else tied to your layout
 - Any extra strictness, such as `noUncheckedIndexedAccess`, or per-app options

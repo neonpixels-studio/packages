@@ -51,7 +51,12 @@ const IMPLICIT_ANY_SOURCE = `export function double(value) {
 
 // The nuxt entry mirrors Nuxt's generated `.nuxt/tsconfig.app.json`: its own
 // compilerOptions on top of an `extends` of the base.
-const STACKS: Record<string, { project: string; tsconfig: object }> = {
+interface Stack {
+  project: string;
+  tsconfig: object;
+}
+
+const STACKS = {
   base: {
     project: "tsconfig.json",
     tsconfig: { extends: "@neon-pixels/tsconfig", include: ["src"] },
@@ -77,8 +82,9 @@ const STACKS: Record<string, { project: string; tsconfig: object }> = {
       include: ["../src"],
     },
   },
-};
+} satisfies Record<string, Stack>;
 
+type StackName = keyof typeof STACKS;
 // A killed run can leave fixtures behind, so clear them before and after.
 beforeAll(() => removeDirectories(leftoverFixtureDirectories()));
 afterAll(() => removeDirectories(leftoverFixtureDirectories()));
@@ -95,11 +101,8 @@ function removeDirectories(directories: string[]) {
   }
 }
 
-function writeFixture(stack: string, source: string): string {
-  const { project, tsconfig } = STACKS[stack] as {
-    project: string;
-    tsconfig: object;
-  };
+function writeFixture(stack: StackName, source: string): string {
+  const { project, tsconfig }: Stack = STACKS[stack];
   const root = mkdtempSync(join(TESTS_ROOT, `${FIXTURE_PREFIX}${stack}-`));
   mkdirSync(join(root, "src"));
   writeFileSync(join(root, "src", "index.ts"), source);
@@ -108,18 +111,21 @@ function writeFixture(stack: string, source: string): string {
   return root;
 }
 
-function typecheck(stack: string, source: string) {
+function typecheck(stack: StackName, source: string) {
   const root = writeFixture(stack, source);
-  const { project } = STACKS[stack] as { project: string };
+  const { project } = STACKS[stack];
   const result = spawnSync(
     process.execPath,
     [TSC_BIN, "--noEmit", "-p", join(root, project)],
     { encoding: "utf8" },
   );
+  if (result.error) {
+    throw result.error;
+  }
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
-describe.each(Object.keys(STACKS))("%s base", (stack) => {
+describe.each(Object.keys(STACKS) as StackName[])("%s base", (stack) => {
   it("accepts clean code", () => {
     const result = typecheck(stack, CLEAN_SOURCE);
     expect(result.output).toBe("");
@@ -135,5 +141,18 @@ describe.each(Object.keys(STACKS))("%s base", (stack) => {
     const result = typecheck(stack, source);
     expect(result.status).not.toBe(0);
     expect(result.output).toContain(code);
+  });
+});
+
+describe("stack specific options", () => {
+  const NODE_GLOBAL_SOURCE = "export const home = process.env.HOME;\n";
+  const DOM_GLOBAL_SOURCE = "export const title = document.title;\n";
+
+  it("node base provides Node types", () => {
+    expect(typecheck("node", NODE_GLOBAL_SOURCE).status).toBe(0);
+  });
+
+  it("vitepress base provides DOM types", () => {
+    expect(typecheck("vitepress", DOM_GLOBAL_SOURCE).status).toBe(0);
   });
 });
