@@ -19,6 +19,10 @@ describe("preview release workflow", () => {
     expect(PREVIEW_WORKFLOW_CODE).not.toContain("pull_request_target");
   });
 
+  it("never grants write permissions", () => {
+    expect(PREVIEW_WORKFLOW_CODE).not.toMatch(/^\s+[\w-]+: write$/m);
+  });
+
   it("references no secrets", () => {
     expect(PREVIEW_WORKFLOW_CODE).not.toMatch(/secrets\./);
   });
@@ -29,7 +33,7 @@ describe("preview release workflow", () => {
 
   it("triggers on submitted reviews and pushes to main only", () => {
     expect(PREVIEW_WORKFLOW_CODE).toMatch(
-      /^on:\n {2}pull_request_review:\n {4}types: \[submitted\]\n {2}push:\n {4}branches: \[main\]\n/m,
+      /^on:\n {2}pull_request_review:\n {4}types: \[submitted\]\n {2}push:\n {4}branches: \[main\]\n\npermissions:/m,
     );
   });
 
@@ -46,8 +50,8 @@ describe("preview release workflow", () => {
     expect(PREVIEW_WORKFLOW_CODE).not.toContain("author_association");
   });
 
-  it("only passes the permission check for write, maintain, or admin", () => {
-    expect(PREVIEW_WORKFLOW_CODE).toMatch(/^\s+admin \| maintain \| write\)$/m);
+  it("only passes the permission check for write or admin", () => {
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(/^\s+admin \| write\)$/m);
     expect(PREVIEW_WORKFLOW_CODE).toMatch(
       /\*\)\n(?:(?!allowed=true).*\n)*?\s+echo "allowed=false"/,
     );
@@ -79,8 +83,8 @@ describe("preview release workflow", () => {
   });
 
   it("publishes only when the check allowed it", () => {
-    expect(PREVIEW_WORKFLOW_CODE).toContain(
-      "if: needs.check.outputs.allowed == 'true'",
+    expect(PREVIEW_WORKFLOW_CODE).toMatch(
+      /^ {2}publish:\n {4}needs: check\n {4}if: needs\.check\.outputs\.allowed == 'true'$/m,
     );
   });
 

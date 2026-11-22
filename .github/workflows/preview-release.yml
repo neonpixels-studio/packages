@@ -70,7 +70,8 @@ jobs:
           permission="$(gh api "repos/${REPOSITORY}/collaborators/${REVIEWER}/permission" --jq '.permission')"
           echo "Reviewer ${REVIEWER} has the ${permission} permission."
           case "${permission}" in
-            admin | maintain | write)
+            # The legacy `.permission` field folds maintain into write.
+            admin | write)
               echo "allowed=true" >> "${GITHUB_OUTPUT}"
               ;;
             *)
