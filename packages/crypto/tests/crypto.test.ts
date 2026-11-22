@@ -215,6 +215,10 @@ describe("failures", () => {
     expect(codeOf(() => decrypt(payload, keys, 42 as never))).toBe(
       "invalid-associated-data",
     );
+    expect(codeOf(() => decrypt(42 as never, keys))).toBe("malformed-payload");
+    expect(
+      codeOf(() => isEncryptedWithPrimaryKey(undefined as never, keys)),
+    ).toBe("malformed-payload");
     expect(codeOf(() => encrypt(undefined as never, keys))).toBe(
       "invalid-plaintext",
     );
@@ -326,6 +330,7 @@ describe("decodeKey", () => {
       "non-canonical",
       Buffer.from(OLD_KEY).toString("base64").replace(/E=$/, "F="),
     ],
+    ["over-padded", `${Buffer.from(OLD_KEY).toString("base64")}==`],
     ["not a string", undefined as never],
     ["wrong length", Buffer.alloc(16).toString("base64")],
   ])("rejects a key that is %s", (_label, base64Key) => {

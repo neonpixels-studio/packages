@@ -49,17 +49,21 @@ export function parsePayload(payload: string): ParsedPayload {
       "Unsupported encrypted payload version.",
     );
   }
-  if (rest.length > 0 || !keyId || !KEY_ID_PATTERN.test(keyId)) {
+  if (
+    rest.length > 0 ||
+    ciphertextBase64 === undefined ||
+    !keyId ||
+    !KEY_ID_PATTERN.test(keyId)
+  ) {
     throw malformed();
   }
   const iv = decodeStrictBase64(ivBase64 ?? "");
   const authTag = decodeStrictBase64(authTagBase64 ?? "");
-  const ciphertext = decodeStrictBase64(ciphertextBase64 ?? "");
+  const ciphertext = decodeStrictBase64(ciphertextBase64);
   const isValid =
     iv?.byteLength === IV_BYTE_LENGTH &&
     authTag?.byteLength === AUTH_TAG_BYTE_LENGTH &&
-    ciphertext !== null &&
-    ciphertextBase64 !== undefined;
+    ciphertext !== null;
   if (!isValid) {
     throw malformed();
   }
