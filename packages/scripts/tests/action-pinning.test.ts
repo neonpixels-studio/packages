@@ -66,6 +66,14 @@ describe("findPinningViolations", () => {
     expect(check(`- { uses: actions/checkout@${SHA} } # v4`)).toEqual([]);
   });
 
+  it("finds uses keys that are not first in a flow mapping or have a space before the colon", () => {
+    expect(
+      check("- { name: Checkout, uses: actions/checkout@v4 }"),
+    ).toHaveLength(1);
+    expect(check("  uses : actions/checkout@v4")).toHaveLength(1);
+    expect(check("steps: [{ uses: actions/checkout@v4 }]")).toHaveLength(1);
+  });
+
   it("fails a uses key whose value is on the next line", () => {
     expect(check("- uses:")[0]?.reason).toContain("following line");
     expect(check("  uses: # note")).toHaveLength(1);

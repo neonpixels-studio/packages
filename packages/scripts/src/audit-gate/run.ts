@@ -24,15 +24,19 @@ export interface AuditGateEnvironment {
   appendStepSummary(markdown: string): void;
 }
 
+export interface AuditProcessResult {
+  stdout: string;
+  stderr: string;
+  error?: Error | undefined;
+}
+
 // `npm audit` and `pnpm audit` exit non-zero whenever they find advisories,
 // so the exit code is ignored and the JSON decides. Unusable output fails in
 // parseAuditReport.
-function runAuditCommand(packageManager: PackageManager): string {
-  const { command, args } = auditCommandFor(packageManager);
-  const result = spawnSync(command, args, {
-    encoding: "utf-8",
-    maxBuffer: MAX_AUDIT_OUTPUT_BYTES,
-  });
+export function readAuditOutput(
+  command: string,
+  result: AuditProcessResult,
+): string {
   if (result.error) {
     throw new Error(`could not run ${command}: ${result.error.message}`);
   }
@@ -40,6 +44,15 @@ function runAuditCommand(packageManager: PackageManager): string {
     throw new Error(`${command} audit failed: ${result.stderr.trim()}`);
   }
   return result.stdout;
+}
+
+function runAuditCommand(packageManager: PackageManager): string {
+  const { command, args } = auditCommandFor(packageManager);
+  const result = spawnSync(command, args, {
+    encoding: "utf-8",
+    maxBuffer: MAX_AUDIT_OUTPUT_BYTES,
+  });
+  return readAuditOutput(command, result);
 }
 
 export const systemEnvironment: AuditGateEnvironment = {

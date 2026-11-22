@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative as relativePath } from "node:path";
 import { findPinningViolations, formatViolation } from "./check.ts";
 
 const WORKFLOWS_DIRECTORY = ".github/workflows";
@@ -14,28 +14,40 @@ export interface ActionPinningEnvironment {
   readTextFile(path: string): string;
 }
 
-function listFiles(directory: string, pattern: RegExp): string[] {
+// Symlinks count: a symlinked workflow still runs, so it must be checked.
+function listFiles(
+  directory: string,
+  pattern: RegExp,
+  recursive: boolean,
+): string[] {
   if (!existsSync(directory)) {
     return [];
   }
-  return readdirSync(directory, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && pattern.test(entry.name))
+  return readdirSync(directory, { recursive, withFileTypes: true })
+    .filter(
+      (entry) =>
+        (entry.isFile() || entry.isSymbolicLink()) && pattern.test(entry.name),
+    )
     .map((entry) => join(entry.parentPath, entry.name));
 }
 
-function listSystemActionFiles(): string[] {
-  const rootActionFiles = readdirSync(".").filter((name) =>
-    ACTION_FILE_PATTERN.test(name),
-  );
+/** GitHub only runs top-level workflow files; composite actions nest freely. */
+export function listActionFilesIn(rootDirectory: string): string[] {
   return [
-    ...listFiles(WORKFLOWS_DIRECTORY, YAML_PATTERN),
-    ...listFiles(ACTIONS_DIRECTORY, ACTION_FILE_PATTERN),
-    ...rootActionFiles,
-  ].sort();
+    ...listFiles(join(rootDirectory, WORKFLOWS_DIRECTORY), YAML_PATTERN, false),
+    ...listFiles(
+      join(rootDirectory, ACTIONS_DIRECTORY),
+      ACTION_FILE_PATTERN,
+      true,
+    ),
+    ...listFiles(rootDirectory, ACTION_FILE_PATTERN, false),
+  ]
+    .map((path) => relativePath(rootDirectory, path))
+    .sort();
 }
 
 export const systemEnvironment: ActionPinningEnvironment = {
-  listActionFiles: listSystemActionFiles,
+  listActionFiles: () => listActionFilesIn("."),
   readTextFile: (path) => readFileSync(path, "utf-8"),
 };
 

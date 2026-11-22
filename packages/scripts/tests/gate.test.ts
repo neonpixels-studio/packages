@@ -78,6 +78,13 @@ describe("evaluateAudit", () => {
 });
 
 describe("formatSummary", () => {
+  it("lists severities outside the usual four in the table", () => {
+    const unknown = { ...HIGH, severity: "unknown" };
+    expect(formatSummary(evaluateAudit([unknown], [], NOW))).toContain(
+      "| unknown | 1 |",
+    );
+  });
+
   it("includes counts, accepted advisories, stale entries, and failures", () => {
     const stale = { ...ENTRY, id: "GHSA-old-old-old" };
     const summary = formatSummary(

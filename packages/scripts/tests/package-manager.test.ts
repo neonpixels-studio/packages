@@ -18,6 +18,12 @@ describe("detectPackageManager", () => {
     },
   );
 
+  it("ignores file names that match object prototype keys", () => {
+    expect(
+      detectPackageManager(["constructor", "toString", "package-lock.json"]),
+    ).toBe("npm");
+  });
+
   it("fails without a lockfile", () => {
     expect(() => detectPackageManager(["package.json"])).toThrow(
       "no supported lockfile",

@@ -5,9 +5,13 @@ export interface PinningViolation {
   reason: string;
 }
 
-const USES_PATTERN =
-  /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:'([^']*)'|"([^"]*)"|([^\s,}]+))(.*)$/;
-const BARE_USES_PATTERN = /^\s*(?:-\s+)?(?:\{\s*)?["']?uses["']?:\s*(?:#.*)?$/;
+// The key can start the line (after an optional "- ") or follow "{" or ","
+// in a flow mapping.
+const KEY_START = String.raw`(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:`;
+const USES_PATTERN = new RegExp(
+  String.raw`${KEY_START}\s*(?:'([^']*)'|"([^"]*)"|([^\s,}]+))(.*)$`,
+);
+const BARE_USES_PATTERN = new RegExp(String.raw`${KEY_START}\s*(?:#.*)?$`);
 const COMMIT_REFERENCE_PATTERN = /^[^@\s]+@[0-9a-f]{40}$/;
 const DOCKER_DIGEST_PATTERN = /^docker:\/\/\S+@sha256:[0-9a-f]{64}$/;
 const VERSION_COMMENT_PATTERN = /#\s*v?\d/;
