@@ -2,7 +2,11 @@ import vue from "@vitejs/plugin-vue";
 import { exclude, setupFile, timezone } from "./shared.js";
 
 export default {
-  plugins: [vue()],
+  // A getter so every consumer gets its own plugin instance: the Vue plugin keeps
+  // per-server state in a closure.
+  get plugins() {
+    return [vue()];
+  },
   test: {
     environment: "happy-dom",
     env: timezone,

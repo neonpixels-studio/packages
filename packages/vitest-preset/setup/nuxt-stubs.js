@@ -38,6 +38,9 @@ const vueAutoImports = {
 /** @param {unknown} handler */
 const identity = (handler) => handler;
 
+// h3 reports 500 when no status code is given.
+const DEFAULT_STATUS_CODE = 500;
+
 /**
  * h3's createError as a real Error carrying the status fields, so tests can
  * assert with `rejects.toMatchObject({ statusCode })`. Takes a message string
@@ -48,7 +51,7 @@ function createError(input) {
   const options = typeof input === "string" ? { message: input } : input;
   const { statusCode, statusMessage, message, data } = options;
   return Object.assign(new Error(message ?? statusMessage), {
-    statusCode,
+    statusCode: statusCode ?? DEFAULT_STATUS_CODE,
     statusMessage,
     data,
   });

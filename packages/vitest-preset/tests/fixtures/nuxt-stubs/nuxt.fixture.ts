@@ -49,7 +49,10 @@ it("creates errors that carry the status fields", () => {
 });
 
 it("accepts a message string or a message option like h3", () => {
-  expect(createError("Boom")).toMatchObject({ message: "Boom" });
+  expect(createError("Boom")).toMatchObject({
+    message: "Boom",
+    statusCode: 500,
+  });
   expect(createError({ statusCode: 400, message: "Bad" })).toMatchObject({
     message: "Bad",
     statusCode: 400,

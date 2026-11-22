@@ -17,6 +17,14 @@ describe("presets", () => {
     },
   );
 
+  it.each([
+    ["vitepress", vitepressPreset],
+    ["nuxt", nuxtPreset],
+  ])("%s hands each consumer a fresh Vue plugin instance", (_, preset) => {
+    expect(preset.plugins).toHaveLength(1);
+    expect(preset.plugins?.[0]).not.toBe(preset.plugins?.[0]);
+  });
+
   it("gives node no DOM and no Vue plugin", () => {
     expect(nodePreset.test?.environment).toBe("node");
     expect(nodePreset.plugins).toBeUndefined();

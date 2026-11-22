@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   ranFiles,
   runFixture,
   type FixtureFile,
+  type FixtureResult,
 } from "./helpers/runFixture.ts";
 
 const EXPECTED_FILES: Record<string, string[]> = {
@@ -25,15 +26,19 @@ function describeFailures(file: FixtureFile): string[] {
 }
 
 describe.each(Object.keys(EXPECTED_FILES))("%s preset", (name) => {
-  it("passes every test in its fixture project", async () => {
-    const result = await runFixture(name);
+  let result: FixtureResult;
+
+  beforeAll(async () => {
+    result = await runFixture(name);
+  }, 60_000);
+
+  it("passes every test in its fixture project", () => {
     const failures = result.testResults.flatMap(describeFailures);
     expect(failures).toEqual([]);
     expect(result.success).toBe(true);
-  }, 60_000);
+  });
 
-  it("runs the consumer's include globs and skips e2e directories", async () => {
-    const result = await runFixture(name);
+  it("runs the consumer's include globs and skips e2e directories", () => {
     expect(ranFiles(result)).toEqual([...EXPECTED_FILES[name]!].sort());
-  }, 60_000);
+  });
 });
