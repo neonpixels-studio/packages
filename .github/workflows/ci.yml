@@ -66,7 +66,10 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
 
   # Packs every package exactly as the release would, checks the tarballs, and
-  # runs `npm publish --dry-run` on each. Nothing is published.
+  # runs `npm publish --dry-run` on each one not already on npm (npm refuses to
+  # publish over a released version, so unchanged packages are skipped and only
+  # new versions, such as the Version Packages PR's, are dry-run). Nothing is
+  # published.
   release-dry-run:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -87,13 +90,9 @@ jobs:
       - name: Check the tarballs
         run: |
           mkdir -p "$RUNNER_TEMP/dry-run"
-          node scripts/release/check-tarballs.ts "$RUNNER_TEMP/dry-run"
+          node scripts/release/check-tarballs.ts "$RUNNER_TEMP/dry-run" --require-tarballs
       - name: Publish dry run
-        run: |
-          shopt -s nullglob
-          for tarball in "$RUNNER_TEMP"/dry-run/*.tgz; do
-            npm publish "$tarball" --dry-run --access public
-          done
+        run: node scripts/release/dry-run-packed.ts "$RUNNER_TEMP/dry-run"
 
   gitleaks:
     runs-on: ubuntu-latest
