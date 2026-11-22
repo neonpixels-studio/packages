@@ -33,22 +33,24 @@ function readChangesets(range: string): string[] {
     .map((file) => readFileSync(file, "utf-8"));
 }
 
-function reportProblems({ missing, unknown, majorBumps }: GateResult): void {
-  for (const name of missing) {
-    console.error(
-      `::error::${name} changed but no changeset names it. Run "pnpm changeset" and commit the file.`,
-    );
-  }
-  for (const name of unknown) {
-    console.error(
-      `::error::A changeset names ${name}, which is not a workspace package.`,
-    );
-  }
-  for (const name of majorBumps) {
-    console.error(
-      `::error::A changeset bumps ${name} by major. Versions stay below 1.0: use minor.`,
-    );
-  }
+function problemMessages({
+  missing,
+  unknown,
+  majorBumps,
+}: GateResult): string[] {
+  return [
+    ...missing.map(
+      (name) =>
+        `${name} changed but no changeset names it. Run "pnpm changeset" and commit the file.`,
+    ),
+    ...unknown.map(
+      (name) => `A changeset names ${name}, which is not a workspace package.`,
+    ),
+    ...majorBumps.map(
+      (name) =>
+        `A changeset bumps ${name} by major. Versions stay below 1.0: use minor.`,
+    ),
+  ];
 }
 
 function main(): number {
@@ -59,13 +61,14 @@ function main(): number {
     packages: listWorkspacePackages(process.cwd()),
   });
 
-  reportProblems(result);
-  const problemCount =
-    result.missing.length + result.unknown.length + result.majorBumps.length;
-  if (problemCount === 0) {
+  const problems = problemMessages(result);
+  for (const problem of problems) {
+    console.error(`::error::${problem}`);
+  }
+  if (problems.length === 0) {
     console.log("Changeset check passed.");
   }
-  return problemCount === 0 ? 0 : 1;
+  return problems.length === 0 ? 0 : 1;
 }
 
 process.exitCode = main();

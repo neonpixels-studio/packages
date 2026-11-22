@@ -6,6 +6,7 @@ import {
 } from "../../scripts/release/publish-plan.ts";
 import {
   isNpmNewEnoughForTrustedPublishing,
+  isVersionPublished,
   packageExistsOnNpm,
 } from "../../scripts/release/npm-registry.ts";
 
@@ -117,6 +118,26 @@ describe("packageExistsOnNpm", () => {
       });
     };
     expect(() => packageExistsOnNpm("a", outage)).toThrow(/Could not check/);
+  });
+});
+
+describe("isVersionPublished", () => {
+  it("is false when npm exits 0 with no output for an unknown version", () => {
+    expect(isVersionPublished("a", "0.2.0", () => "")).toBe(false);
+  });
+
+  it("is true when npm reports that exact version", () => {
+    expect(isVersionPublished("a", "0.2.0", () => '"0.2.0"\n')).toBe(true);
+  });
+
+  it("is false on a 404 and throws on other failures", () => {
+    const fail = (stderr: string) => () => {
+      throw Object.assign(new Error("fail"), { stderr });
+    };
+    expect(isVersionPublished("a", "0.2.0", fail("E404"))).toBe(false);
+    expect(() =>
+      isVersionPublished("a", "0.2.0", fail("ECONNRESET")),
+    ).toThrow();
   });
 });
 

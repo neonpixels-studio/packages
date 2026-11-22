@@ -192,6 +192,8 @@ describe("publish-packed.ts", () => {
       join(bin, "npm"),
       `#!/bin/sh
 if [ "$1" = "--version" ]; then echo 11.13.0; exit 0; fi
+# name@version lookups: exit 0 with no output, like npm for an unknown version
+case "$2" in @*/*@*) exit 0 ;; esac
 case " ${existingNames.join(" ")} " in
   *" $2 "*) echo '"'$2'"'; exit 0 ;;
 esac
