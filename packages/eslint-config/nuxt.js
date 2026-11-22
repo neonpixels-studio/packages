@@ -1,13 +1,11 @@
-import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
-import { baseConfigs } from "./lib/base.js";
+import { withBase } from "./lib/base.js";
 import { clerkWrapperRestriction } from "./lib/clerk.js";
 import { vueConfigs } from "./lib/vue.js";
 
 export { allowClerkComposables } from "./lib/clerk.js";
 
-export default [
-  ...baseConfigs,
+export default withBase(
   ...vueConfigs,
   {
     name: "neon-pixels/nuxt",
@@ -26,5 +24,4 @@ export default [
     rules: { "vue/multi-word-component-names": "off" },
   },
   clerkWrapperRestriction,
-  eslintConfigPrettier,
-];
+);

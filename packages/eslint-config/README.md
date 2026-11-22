@@ -72,7 +72,6 @@ Add `@nuxt/eslint` to `modules` in `nuxt.config.ts`, run `pnpm nuxt prepare`, th
 
 ```js
 // eslint.config.mjs
-import { defineConfig } from "eslint/config";
 import nuxt, { allowClerkComposables } from "@neon-pixels/eslint-config/nuxt";
 import withNuxt from "./.nuxt/eslint.config.mjs";
 

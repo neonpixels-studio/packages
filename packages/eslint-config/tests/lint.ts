@@ -2,13 +2,19 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { ESLint, type Linter } from "eslint";
 
+const ERROR_SEVERITY = 2;
 const FIXTURES_DIRECTORY = fileURLToPath(
   new URL("./fixtures/", import.meta.url),
 );
 
+function describeMessage(message: Linter.LintMessage): string {
+  const severity = message.severity === ERROR_SEVERITY ? "error" : "warn";
+  return `${severity}:${message.ruleId ?? "(none)"}`;
+}
+
 /**
  * Lints a fixture as if it lived at `virtualPath` in a consuming repo and
- * returns the sorted, de-duplicated rule ids that fired.
+ * returns one sorted `severity:ruleId` entry per report.
  */
 export async function lintFixture(
   config: Linter.Config[],
@@ -32,6 +38,5 @@ export async function lintFixture(
   if (fatal) {
     throw new Error(`${fixture} failed to parse: ${fatal.message}`);
   }
-  const ruleIds = result.messages.map((message) => message.ruleId ?? "(none)");
-  return [...new Set(ruleIds)].sort();
+  return result.messages.map(describeMessage).sort();
 }

@@ -1,15 +1,13 @@
 import eslintJs from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier";
 import tseslint from "typescript-eslint";
 
 const UNUSED_PREFIX_PATTERN = "^_";
 
 /**
- * Shared rules without the Prettier override. Every entry point appends
- * `eslint-config-prettier` itself so it stays the last element.
- *
  * @type {import("eslint").Linter.Config[]}
  */
-export const baseConfigs = [
+const baseConfigs = [
   eslintJs.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -29,3 +27,14 @@ export const baseConfigs = [
     },
   },
 ];
+
+/**
+ * The shared base, then the stack's own configs, then
+ * `eslint-config-prettier` so it is always the last element.
+ *
+ * @param {...import("eslint").Linter.Config} stackConfigs
+ * @returns {import("eslint").Linter.Config[]}
+ */
+export function withBase(...stackConfigs) {
+  return [...baseConfigs, ...stackConfigs, eslintConfigPrettier];
+}

@@ -1,1 +1,2 @@
+export const directory = process.cwd();
 export const value = notDefinedAnywhere;

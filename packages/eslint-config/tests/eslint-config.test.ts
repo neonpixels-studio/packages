@@ -6,13 +6,13 @@ import nuxtConfig, { allowClerkComposables } from "../nuxt.js";
 import vitepressConfig from "../vitepress.js";
 import { lintFixture } from "./lint.ts";
 
-const UNUSED_VARS = "@typescript-eslint/no-unused-vars";
-const NO_V_HTML = "vue/no-v-html";
-const NO_UNDEF = "no-undef";
-const ALT_TEXT = "vuejs-accessibility/alt-text";
-const CLERK_SYNTAX = "no-restricted-syntax";
-const CLERK_VUE_SYNTAX = "vue/no-restricted-syntax";
-const CLERK_IMPORTS = "no-restricted-imports";
+const UNUSED_VARS = "error:@typescript-eslint/no-unused-vars";
+const NO_V_HTML = "error:vue/no-v-html";
+const NO_UNDEF = "error:no-undef";
+const ALT_TEXT = "error:vuejs-accessibility/alt-text";
+const CLERK_SYNTAX = "error:no-restricted-syntax";
+const CLERK_VUE_SYNTAX = "error:vue/no-restricted-syntax";
+const CLERK_IMPORTS = "error:no-restricted-imports";
 
 describe.each([
   ["default", baseConfig],
@@ -36,7 +36,7 @@ describe("node entry point", () => {
   it("errors on unused variables and parameters", async () => {
     expect(
       await lintFixture(nodeConfig, "node/unused.ts", "src/unused.ts"),
-    ).toEqual([UNUSED_VARS]);
+    ).toEqual([UNUSED_VARS, UNUSED_VARS]);
   });
 
   it("flags unknown globals but knows Node's", async () => {
@@ -87,7 +87,7 @@ describe("vitepress entry point", () => {
         "vitepress/unused.vue",
         "docs/UnusedCount.vue",
       ),
-    ).toEqual([UNUSED_VARS]);
+    ).toEqual([UNUSED_VARS, UNUSED_VARS]);
   });
 });
 
@@ -154,7 +154,7 @@ describe("nuxt entry point", () => {
         "nuxt/clean.vue",
         "app/components/Title.vue",
       ),
-    ).toEqual(["vue/multi-word-component-names"]);
+    ).toEqual(["error:vue/multi-word-component-names"]);
   });
 
   it("forbids calling Clerk's client composables directly", async () => {

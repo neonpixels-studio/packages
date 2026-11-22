@@ -1,9 +1,7 @@
-import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
-import { baseConfigs } from "./lib/base.js";
+import { withBase } from "./lib/base.js";
 
-export default [
-  ...baseConfigs,
-  { name: "neon-pixels/node", languageOptions: { globals: globals.node } },
-  eslintConfigPrettier,
-];
+export default withBase({
+  name: "neon-pixels/node",
+  languageOptions: { globals: globals.node },
+});

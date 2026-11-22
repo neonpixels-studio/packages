@@ -1,4 +1,3 @@
-import eslintConfigPrettier from "eslint-config-prettier";
-import { baseConfigs } from "./lib/base.js";
+import { withBase } from "./lib/base.js";
 
-export default [...baseConfigs, eslintConfigPrettier];
+export default withBase();

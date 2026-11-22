@@ -2,12 +2,14 @@
 import { ref } from "vue";
 
 const label = ref<string>("Home");
+const path = window.location.pathname;
+const mode = process.env.NODE_ENV;
 const _spare = 1;
 </script>
 
 <template>
   <nav>
-    <a href="/">{{ label }}</a>
+    <a href="/">{{ label }} {{ path }} {{ mode }}</a>
     <img src="/logo.svg" alt="Logo" />
   </nav>
 </template>
