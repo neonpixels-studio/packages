@@ -1,0 +1,10 @@
+{
+  "$schema": "https://fallow.tools/schema.json",
+  "duplicates": {
+    "minOccurrences": 3
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  }
+}
