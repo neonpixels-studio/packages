@@ -37,7 +37,7 @@ Empty associated data is rejected, so "empty" and "none" can never differ betwee
 
 ### Errors
 
-Every failure throws `SecretCryptoError` with a `code`: `invalid-key`, `invalid-associated-data`, `malformed-payload`, `unsupported-version`, `unknown-key`, or `decryption-failed`. Messages are fixed text and never include keys, plaintext, or payload contents.
+Every failure throws `SecretCryptoError` with a `code`: `invalid-key`, `invalid-associated-data`, `invalid-plaintext`, `malformed-payload`, `unsupported-version`, `unknown-key`, or `decryption-failed`. Messages are fixed text and never include keys, plaintext, or payload contents.
 
 ## Payload format
 

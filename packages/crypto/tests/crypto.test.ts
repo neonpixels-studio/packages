@@ -104,6 +104,19 @@ describe("rotation", () => {
     expect(reencrypt(payload, rotatedKeys)).toBe(payload);
   });
 
+  it("rejects empty associated data even for a primary-key value", () => {
+    const payload = encrypt(PLAINTEXT, rotatedKeys);
+    expect(codeOf(() => reencrypt(payload, rotatedKeys, ""))).toBe(
+      "invalid-associated-data",
+    );
+  });
+
+  it("rejects a malformed payload when checking the primary key", () => {
+    expect(
+      codeOf(() => isEncryptedWithPrimaryKey("garbage", rotatedKeys)),
+    ).toBe("malformed-payload");
+  });
+
   it("refuses to re-encrypt with the wrong associated data", () => {
     const oldPayload = encrypt(PLAINTEXT, { primary: OLD_KEY }, CONTEXT);
     expect(codeOf(() => reencrypt(oldPayload, rotatedKeys, "other"))).toBe(
@@ -168,6 +181,15 @@ describe("failures", () => {
   it.each([
     ["empty string", ""],
     ["no separators", "not-a-payload"],
+    ["colons but no version", "user:pass"],
+    [
+      "junk character in iv",
+      "v2:02d449a3:Ii!IiIiIiIiIiIiIiIi:VWl6aazkTDf+8UHNY0bGaw==:AAAA",
+    ],
+    [
+      "key id not hex",
+      "v2:zzzzzzzz:IiIiIiIiIiIiIiIi:VWl6aazkTDf+8UHNY0bGaw==:AAAA",
+    ],
     [
       "too few segments",
       "v2:02d449a3:IiIiIiIiIiIiIiIi:VWl6aazkTDf+8UHNY0bGaw==",
@@ -178,6 +200,37 @@ describe("failures", () => {
     ["short auth tag", "v2:02d449a3:IiIiIiIiIiIiIiIi:VWl6:AAAA"],
   ])("rejects a malformed payload: %s", (_label, payload) => {
     expect(codeOf(() => decrypt(payload, keys))).toBe("malformed-payload");
+  });
+
+  it("rejects bad argument types with the typed error", () => {
+    const payload = encrypt(PLAINTEXT, keys);
+    expect(codeOf(() => decrypt(payload, keys, 42 as never))).toBe(
+      "invalid-associated-data",
+    );
+    expect(codeOf(() => encrypt(undefined as never, keys))).toBe(
+      "invalid-plaintext",
+    );
+    expect(codeOf(() => encrypt(PLAINTEXT, undefined as never))).toBe(
+      "invalid-key",
+    );
+  });
+
+  it("rejects a tampered iv", () => {
+    const segments = encrypt(PLAINTEXT, keys).split(":");
+    const iv = Buffer.from(segments[2] ?? "", "base64");
+    iv[0] = (iv[0] ?? 0) ^ 0xff;
+    segments[2] = iv.toString("base64");
+    expect(codeOf(() => decrypt(segments.join(":"), keys))).toBe(
+      "decryption-failed",
+    );
+  });
+
+  it("validates the previous keys when encrypting", () => {
+    expect(
+      codeOf(() =>
+        encrypt(PLAINTEXT, { primary: OLD_KEY, previous: [new Uint8Array(5)] }),
+      ),
+    ).toBe("invalid-key");
   });
 
   it("rejects an unsupported version", () => {
@@ -245,6 +298,7 @@ describe("decodeKey", () => {
   it.each([
     ["empty", ""],
     ["invalid characters", "!!!!".repeat(11)],
+    ["base64url instead of base64", "_-_-".repeat(11)],
     ["wrong length", Buffer.alloc(16).toString("base64")],
   ])("rejects a key that is %s", (_label, base64Key) => {
     expect(codeOf(() => decodeKey(base64Key))).toBe("invalid-key");

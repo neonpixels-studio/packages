@@ -1,6 +1,7 @@
 export type SecretCryptoErrorCode =
   | "invalid-key"
   | "invalid-associated-data"
+  | "invalid-plaintext"
   | "malformed-payload"
   | "unsupported-version"
   | "unknown-key"

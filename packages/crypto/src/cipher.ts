@@ -1,6 +1,12 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  type CipherGCM,
+  type DecipherGCM,
+} from "node:crypto";
 import { SecretCryptoError } from "./errors.ts";
-import { deriveKeyId, listKeys, type KeySet } from "./keys.ts";
+import { assertKeySet, deriveKeyId, listKeys, type KeySet } from "./keys.ts";
 import {
   formatPayload,
   IV_BYTE_LENGTH,
@@ -13,12 +19,31 @@ const CIPHER_ALGORITHM = "aes-256-gcm";
 // An empty string and a missing value must never mean different things on the
 // encrypt and decrypt sides, so empty is rejected outright.
 function assertAssociatedData(associatedData: string | undefined): void {
-  if (associatedData !== undefined && associatedData.length === 0) {
+  if (associatedData === undefined) {
+    return;
+  }
+  if (typeof associatedData !== "string") {
+    throw new SecretCryptoError(
+      "invalid-associated-data",
+      "Associated data must be a string.",
+    );
+  }
+  if (associatedData.length === 0) {
     throw new SecretCryptoError(
       "invalid-associated-data",
       "Associated data was provided but empty. Pass a value or omit it.",
     );
   }
+}
+
+function applyAssociatedData(
+  cipher: CipherGCM | DecipherGCM,
+  associatedData: string | undefined,
+): void {
+  if (associatedData === undefined) {
+    return;
+  }
+  cipher.setAAD(Buffer.from(associatedData, "utf8"));
 }
 
 /**
@@ -34,14 +59,18 @@ export function encrypt(
   keys: KeySet,
   associatedData?: string,
 ): string {
-  listKeys(keys);
+  assertKeySet(keys);
   assertAssociatedData(associatedData);
+  if (typeof plaintext !== "string") {
+    throw new SecretCryptoError(
+      "invalid-plaintext",
+      "Plaintext must be a string.",
+    );
+  }
 
   const iv = randomBytes(IV_BYTE_LENGTH);
   const cipher = createCipheriv(CIPHER_ALGORITHM, keys.primary, iv);
-  if (associatedData !== undefined) {
-    cipher.setAAD(Buffer.from(associatedData, "utf8"));
-  }
+  applyAssociatedData(cipher, associatedData);
   const ciphertext = Buffer.concat([
     cipher.update(plaintext, "utf8"),
     cipher.final(),
@@ -74,9 +103,7 @@ function decipherPayload(
   try {
     const decipher = createDecipheriv(CIPHER_ALGORITHM, key, parsed.iv);
     decipher.setAuthTag(parsed.authTag);
-    if (associatedData !== undefined) {
-      decipher.setAAD(Buffer.from(associatedData, "utf8"));
-    }
+    applyAssociatedData(decipher, associatedData);
     return Buffer.concat([
       decipher.update(parsed.ciphertext),
       decipher.final(),
@@ -115,7 +142,7 @@ export function isEncryptedWithPrimaryKey(
   payload: string,
   keys: KeySet,
 ): boolean {
-  listKeys(keys);
+  assertKeySet(keys);
   return parsePayload(payload).keyId === deriveKeyId(keys.primary);
 }
 
@@ -129,6 +156,7 @@ export function reencrypt(
   keys: KeySet,
   associatedData?: string,
 ): string {
+  assertAssociatedData(associatedData);
   if (isEncryptedWithPrimaryKey(payload, keys)) {
     return payload;
   }

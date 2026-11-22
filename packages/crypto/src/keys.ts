@@ -22,11 +22,30 @@ export function assertKey(key: Uint8Array): void {
   }
 }
 
-/** Every key in the set, primary first. Validates each one. */
+/** Validates every key in the set and returns them, primary first. */
 export function listKeys(keys: KeySet): Uint8Array[] {
+  if (typeof keys !== "object" || keys === null) {
+    throw new SecretCryptoError("invalid-key", "A key set is required.");
+  }
   const allKeys = [keys.primary, ...(keys.previous ?? [])];
   allKeys.forEach(assertKey);
   return allKeys;
+}
+
+export function assertKeySet(keys: KeySet): void {
+  listKeys(keys);
+}
+
+const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/** Strict base64: rejects invalid characters and non-canonical input instead of dropping them. */
+export function decodeStrictBase64(text: string): Buffer | null {
+  if (!BASE64_PATTERN.test(text)) {
+    return null;
+  }
+  const decoded = Buffer.from(text, "base64");
+  const canonical = decoded.toString("base64").replace(/=+$/, "");
+  return canonical === text.replace(/=+$/, "") ? decoded : null;
 }
 
 /**
@@ -34,12 +53,9 @@ export function listKeys(keys: KeySet): Uint8Array[] {
  * Rejects text that is not valid base64 or does not decode to 32 bytes.
  */
 export function decodeKey(base64Key: string): Uint8Array {
-  const trimmedKey = base64Key.trim();
-  const decodedKey = Buffer.from(trimmedKey, "base64");
-  // Buffer.from silently drops invalid characters, so compare a re-encoding
-  // (ignoring padding, which some secret stores strip).
-  const canonicalKey = decodedKey.toString("base64").replace(/=+$/, "");
-  if (canonicalKey !== trimmedKey.replace(/=+$/, "")) {
+  const decodedKey =
+    typeof base64Key === "string" ? decodeStrictBase64(base64Key.trim()) : null;
+  if (decodedKey === null) {
     throw new SecretCryptoError(
       "invalid-key",
       "Encryption key is not valid base64.",
