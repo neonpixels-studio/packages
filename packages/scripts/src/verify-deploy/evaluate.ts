@@ -108,9 +108,3 @@ export function evaluateDeploy(
     ? { status: "live" }
     : { status: "failed", message: commitProblem };
 }
-
-// Workflow commands are line-based, so text from Netlify must not be able to
-// end the message or start a new command.
-export function escapeWorkflowCommand(text: string): string {
-  return text.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-}

@@ -1,7 +1,7 @@
 {
   "name": "@neon-pixels/scripts",
   "version": "0.1.0",
-  "description": "CI gate scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, and Netlify production deploy checks.",
+  "description": "CI and deploy scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, and Netlify production deploy checks.",
   "license": "MIT",
   "type": "module",
   "repository": {

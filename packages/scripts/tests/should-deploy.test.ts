@@ -77,7 +77,7 @@ describe("runShouldDeploy", () => {
     return {
       variables,
       createClient: () => client,
-      appendOutput: (text) => output.push(text),
+      appendOutput: (_path, text) => output.push(text),
       output,
     };
   }
@@ -86,42 +86,70 @@ describe("runShouldDeploy", () => {
     NETLIFY_SITE_ID: "site",
     NETLIFY_AUTH_TOKEN: "secret-token",
     CURRENT_SHA: "abc",
+    GITHUB_OUTPUT: "/tmp/output",
   };
 
   it("writes skip=true when the commit is already live", async () => {
-    const env = environment(full, async () => [deploy({ commitRef: "abc" })]);
-    expect(await runShouldDeploy([], env)).toBe(0);
-    expect(env.output).toEqual(["skip=true\n"]);
+    const testEnvironment = environment(full, async () => [
+      deploy({ commitRef: "abc" }),
+    ]);
+    expect(await runShouldDeploy([], testEnvironment)).toBe(0);
+    expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
   it("writes skip=false when main is newer", async () => {
-    const env = environment(full, async () => [deploy({ commitRef: "old" })]);
-    await runShouldDeploy([], env);
-    expect(env.output).toEqual(["skip=false\n"]);
+    const testEnvironment = environment(full, async () => [
+      deploy({ commitRef: "old" }),
+    ]);
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
 
   it("deploys when the Netlify lookup fails, without logging the token", async () => {
-    const env = environment(full, async () => {
+    const testEnvironment = environment(full, async () => {
       throw new Error("boom");
     });
-    await runShouldDeploy([], env);
-    expect(env.output).toEqual(["skip=false\n"]);
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
     expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
       "secret-token",
     );
   });
 
+  it("does not query Netlify when the current commit is unknown", async () => {
+    const list = vi.fn(async () => [deploy()]);
+    const testEnvironment = environment({ ...full, CURRENT_SHA: "" }, list);
+    await runShouldDeploy([], testEnvironment);
+    expect(list).not.toHaveBeenCalled();
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
+  });
+
+  it("says so when GITHUB_OUTPUT is not set", async () => {
+    const testEnvironment = environment(
+      { ...full, GITHUB_OUTPUT: "" },
+      async () => [],
+    );
+    expect(await runShouldDeploy([], testEnvironment)).toBe(0);
+    expect(testEnvironment.output).toEqual([]);
+    expect(JSON.stringify(vi.mocked(console.log).mock.calls)).toContain(
+      "GITHUB_OUTPUT is not set",
+    );
+  });
+
   it("deploys when credentials are missing", async () => {
     const list = vi.fn(async () => [deploy()]);
-    const env = environment({ CURRENT_SHA: "abc" }, list);
-    await runShouldDeploy([], env);
+    const testEnvironment = environment(
+      { CURRENT_SHA: "abc", GITHUB_OUTPUT: "/tmp/output" },
+      list,
+    );
+    await runShouldDeploy([], testEnvironment);
     expect(list).not.toHaveBeenCalled();
-    expect(env.output).toEqual(["skip=false\n"]);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
 
   it("fails on an unknown flag", async () => {
-    const env = environment(full, async () => []);
-    expect(await runShouldDeploy(["--nope"], env)).toBe(1);
-    expect(env.output).toEqual([]);
+    const testEnvironment = environment(full, async () => []);
+    expect(await runShouldDeploy(["--nope"], testEnvironment)).toBe(1);
+    expect(testEnvironment.output).toEqual([]);
   });
 });

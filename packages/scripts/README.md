@@ -1,6 +1,6 @@
 # @neon-pixels/scripts
 
-CI and deploy scripts for Neon Pixels projects. They are command-line tools with no library API. Each prints one line per failure and exits non-zero. Neither prints environment variables or tokens.
+CI and deploy scripts for Neon Pixels projects. They are command-line tools with no library API. The gates print one line per failure and exit non-zero; `np-should-deploy` fails only on a usage error (see below). None prints environment variables or tokens.
 
 ## Install
 
@@ -85,7 +85,7 @@ pnpm exec np-verify-netlify-deploy --timeout-seconds 1800 --interval-seconds 30
 Environment variables, all passed by the workflow:
 
 - `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
-- `NETLIFY_TRIGGER_TITLE` and `NETLIFY_TRIGGERED_AT`: the title sent to the hook and when it was called (ISO 8601). A deploy created up to two minutes before that time still counts, to absorb clock skew.
+- `NETLIFY_TRIGGER_TITLE` and `NETLIFY_TRIGGERED_AT`: the title sent to the hook and when it was called (ISO 8601). Make the title unique per run (for example include the run id), because a deploy with the same title created up to two minutes earlier would be matched first. A deploy created up to two minutes before that time still counts, to absorb clock skew.
 - `EXPECTED_COMMIT_SHA` (optional): the commit that was checked before triggering. The hook builds whatever `main` is when Netlify picks the job up, so a `ready` deploy of any other commit, or one with no recorded commit, fails.
 - `NETLIFY_VERIFY_DEPLOY_ID` (optional): verify one known deploy (24 lowercase hex characters) instead of searching by title. The trigger variables are then not needed. The deploy must belong to `NETLIFY_SITE_ID` and be a production deploy.
 

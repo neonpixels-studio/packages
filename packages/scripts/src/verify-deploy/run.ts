@@ -1,7 +1,7 @@
 import { createNetlifyClient, type NetlifyClient } from "../netlify/client.ts";
 import { readConfig, type Variables } from "./config.ts";
-import { escapeWorkflowCommand } from "./evaluate.ts";
 import { verifyDeploy } from "./poll.ts";
+import { describeError, escapeWorkflowCommand } from "../workflow-command.ts";
 
 /** Everything the command needs from the machine, so tests can replace it. */
 export interface VerifyDeployEnvironment {
@@ -20,7 +20,7 @@ export const systemEnvironment: VerifyDeployEnvironment = {
 };
 
 function logLine(message: string): void {
-  console.log(`np-verify-netlify-deploy: ${message}`);
+  console.log(`np-verify-netlify-deploy: ${escapeWorkflowCommand(message)}`);
 }
 
 function reportFailure(message: string): void {
@@ -49,7 +49,7 @@ export async function runVerifyNetlifyDeploy(
     logLine(`Netlify production deploy ${result.deploy.id} is live.`);
     return 0;
   } catch (error) {
-    reportFailure(error instanceof Error ? error.message : String(error));
+    reportFailure(describeError(error));
     return 1;
   }
 }

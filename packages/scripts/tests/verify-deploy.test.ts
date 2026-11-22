@@ -11,7 +11,6 @@ import {
 } from "../src/verify-deploy/config.ts";
 import {
   classifyDeployState,
-  escapeWorkflowCommand,
   evaluateDeploy,
   findTriggeredDeploy,
 } from "../src/verify-deploy/evaluate.ts";
@@ -20,6 +19,7 @@ import {
   type PollEnvironment,
   type VerifyRequest,
 } from "../src/verify-deploy/poll.ts";
+import { escapeWorkflowCommand } from "../src/workflow-command.ts";
 import {
   runVerifyNetlifyDeploy,
   type VerifyDeployEnvironment,
@@ -306,6 +306,12 @@ describe("readConfig", () => {
     expect(request.target).toEqual({ kind: "deploy-id", deployId: DEPLOY_ID });
   });
 
+  it.each(["0", "-5", "soon"])("rejects --interval-seconds %j", (value) => {
+    expect(() => readConfig(["--interval-seconds", value], variables)).toThrow(
+      "--interval-seconds",
+    );
+  });
+
   it("rejects a malformed deploy id", () => {
     expect(() =>
       readConfig([], { ...variables, NETLIFY_VERIFY_DEPLOY_ID: "../sites" }),
@@ -370,6 +376,21 @@ describe("runVerifyNetlifyDeploy", () => {
     const output = JSON.stringify(vi.mocked(console.error).mock.calls);
     expect(output).toContain("::error::");
     expect(output).not.toContain("secret-token");
+  });
+
+  it("verifies a known deploy id", async () => {
+    const testEnvironment = environment([], {
+      NETLIFY_VERIFY_DEPLOY_ID: DEPLOY_ID,
+      NETLIFY_TRIGGER_TITLE: "",
+      NETLIFY_TRIGGERED_AT: "",
+    });
+    const getDeploy = vi.fn(async () => deploy());
+    testEnvironment.createClient = () => ({
+      listProductionDeploys: () => Promise.reject(new Error("unused")),
+      getDeploy,
+    });
+    expect(await runVerifyNetlifyDeploy([], testEnvironment)).toBe(0);
+    expect(getDeploy).toHaveBeenCalledWith(DEPLOY_ID);
   });
 
   it("exits 1 on bad configuration", async () => {

@@ -1,5 +1,6 @@
 import { NetlifyFatalError, type NetlifyClient } from "../netlify/client.ts";
 import type { NetlifyDeploy } from "../netlify/client.ts";
+import { describeError } from "../workflow-command.ts";
 import {
   describeOwnershipProblem,
   evaluateDeploy,
@@ -85,7 +86,7 @@ async function pollOnce(
     }
     return judgeDeploy(request, deploy, environment.log);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = describeError(error);
     if (error instanceof NetlifyFatalError) {
       return { done: { ok: false, message: reason } };
     }

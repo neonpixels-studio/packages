@@ -85,7 +85,7 @@ export function createNetlifyClient(
     }
     if (response.status === NOT_FOUND_STATUS) {
       throw new NetlifyFatalError(
-        `Netlify API returned 404 for ${path}; check NETLIFY_SITE_ID names this site.`,
+        `Netlify API returned 404 for ${path}; check NETLIFY_SITE_ID names this site and NETLIFY_VERIFY_DEPLOY_ID, if set, is one of its deploys.`,
       );
     }
     if (!response.ok) {
