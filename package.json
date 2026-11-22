@@ -23,6 +23,7 @@
     "@neon-pixels/eslint-config": "workspace:*",
     "@neon-pixels/prettier-config": "workspace:*",
     "@neon-pixels/scripts": "workspace:*",
+    "@neon-pixels/tsconfig": "workspace:*",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
