@@ -3,7 +3,7 @@ import base from "./index.js";
 
 // Resolved from this package so the plugin is found under strict layouts
 // (pnpm) no matter which directory Prettier runs from.
-const tailwindPlugin = new URL(
+const tailwindPlugin = fileURLToPath(
   import.meta.resolve("prettier-plugin-tailwindcss"),
 );
 
