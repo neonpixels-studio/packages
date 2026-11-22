@@ -25,6 +25,12 @@ describe("ci workflow", () => {
     );
   });
 
+  it("gives every push its own concurrency group so none is cancelled", () => {
+    expect(CI_WORKFLOW).toContain(
+      "github.event.pull_request.number || github.sha",
+    );
+  });
+
   it("audits only high severity production advisories", () => {
     expect(CI_WORKFLOW).toContain("pnpm audit --prod --audit-level high");
   });
