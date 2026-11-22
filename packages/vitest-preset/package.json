@@ -1,0 +1,70 @@
+{
+  "name": "@neon-pixels/vitest-preset",
+  "version": "0.1.0",
+  "description": "Shared Vitest presets for Neon Pixels Node, VitePress, and Nuxt projects.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neonpixels-studio/packages.git",
+    "directory": "packages/vitest-preset"
+  },
+  "exports": {
+    "./node": {
+      "types": "./node.d.ts",
+      "default": "./node.js"
+    },
+    "./vitepress": {
+      "types": "./vitepress.d.ts",
+      "default": "./vitepress.js"
+    },
+    "./nuxt": {
+      "types": "./nuxt.d.ts",
+      "default": "./nuxt.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "node.js",
+    "node.d.ts",
+    "vitepress.js",
+    "vitepress.d.ts",
+    "nuxt.js",
+    "nuxt.d.ts",
+    "shared.js",
+    "setup"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "happy-dom": ">=20.0.0",
+    "vitest": "^5.0.0",
+    "vue": "^3.5.0"
+  },
+  "peerDependenciesMeta": {
+    "@vitejs/plugin-vue": {
+      "optional": true
+    },
+    "happy-dom": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.11",
+    "happy-dom": "^21.0.4",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "vue": "^3.5.46"
+  }
+}
