@@ -35,7 +35,11 @@ This also installs the Husky git hooks.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`: a `ci` job (frozen install, lint, typecheck, test, build), a gitleaks scan, and a production dependency audit that fails on high-severity advisories. Every action is pinned to a full commit SHA; a test enforces it.
+`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual dispatch: a `ci` job (frozen install, lint, typecheck, test, build), a `changeset-check` job (pull requests only), a `release-dry-run` job, a gitleaks scan, and a production dependency audit that fails on high-severity advisories. Every action is pinned to a full commit SHA; a test enforces it.
+
+## Releasing
+
+Changesets versions all packages together and publishes them through npm trusted publishing, with no stored npm token. `.github/workflows/release.yml` opens a "Version Packages" pull request from pending changesets; the maintainer merging it publishes. CI fails a pull request that changes a published package without a changeset, and a `release-dry-run` job packs every package and runs `npm publish --dry-run`. See `CONTRIBUTING.md`.
 
 ## License
 

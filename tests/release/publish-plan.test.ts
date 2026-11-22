@@ -1,0 +1,154 @@
+import { describe, expect, it } from "vitest";
+import {
+  describeMissingPackage,
+  partitionPlan,
+  type PublishPlan,
+} from "../../scripts/release/publish-plan.ts";
+import {
+  isNpmNewEnoughForTrustedPublishing,
+  isVersionPublished,
+  packageExistsOnNpm,
+} from "../../scripts/release/npm-registry.ts";
+
+const release = (name: string) =>
+  ({ kind: "publish", name, version: "0.2.0" }) as const;
+const PLAN: PublishPlan = [
+  [release("@neon-pixels/alpha")],
+  [release("@neon-pixels/new"), release("@neon-pixels/beta")],
+];
+
+const noDependencies = () => [];
+const neverPublished = () => false;
+
+describe("partitionPlan", () => {
+  it("keeps publishable packages and reports the ones missing from npm", () => {
+    const { publishable, missingFromNpm } = partitionPlan(PLAN, {
+      existsOnNpm: (name) => name !== "@neon-pixels/new",
+      isVersionPublished: neverPublished,
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable).toEqual([
+      [release("@neon-pixels/alpha")],
+      [release("@neon-pixels/beta")],
+    ]);
+    expect(missingFromNpm.map((entry) => entry.name)).toEqual([
+      "@neon-pixels/new",
+    ]);
+  });
+
+  it("drops chunks that end up empty", () => {
+    const { publishable } = partitionPlan(PLAN, {
+      existsOnNpm: (name) => name !== "@neon-pixels/alpha",
+      isVersionPublished: neverPublished,
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable).toHaveLength(1);
+  });
+
+  it("holds back packages that depend on a blocked package, transitively", () => {
+    const plan: PublishPlan = [
+      [release("@neon-pixels/new")],
+      [release("@neon-pixels/alpha")],
+      [release("@neon-pixels/beta")],
+      [release("@neon-pixels/gamma")],
+    ];
+    const dependencies: Record<string, string[]> = {
+      "@neon-pixels/alpha": ["@neon-pixels/new"],
+      "@neon-pixels/beta": ["@neon-pixels/alpha"],
+    };
+    const { publishable, heldBack } = partitionPlan(plan, {
+      existsOnNpm: (name) => name !== "@neon-pixels/new",
+      isVersionPublished: neverPublished,
+      dependenciesOf: (entry) => dependencies[entry.name] ?? [],
+    });
+    expect(publishable).toEqual([[release("@neon-pixels/gamma")]]);
+    expect(heldBack.map((held) => [held.release.name, held.blockedBy])).toEqual(
+      [
+        ["@neon-pixels/alpha", "@neon-pixels/new"],
+        ["@neon-pixels/beta", "@neon-pixels/alpha"],
+      ],
+    );
+  });
+
+  it("turns an already-published version into a tag-only release", () => {
+    const { publishable } = partitionPlan(PLAN, {
+      existsOnNpm: () => true,
+      isVersionPublished: (entry) => entry.name === "@neon-pixels/alpha",
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable[0]).toEqual([
+      { ...release("@neon-pixels/alpha"), kind: "tag-only" },
+    ]);
+    expect(publishable[1]).toEqual(PLAN[1]);
+  });
+
+  it("keeps tag-only releases", () => {
+    const tagOnly = { kind: "tag-only", name: "x", version: "1.0.0" } as const;
+    const { publishable } = partitionPlan([[tagOnly]], {
+      existsOnNpm: () => false,
+      isVersionPublished: neverPublished,
+      dependenciesOf: noDependencies,
+    });
+    expect(publishable).toEqual([[tagOnly]]);
+  });
+
+  it("names the package and the Adding a new package steps in the message", () => {
+    const message = describeMissingPackage("@neon-pixels/new");
+    expect(message).toContain("@neon-pixels/new");
+    expect(message).toContain("Adding a new package");
+  });
+});
+
+describe("packageExistsOnNpm", () => {
+  it("is true when npm view succeeds", () => {
+    expect(packageExistsOnNpm("a", () => '"a"')).toBe(true);
+  });
+
+  it("is false on a 404", () => {
+    const notFound = () => {
+      throw Object.assign(new Error("fail"), { stderr: "npm error code E404" });
+    };
+    expect(packageExistsOnNpm("a", notFound)).toBe(false);
+  });
+
+  it("throws on other failures instead of treating the name as free", () => {
+    const outage = () => {
+      throw Object.assign(new Error("fail"), {
+        stderr: "npm error code ECONNRESET",
+      });
+    };
+    expect(() => packageExistsOnNpm("a", outage)).toThrow(/Could not check/);
+  });
+});
+
+describe("isVersionPublished", () => {
+  it("is false when npm exits 0 with no output for an unknown version", () => {
+    expect(isVersionPublished("a", "0.2.0", () => "")).toBe(false);
+  });
+
+  it("is true when npm reports that exact version", () => {
+    expect(isVersionPublished("a", "0.2.0", () => '"0.2.0"\n')).toBe(true);
+  });
+
+  it("is false on a 404 and throws on other failures", () => {
+    const fail = (stderr: string) => () => {
+      throw Object.assign(new Error("fail"), { stderr });
+    };
+    expect(isVersionPublished("a", "0.2.0", fail("E404"))).toBe(false);
+    expect(() =>
+      isVersionPublished("a", "0.2.0", fail("ECONNRESET")),
+    ).toThrow();
+  });
+});
+
+describe("isNpmNewEnoughForTrustedPublishing", () => {
+  it.each([
+    ["11.5.1", true],
+    ["11.13.0\n", true],
+    ["12.0.0", true],
+    ["11.5.0", false],
+    ["10.9.9", false],
+  ])("npm %s -> %s", (version, expected) => {
+    expect(isNpmNewEnoughForTrustedPublishing(version)).toBe(expected);
+  });
+});
