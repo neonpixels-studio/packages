@@ -313,3 +313,129 @@ echo "npm error code E404" >&2; exit 1
     ).toBe(0);
   });
 });
+
+describe("dry-run-packed.ts", () => {
+  const NAME = "@neon-pixels/fixture";
+
+  function packFixture(version: string) {
+    const directory = join(workspace, "pkg");
+    write(
+      join(directory, "package.json"),
+      JSON.stringify({ name: NAME, version, files: ["dist"] }),
+    );
+    write(join(directory, "dist/index.js"), "export {};");
+    const destination = join(workspace, "out");
+    mkdirSync(destination);
+    execFileSync("npm", ["pack", "--pack-destination", destination], {
+      cwd: directory,
+      stdio: "pipe",
+    });
+    return destination;
+  }
+
+  // `view` answers like the registry: a published version echoes itself, an
+  // unknown one is E404, and "outage" simulates a network failure.
+  function stubNpm(
+    registry: "published" | "versionMissing" | "unpublished" | "outage",
+    publishExitCode = 0,
+  ) {
+    const bin = join(workspace, "bin");
+    const log = join(workspace, "npm-calls.log");
+    const viewBody = {
+      published: `echo '"0.1.0"'; exit 0`,
+      versionMissing: `exit 0`,
+      unpublished: `echo "npm error code E404" >&2; exit 1`,
+      outage: `echo "npm error code ECONNRESET" >&2; exit 1`,
+    }[registry];
+    write(
+      join(bin, "npm"),
+      `#!/bin/sh
+if [ "$1" = "view" ]; then ${viewBody}; fi
+echo "$@" >> "${log}"
+exit ${publishExitCode}
+`,
+    );
+    chmodSync(join(bin, "npm"), 0o755);
+    return { bin, log };
+  }
+
+  function dryRun(directory: string, bin: string) {
+    return runNode([script("dry-run-packed.ts"), directory], {
+      env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+  }
+
+  it("skips a version that is already on npm without error", () => {
+    const directory = packFixture("0.1.0");
+    const { bin, log } = stubNpm("published");
+    const result = dryRun(directory, bin);
+    expect(result.status).toBe(0);
+    expect(result.output).toContain(
+      `Skipped: ${NAME}@0.1.0 is already published`,
+    );
+    expect(() => readFileSync(log)).toThrow();
+  });
+
+  it("dry-runs a version that is not on npm", () => {
+    const directory = packFixture("0.1.0");
+    const { bin, log } = stubNpm("unpublished");
+    const result = dryRun(directory, bin);
+    expect(result.status).toBe(0);
+    const calls = readFileSync(log, "utf-8");
+    expect(calls).toContain(
+      `publish ${join(directory, "neon-pixels-fixture-0.1.0.tgz")} --dry-run --access public`,
+    );
+  });
+
+  it("dry-runs when the package exists but this version does not", () => {
+    const directory = packFixture("0.1.0");
+    const { bin, log } = stubNpm("versionMissing");
+    expect(dryRun(directory, bin).status).toBe(0);
+    expect(readFileSync(log, "utf-8")).toContain("--dry-run");
+  });
+
+  it("fails when there are no tarballs to dry-run", () => {
+    const directory = join(workspace, "empty");
+    mkdirSync(directory);
+    const { bin } = stubNpm("unpublished");
+    const result = dryRun(directory, bin);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain("No tarballs found");
+  });
+
+  it("fails the job when a dry run itself fails", () => {
+    const directory = packFixture("0.1.0");
+    const { bin, log } = stubNpm("unpublished", 1);
+    expect(dryRun(directory, bin).status).not.toBe(0);
+    expect(readFileSync(log, "utf-8")).toContain("--dry-run");
+  });
+
+  it("skips the published tarball and dry-runs the new one in the same directory", () => {
+    const directory = packFixture("0.1.0");
+    write(
+      join(workspace, "pkg/package.json"),
+      JSON.stringify({ name: NAME, version: "0.2.0", files: ["dist"] }),
+    );
+    execFileSync("npm", ["pack", "--pack-destination", directory], {
+      cwd: join(workspace, "pkg"),
+      stdio: "pipe",
+    });
+    const { bin, log } = stubNpm("published");
+    // The stub echoes 0.1.0 only, so 0.2.0 is unpublished and must be dry-run.
+    const result = dryRun(directory, bin);
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("Skipped: @neon-pixels/fixture@0.1.0");
+    const calls = readFileSync(log, "utf-8");
+    expect(calls).toContain("0.2.0.tgz --dry-run");
+    expect(calls).not.toContain("0.1.0.tgz");
+  });
+
+  it("fails on a registry error instead of skipping", () => {
+    const directory = packFixture("0.1.0");
+    const { bin, log } = stubNpm("outage");
+    const result = dryRun(directory, bin);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain("Could not check");
+    expect(() => readFileSync(log)).toThrow();
+  });
+});
