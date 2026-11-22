@@ -7,7 +7,6 @@ import { configDefaults } from "vitest/config";
 export const exclude = [
   ...configDefaults.exclude,
   "**/e2e/**",
-
   "**/.netlify/**",
   "**/.nuxt/**",
   "**/.output/**",

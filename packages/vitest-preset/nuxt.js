@@ -10,7 +10,6 @@ export default {
   test: {
     environment: "happy-dom",
     env: timezone,
-
     exclude,
     setupFiles: [setupFile("dom-globals.js"), setupFile("nuxt-stubs.js")],
   },

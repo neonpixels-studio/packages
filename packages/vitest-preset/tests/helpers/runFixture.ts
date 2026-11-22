@@ -14,6 +14,9 @@ const vitestBin = path.join(
 );
 const FIXTURES_DIR = fileURLToPath(new URL("../fixtures/", import.meta.url));
 
+// Below the 60s beforeAll limit, so a hung fixture is killed instead of orphaned.
+const FIXTURE_TIMEOUT_MS = 50_000;
+
 // A zone with a non-zero offset in every season, so a missing TZ=UTC shows up.
 const HOST_TIMEZONE = "America/New_York";
 
@@ -53,6 +56,8 @@ async function runVitest(root: string, reportFile: string): Promise<unknown> {
   // A failing fixture exits non-zero but still writes its report.
   return execFileAsync(process.execPath, args, {
     env: cleanEnvironment(),
+    timeout: FIXTURE_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   }).then(
     () => null,
     (error: unknown) => error,

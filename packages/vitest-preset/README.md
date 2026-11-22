@@ -19,13 +19,16 @@ These three are optional peers, so a `node`-only project does not need them.
 ## Usage
 
 ```ts
+import { fileURLToPath } from "node:url";
 import { defineConfig, mergeConfig } from "vitest/config";
 import preset from "@neon-pixels/vitest-preset/nuxt";
 
 export default mergeConfig(
   preset,
   defineConfig({
-    resolve: { alias: { "~": new URL("./app", import.meta.url).pathname } },
+    resolve: {
+      alias: { "~": fileURLToPath(new URL("./app", import.meta.url)) },
+    },
     test: {
       include: ["tests/**/*.test.ts"],
       setupFiles: ["./tests/setup.ts"],

@@ -4,6 +4,7 @@ declare const ref: typeof import("vue").ref;
 declare const computed: typeof import("vue").computed;
 declare const defineEventHandler: <T>(handler: T) => T;
 declare const defineNuxtRouteMiddleware: <T>(handler: T) => T;
+declare const useHead: () => unknown;
 declare const useRuntimeConfig: () => Record<string, unknown>;
 declare const createError: (
   input:
@@ -57,4 +58,8 @@ it("accepts a message string or a message option like h3", () => {
     message: "Bad",
     statusCode: 400,
   });
+});
+
+it("lets the consumer's setup file override a stub", () => {
+  expect(useHead()).toBe("overridden");
 });
