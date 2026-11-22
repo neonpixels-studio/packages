@@ -14,12 +14,12 @@ TypeScript is a peer dependency, so install it yourself. The `node` base sets `t
 
 Pick one entry point and extend it.
 
-| Entry point                       | For                                                     | `extends`                           |
-| --------------------------------- | ------------------------------------------------------- | ----------------------------------- |
-| `@neon-pixels/tsconfig`           | The strict base alone, with no stack assumptions        | `"@neon-pixels/tsconfig"`           |
-| `@neon-pixels/tsconfig/nuxt`      | Nuxt apps                                               | `"@neon-pixels/tsconfig/nuxt"`      |
-| `@neon-pixels/tsconfig/vitepress` | VitePress sites                                         | `"@neon-pixels/tsconfig/vitepress"` |
-| `@neon-pixels/tsconfig/node`      | Node CLIs and libraries (`NodeNext`, ESM, declarations) | `"@neon-pixels/tsconfig/node"`      |
+| Entry point                       | For                                                                                               | `extends`                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `@neon-pixels/tsconfig`           | The strict base alone, with no stack assumptions                                                  | `"@neon-pixels/tsconfig"`           |
+| `@neon-pixels/tsconfig/nuxt`      | Nuxt apps                                                                                         | `"@neon-pixels/tsconfig/nuxt"`      |
+| `@neon-pixels/tsconfig/vitepress` | VitePress sites                                                                                   | `"@neon-pixels/tsconfig/vitepress"` |
+| `@neon-pixels/tsconfig/node`      | Node CLIs and libraries (`NodeNext`, declarations; ESM when your package sets `"type": "module"`) | `"@neon-pixels/tsconfig/node"`      |
 
 ### Node and VitePress
 

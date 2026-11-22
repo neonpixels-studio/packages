@@ -1,10 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const TESTS_ROOT = join(PACKAGE_ROOT, "tests");
+const FIXTURE_PREFIX = ".fixture-";
 const TSC_BIN = join(PACKAGE_ROOT, "node_modules", "typescript", "bin", "tsc");
 const UNUSED_SYMBOL = "TS6133";
 const FALLTHROUGH = "TS7029";
@@ -41,69 +49,68 @@ const IMPLICIT_ANY_SOURCE = `export function double(value) {
 }
 `;
 
-const NUXT_GENERATED_TSCONFIG = {
-  extends: "@neon-pixels/tsconfig/nuxt",
-  compilerOptions: {
-    module: "preserve",
-    moduleResolution: "Bundler",
-    noUncheckedIndexedAccess: true,
-    noEmit: true,
+// The nuxt entry mirrors Nuxt's generated `.nuxt/tsconfig.app.json`: its own
+// compilerOptions on top of an `extends` of the base.
+const STACKS: Record<string, { project: string; tsconfig: object }> = {
+  base: {
+    project: "tsconfig.json",
+    tsconfig: { extends: "@neon-pixels/tsconfig", include: ["src"] },
   },
-  include: ["../src"],
-};
-
-const STACKS: Record<string, { tsconfig: object }> = {
   node: {
+    project: "tsconfig.json",
     tsconfig: { extends: "@neon-pixels/tsconfig/node", include: ["src"] },
   },
   vitepress: {
-    tsconfig: {
-      extends: "@neon-pixels/tsconfig/vitepress",
-      include: ["src"],
-    },
+    project: "tsconfig.json",
+    tsconfig: { extends: "@neon-pixels/tsconfig/vitepress", include: ["src"] },
   },
-  // Mirrors Nuxt's generated `.nuxt/tsconfig.app.json`, which the root
-  // tsconfig.json reaches through `references`.
   nuxt: {
+    project: ".nuxt/tsconfig.app.json",
     tsconfig: {
-      files: [],
-      references: [{ path: "./.nuxt/tsconfig.app.json" }],
+      extends: "@neon-pixels/tsconfig/nuxt",
+      compilerOptions: {
+        module: "preserve",
+        moduleResolution: "Bundler",
+        noUncheckedIndexedAccess: true,
+        noEmit: true,
+      },
+      include: ["../src"],
     },
-  },
-  base: {
-    tsconfig: { extends: "@neon-pixels/tsconfig", include: ["src"] },
   },
 };
 
-const createdDirectories: string[] = [];
+// A killed run can leave fixtures behind, so clear them before and after.
+beforeAll(() => removeDirectories(leftoverFixtureDirectories()));
+afterAll(() => removeDirectories(leftoverFixtureDirectories()));
 
-afterAll(() => {
-  for (const directory of createdDirectories) {
+function leftoverFixtureDirectories(): string[] {
+  return readdirSync(TESTS_ROOT)
+    .filter((name) => name.startsWith(FIXTURE_PREFIX))
+    .map((name) => join(TESTS_ROOT, name));
+}
+
+function removeDirectories(directories: string[]) {
+  for (const directory of directories) {
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}
 
 function writeFixture(stack: string, source: string): string {
-  const root = mkdtempSync(join(PACKAGE_ROOT, "tests", `.fixture-${stack}-`));
-  createdDirectories.push(root);
+  const { project, tsconfig } = STACKS[stack] as {
+    project: string;
+    tsconfig: object;
+  };
+  const root = mkdtempSync(join(TESTS_ROOT, `${FIXTURE_PREFIX}${stack}-`));
   mkdirSync(join(root, "src"));
   writeFileSync(join(root, "src", "index.ts"), source);
-  const { tsconfig } = STACKS[stack] as { tsconfig: object };
-  writeFileSync(join(root, "tsconfig.json"), JSON.stringify(tsconfig));
-  if (stack === "nuxt") {
-    mkdirSync(join(root, ".nuxt"));
-    writeFileSync(
-      join(root, ".nuxt", "tsconfig.app.json"),
-      JSON.stringify(NUXT_GENERATED_TSCONFIG),
-    );
-  }
+  mkdirSync(dirname(join(root, project)), { recursive: true });
+  writeFileSync(join(root, project), JSON.stringify(tsconfig));
   return root;
 }
 
 function typecheck(stack: string, source: string) {
   const root = writeFixture(stack, source);
-  const project =
-    stack === "nuxt" ? ".nuxt/tsconfig.app.json" : "tsconfig.json";
+  const { project } = STACKS[stack] as { project: string };
   const result = spawnSync(
     process.execPath,
     [TSC_BIN, "--noEmit", "-p", join(root, project)],
