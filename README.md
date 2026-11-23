@@ -35,7 +35,53 @@ This also installs the Husky git hooks.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual dispatch: a `ci` job (frozen install, lint, typecheck, test, build), a `changeset-check` job (pull requests only), a `release-dry-run` job, a gitleaks scan, and a production dependency audit that fails on high-severity advisories. Every action is pinned to a full commit SHA; a test enforces it.
+`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual dispatch: a `ci` job (frozen install, lint, typecheck, test, build), a `changeset-check` job (pull requests only), a `release-dry-run` job, and the two reusable workflows below (secret scan and production dependency audit). Every action is pinned to a full commit SHA; a test enforces it.
+
+## Reusable workflows
+
+Two workflows are callable from other repositories with `workflow_call`. Neither needs secrets, and both declare `contents: read` only.
+
+- `gitleaks.yml`: scans the pull request commit range (or the full history on any other event) with the caller's `.gitleaks.toml` (required in the repository root), using a pinned, checksum-verified gitleaks. No inputs.
+- `dependency-audit.yml`: runs `np-audit-gate` from the published [`@neon-pixels/scripts`](packages/scripts/README.md) against the caller's lockfile. It does not install the caller's dependencies. The lockfile must match `package-manager`.
+
+| Input (`dependency-audit.yml`) | Required | Meaning                                                         |
+| ------------------------------ | -------- | --------------------------------------------------------------- |
+| `package-manager`              | yes      | `npm` or `pnpm` (pnpm needs `packageManager` in `package.json`) |
+| `node-version-file`            | no       | File naming the Node version, default `.nvmrc`                  |
+| `scripts-version`              | yes      | Exact `@neon-pixels/scripts` version the gate runs from         |
+
+Pin the workflow to a full commit SHA of this repository, with the release or date in a trailing comment:
+
+```yaml
+jobs:
+  gitleaks:
+    uses: neonpixels-studio/packages/.github/workflows/gitleaks.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+
+  dependency-audit:
+    uses: neonpixels-studio/packages/.github/workflows/dependency-audit.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+    with:
+      package-manager: pnpm
+      node-version-file: .nvmrc
+      scripts-version: 0.2.0
+```
+
+To receive updates, enable Dependabot's `github-actions` ecosystem in the consumer's `.github/dependabot.yml`. It treats a reusable workflow `uses:` line like any action and opens a pull request moving the SHA:
+
+```yaml
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+```
+
+Dependabot does not see `scripts-version`, because it is a plain input. Bump it by hand when a new `@neon-pixels/scripts` is published. This repository's own `ci.yml` calls both workflows by path, so every pull request exercises its own changes.
+
+The publish step of the release stays in `release.yml`: npm trusted publishing matches the calling workflow's filename, so it can never move into a reusable workflow.
 
 ## Preview builds
 
