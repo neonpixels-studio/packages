@@ -4,6 +4,7 @@ import {
   NetlifyFatalError,
   parseDeploy,
   parseDeployList,
+  parsePublishedCommitRef,
 } from "../src/netlify/client.ts";
 
 function respond(status: number, body: unknown): typeof fetch {
@@ -35,7 +36,39 @@ describe("parseDeploy", () => {
   });
 });
 
+describe("parsePublishedCommitRef", () => {
+  it("reads the published deploy's commit", () => {
+    expect(
+      parsePublishedCommitRef({ published_deploy: { commit_ref: "abc" } }),
+    ).toBe("abc");
+  });
+
+  it("is null without a published deploy or commit", () => {
+    expect(parsePublishedCommitRef({})).toBeNull();
+    expect(parsePublishedCommitRef({ published_deploy: null })).toBeNull();
+    expect(parsePublishedCommitRef({ published_deploy: {} })).toBeNull();
+  });
+
+  it("rejects a non-object payload", () => {
+    expect(() => parsePublishedCommitRef("nope")).toThrow(NetlifyFatalError);
+  });
+});
+
 describe("createNetlifyClient", () => {
+  it("reads the live commit from the site's published deploy", async () => {
+    const fetchImpl = respond(200, {
+      published_deploy: { commit_ref: "live" },
+    });
+    const client = createNetlifyClient({
+      siteId: "site 1",
+      token: "secret-token",
+      fetchImpl,
+    });
+    expect(await client.getPublishedCommitRef()).toBe("live");
+    const [url] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
+    expect(new URL(String(url)).pathname).toBe("/api/v1/sites/site%201");
+  });
+
   it("lists production deploys with the token in the header only", async () => {
     const fetchImpl = respond(200, [{ id: "a", state: "ready" }]);
     const client = createNetlifyClient({

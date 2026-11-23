@@ -1,45 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { NetlifyClient, NetlifyDeploy } from "../src/netlify/client.ts";
-import {
-  decideDeploy,
-  findLastDeployedSha,
-} from "../src/should-deploy/decide.ts";
+import type { NetlifyPublishedDeployClient } from "../src/netlify/client.ts";
+import { decideDeploy } from "../src/should-deploy/decide.ts";
 import {
   runShouldDeploy,
   type ShouldDeployEnvironment,
 } from "../src/should-deploy/run.ts";
-
-function deploy(overrides: Partial<NetlifyDeploy> = {}): NetlifyDeploy {
-  return {
-    id: "id",
-    state: "ready",
-    title: null,
-    context: "production",
-    commitRef: "aaa",
-    createdAt: null,
-    siteId: "site",
-    errorMessage: null,
-    adminUrl: null,
-    ...overrides,
-  };
-}
-
-describe("findLastDeployedSha", () => {
-  it("skips failed, preview, and commitless deploys", () => {
-    const sha = findLastDeployedSha([
-      deploy({ state: "error", commitRef: "bad" }),
-      deploy({ context: "deploy-preview", commitRef: "preview" }),
-      deploy({ commitRef: null }),
-      deploy({ commitRef: "live" }),
-      deploy({ commitRef: "older" }),
-    ]);
-    expect(sha).toBe("live");
-  });
-
-  it("returns null when nothing qualifies", () => {
-    expect(findLastDeployedSha([deploy({ state: "building" })])).toBeNull();
-  });
-});
 
 describe("decideDeploy", () => {
   it("skips only when the live commit is the current one", () => {
@@ -67,11 +32,11 @@ describe("runShouldDeploy", () => {
 
   function environment(
     variables: Record<string, string>,
-    list: () => Promise<NetlifyDeploy[]>,
+    publishedCommit: () => Promise<string | null>,
   ): ShouldDeployEnvironment & { output: string[] } {
     const output: string[] = [];
-    const client: NetlifyClient = {
-      listProductionDeploys: list,
+    const client: NetlifyPublishedDeployClient = {
+      getPublishedCommitRef: publishedCommit,
       getDeploy: () => Promise.reject(new Error("unused")),
     };
     return {
@@ -90,17 +55,31 @@ describe("runShouldDeploy", () => {
   };
 
   it("writes skip=true when the commit is already live", async () => {
-    const testEnvironment = environment(full, async () => [
-      deploy({ commitRef: "abc" }),
-    ]);
+    const testEnvironment = environment(full, async () => "abc");
     expect(await runShouldDeploy([], testEnvironment)).toBe(0);
     expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
   it("writes skip=false when main is newer", async () => {
-    const testEnvironment = environment(full, async () => [
-      deploy({ commitRef: "old" }),
-    ]);
+    const testEnvironment = environment(full, async () => "old");
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
+  });
+
+  it("deploys after a rollback, when the published deploy is older than main", async () => {
+    const testEnvironment = environment(full, async () => "rolled-back");
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
+  });
+
+  it("skips when locked publishing keeps the current commit live", async () => {
+    const testEnvironment = environment(full, async () => "abc");
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=true\n"]);
+  });
+
+  it("deploys when the site has no published deploy", async () => {
+    const testEnvironment = environment(full, async () => null);
     await runShouldDeploy([], testEnvironment);
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
@@ -126,7 +105,7 @@ describe("runShouldDeploy", () => {
   });
 
   it("does not query Netlify when the current commit is unknown", async () => {
-    const list = vi.fn(async () => [deploy()]);
+    const list = vi.fn(async () => "abc");
     const testEnvironment = environment({ ...full, CURRENT_SHA: "" }, list);
     await runShouldDeploy([], testEnvironment);
     expect(list).not.toHaveBeenCalled();
@@ -136,7 +115,7 @@ describe("runShouldDeploy", () => {
   it("says so when GITHUB_OUTPUT is not set", async () => {
     const testEnvironment = environment(
       { ...full, GITHUB_OUTPUT: "" },
-      async () => [],
+      async () => null,
     );
     expect(await runShouldDeploy([], testEnvironment)).toBe(0);
     expect(testEnvironment.output).toEqual([]);
@@ -146,7 +125,7 @@ describe("runShouldDeploy", () => {
   });
 
   it("deploys when credentials are missing", async () => {
-    const list = vi.fn(async () => [deploy()]);
+    const list = vi.fn(async () => "abc");
     const testEnvironment = environment(
       { CURRENT_SHA: "abc", GITHUB_OUTPUT: "/tmp/output" },
       list,
@@ -157,7 +136,7 @@ describe("runShouldDeploy", () => {
   });
 
   it("exits 1 when the decision cannot be written", async () => {
-    const testEnvironment = environment(full, async () => []);
+    const testEnvironment = environment(full, async () => null);
     testEnvironment.appendOutput = () => {
       throw new Error("EACCES");
     };
@@ -165,7 +144,7 @@ describe("runShouldDeploy", () => {
   });
 
   it("fails on an unknown flag", async () => {
-    const testEnvironment = environment(full, async () => []);
+    const testEnvironment = environment(full, async () => null);
     expect(await runShouldDeploy(["--nope"], testEnvironment)).toBe(1);
     expect(testEnvironment.output).toEqual([]);
   });

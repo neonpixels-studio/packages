@@ -1,13 +1,16 @@
 import { appendFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { createNetlifyClient, type NetlifyClient } from "../netlify/client.ts";
+import {
+  createNetlifyClient,
+  type NetlifyPublishedDeployClient,
+} from "../netlify/client.ts";
 import { describeError, escapeWorkflowCommand } from "../workflow-command.ts";
-import { decideDeploy, findLastDeployedSha } from "./decide.ts";
+import { decideDeploy } from "./decide.ts";
 
 /** Everything the command needs from the machine, so tests can replace it. */
 export interface ShouldDeployEnvironment {
   variables: Record<string, string | undefined>;
-  createClient(siteId: string, token: string): NetlifyClient;
+  createClient(siteId: string, token: string): NetlifyPublishedDeployClient;
   appendOutput(path: string, text: string): void;
 }
 
@@ -34,7 +37,7 @@ async function lookUpLastDeployedSha(
   }
   try {
     const client = environment.createClient(siteId, token);
-    return findLastDeployedSha(await client.listProductionDeploys());
+    return await client.getPublishedCommitRef();
   } catch (error) {
     log(`could not read the last deploy (${describeError(error)}).`);
     return null;

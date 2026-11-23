@@ -71,7 +71,9 @@ Environment variables, all passed by the workflow:
 - `CURRENT_SHA`: the commit on `main` to compare against the live deploy.
 - `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
 
-Every uncertain case deploys: a missing variable, a Netlify lookup error, or no successful production deploy on record all give `skip=false`, because a redundant deploy is cheap and a silently skipped one leaves a commit unshipped. It exits 0 either way; it only fails on a usage error such as an unknown flag, or when `GITHUB_OUTPUT` cannot be written.
+The live commit is the one the site's published deploy was built from (`published_deploy.commit_ref` from `GET /sites/{id}`), so a manual rollback or locked auto-publishing is compared against what visitors are served, not the newest ready deploy.
+
+Every uncertain case deploys: a missing variable, a Netlify lookup error, or no published deploy with a recorded commit all give `skip=false`, because a redundant deploy is cheap and a silently skipped one leaves a commit unshipped. It exits 0 either way; it only fails on a usage error such as an unknown flag, or when `GITHUB_OUTPUT` cannot be written.
 
 ## `np-verify-netlify-deploy`
 
