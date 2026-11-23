@@ -164,7 +164,7 @@ describe.each([
         (line) =>
           line.includes("${{") &&
           !/^\s+[A-Z_]+: \$\{\{/.test(line) &&
-          !/^\s+(node-version-file|configPath|name|group|skipped|build-outcome):/.test(
+          !/^\s+(node-version-file|node-version|configPath|name|group|skipped|build-outcome):/.test(
             line,
           ),
       );
@@ -221,6 +221,14 @@ describe("reusable production-deploy workflow", () => {
     expect(jobBlock(DEPLOY, "close-resolved-failure")).not.toContain(
       "secrets.",
     );
+  });
+
+  it("serializes the failure issue writers", () => {
+    for (const job of ["notify-failure", "close-resolved-failure"]) {
+      expect(jobBlock(DEPLOY, job)).toContain(
+        "group: np-deploy-failure-issue-${{ github.repository }}",
+      );
+    }
   });
 
   it("closes the failure issue only after a deploy was triggered and verified", () => {

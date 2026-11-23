@@ -154,6 +154,10 @@ jobs:
     permissions:
       contents: read
       issues: write
+    # Serializes the issue writes so two runs cannot both open one.
+    concurrency:
+      group: np-deploy-failure-issue-${{ github.repository }}
+      cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -182,6 +186,10 @@ jobs:
     permissions:
       contents: read
       issues: write
+    # Serializes the issue writes so two runs cannot both open one.
+    concurrency:
+      group: np-deploy-failure-issue-${{ github.repository }}
+      cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

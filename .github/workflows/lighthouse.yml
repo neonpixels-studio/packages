@@ -36,6 +36,9 @@ permissions:
 
 env:
   ASSERTION_ARTIFACT: np-lighthouse-assertion-results
+  # The report job has no checkout, so it cannot read the caller's Node file.
+  # np-report-lighthouse-failure supports every Node line @neon-pixels/scripts does.
+  REPORT_NODE_VERSION: 24
 
 jobs:
   audit:
@@ -134,7 +137,7 @@ jobs:
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ env.REPORT_NODE_VERSION }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         continue-on-error: true
         with:
