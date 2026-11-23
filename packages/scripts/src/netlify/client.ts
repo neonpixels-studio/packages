@@ -29,6 +29,11 @@ export interface NetlifyClient {
   getDeploy(deployId: string): Promise<NetlifyDeploy>;
 }
 
+/** Resolves NETLIFY_SITE_ID, in any form the Netlify API accepts, to the site's UUID. */
+export interface NetlifySiteLookup {
+  getSiteId(): Promise<string>;
+}
+
 /** An error retrying cannot fix: bad token, wrong site id, unexpected payload. */
 export class NetlifyFatalError extends Error {}
 
@@ -54,6 +59,19 @@ export function parseDeploy(value: unknown): NetlifyDeploy {
     errorMessage: textOrNull(record["error_message"]),
     adminUrl: textOrNull(record["admin_url"]),
   };
+}
+
+export function parseSite(value: unknown): string {
+  const id =
+    typeof value === "object" && value !== null
+      ? textOrNull((value as Record<string, unknown>)["id"])
+      : null;
+  if (id === null) {
+    throw new NetlifyFatalError(
+      "Netlify returned an unexpected payload (expected a site with an id).",
+    );
+  }
+  return id;
 }
 
 export function parseDeployList(value: unknown): NetlifyDeploy[] {
@@ -98,7 +116,7 @@ export interface NetlifyClientOptions {
 // Error messages never include the request headers, so the token cannot leak.
 export function createNetlifyClient(
   options: NetlifyClientOptions,
-): NetlifyClient {
+): NetlifyClient & NetlifySiteLookup {
   const { siteId, token, fetchImpl = fetch } = options;
 
   async function getJson(path: string): Promise<unknown> {
@@ -123,6 +141,9 @@ export function createNetlifyClient(
   }
 
   return {
+    async getSiteId() {
+      return parseSite(await getJson(`/sites/${encodeURIComponent(siteId)}`));
+    },
     async listProductionDeploys() {
       const query = `production=true&per_page=${DEPLOYS_PAGE_SIZE}`;
       return parseDeployList(

@@ -1,4 +1,8 @@
-import { createNetlifyClient, type NetlifyClient } from "../netlify/client.ts";
+import {
+  createNetlifyClient,
+  type NetlifyClient,
+  type NetlifySiteLookup,
+} from "../netlify/client.ts";
 import { readConfig, type Variables } from "./config.ts";
 import { verifyDeploy } from "./poll.ts";
 import { describeError, escapeWorkflowCommand } from "../workflow-command.ts";
@@ -6,7 +10,10 @@ import { describeError, escapeWorkflowCommand } from "../workflow-command.ts";
 /** Everything the command needs from the machine, so tests can replace it. */
 export interface VerifyDeployEnvironment {
   variables: Variables;
-  createClient(siteId: string, token: string): NetlifyClient;
+  createClient(
+    siteId: string,
+    token: string,
+  ): NetlifyClient & NetlifySiteLookup;
   sleep(milliseconds: number): Promise<void>;
   now(): number;
 }

@@ -51,6 +51,27 @@ describe("createNetlifyClient", () => {
     expect(init?.headers).toEqual({ Authorization: "Bearer secret-token" });
   });
 
+  it("resolves the configured site to its UUID", async () => {
+    const fetchImpl = respond(200, { id: "site-uuid", name: "my-site" });
+    const client = createNetlifyClient({
+      siteId: "my-site.netlify.app",
+      token: "t",
+      fetchImpl,
+    });
+    expect(await client.getSiteId()).toBe("site-uuid");
+    const [url] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
+    expect(String(url)).toMatch(/\/sites\/my-site\.netlify\.app$/);
+  });
+
+  it("fails fatally when the site payload has no id", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(200, {}),
+    });
+    await expect(client.getSiteId()).rejects.toBeInstanceOf(NetlifyFatalError);
+  });
+
   it.each([401, 403])(
     "treats HTTP %i as fatal without the token",
     async (status) => {

@@ -1,6 +1,7 @@
 import {
   NetlifyFatalError,
   type NetlifyClient,
+  type NetlifySiteLookup,
   type NetlifyDeploy,
 } from "../netlify/client.ts";
 import { describeError } from "../workflow-command.ts";
@@ -26,7 +27,7 @@ export type VerifyResult =
   { ok: true; deploy: NetlifyDeploy } | { ok: false; message: string };
 
 export interface PollEnvironment {
-  client: NetlifyClient;
+  client: NetlifyClient & NetlifySiteLookup;
   sleep(milliseconds: number): Promise<void>;
   now(): number;
   log(message: string): void;
@@ -53,16 +54,42 @@ async function fetchTargetDeploy(
   return findTriggeredDeploy(await client.listProductionDeploys(), target);
 }
 
-function judgeDeploy(
+// NETLIFY_SITE_ID may be a name or domain, which Netlify's API accepts in a
+// path as the trigger mode relies on; a deploy only carries the UUID, so
+// resolve through the API unless the value already matches it.
+async function resolveSiteId(
   request: VerifyRequest,
   deploy: NetlifyDeploy,
-  log: (message: string) => void,
-): Step {
-  log(`Deploy ${deploy.id}: ${deploy.state}`);
-  const ownershipProblem =
-    request.target.kind === "deploy-id"
-      ? describeOwnershipProblem(deploy, request.siteId)
-      : null;
+  client: NetlifySiteLookup,
+): Promise<string> {
+  return deploy.siteId === request.siteId ? request.siteId : client.getSiteId();
+}
+
+async function describeOwnership(
+  request: VerifyRequest,
+  deploy: NetlifyDeploy,
+  client: NetlifySiteLookup,
+): Promise<string | null> {
+  if (request.target.kind !== "deploy-id") {
+    return null;
+  }
+  return describeOwnershipProblem(
+    deploy,
+    await resolveSiteId(request, deploy, client),
+  );
+}
+
+async function judgeDeploy(
+  request: VerifyRequest,
+  deploy: NetlifyDeploy,
+  environment: PollEnvironment,
+): Promise<Step> {
+  environment.log(`Deploy ${deploy.id}: ${deploy.state}`);
+  const ownershipProblem = await describeOwnership(
+    request,
+    deploy,
+    environment.client,
+  );
   if (ownershipProblem !== null) {
     return { done: { ok: false, message: ownershipProblem } };
   }
@@ -87,7 +114,7 @@ async function pollOnce(
       environment.log(`No Netlify deploy found: ${observation}`);
       return { observation };
     }
-    return judgeDeploy(request, deploy, environment.log);
+    return await judgeDeploy(request, deploy, environment);
   } catch (error) {
     const reason = describeError(error);
     if (error instanceof NetlifyFatalError) {
