@@ -23,6 +23,21 @@ export function truncate(text: string, maxLength: number): string {
   return kept + TRUNCATION_MARKER;
 }
 
+/**
+ * A cut can land between an escape backslash and the character it escapes,
+ * which would leave a backslash that Discord shows literally before the marker.
+ */
+export function withoutDanglingEscape(truncated: string): string {
+  if (!truncated.endsWith(TRUNCATION_MARKER)) {
+    return truncated;
+  }
+  const kept = truncated.slice(0, -TRUNCATION_MARKER.length);
+  const trailingBackslashes = kept.length - kept.replace(/\\+$/, "").length;
+  return trailingBackslashes % 2 === 1
+    ? kept.slice(0, -1) + TRUNCATION_MARKER
+    : truncated;
+}
+
 /** Empty text is rejected by Slack and Discord, so a placeholder stands in. */
 export function singleLineOrPlaceholder(text: string): string {
   return orPlaceholder(singleLine(text));

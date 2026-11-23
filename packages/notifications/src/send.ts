@@ -30,6 +30,12 @@ function invalidNotificationReason(notification: unknown): string | undefined {
   ) {
     return "invalid notification: severity must be info, warning, or error";
   }
+  if (
+    candidate.dedupeKey !== undefined &&
+    typeof candidate.dedupeKey !== "string"
+  ) {
+    return "invalid notification: dedupeKey must be a string";
+  }
   return invalidFieldsReason(candidate.fields);
 }
 
@@ -50,16 +56,20 @@ function invalidFieldsReason(fields: unknown): string | undefined {
     : "invalid notification: fields must be { label: string, value: string }[]";
 }
 
-function milliseconds(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : fallback;
+// Node treats a timer delay above this as 1 ms.
+const MAX_TIMER_MS = 2_147_483_647;
+
+function milliseconds(value: unknown, fallback: number, minimum = 0): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum) {
+    return fallback;
+  }
+  return Math.min(value, MAX_TIMER_MS);
 }
 
 function contextFrom(options: SendOptions): DeliveryContext {
   return {
     fetch: options.fetch ?? ((input, init) => fetch(input, init)),
-    timeoutMs: milliseconds(options.timeoutMs, DEFAULT_TIMEOUT_MS),
+    timeoutMs: milliseconds(options.timeoutMs, DEFAULT_TIMEOUT_MS, 1),
     retryDelayMs: milliseconds(options.retryDelayMs, DEFAULT_RETRY_DELAY_MS),
     maxRetryAfterMs: milliseconds(
       options.maxRetryAfterMs,
@@ -83,12 +93,12 @@ async function deliverTo(
     await channel.deliver(notification, context);
     return { channel: channel.name, status: "sent" };
   } catch (error) {
-    return {
-      channel: channel.name,
-      status: "failed",
-      reason: reasonFor(error),
-    };
+    return failedResult(channel, reasonFor(error));
   }
+}
+
+function failedResult(channel: Channel, reason: string): ChannelResult {
+  return { channel: channel.name, status: "failed", reason };
 }
 
 /**
@@ -100,17 +110,12 @@ export async function sendNotification(
   channels: Channel[],
   options?: SendOptions,
 ): Promise<ChannelResult[]> {
-  const context = contextFrom(options ?? {});
   const invalid = invalidNotificationReason(notification);
+  if (invalid) {
+    return channels.map((channel) => failedResult(channel, invalid));
+  }
+  const context = contextFrom(options ?? {});
   return Promise.all(
-    channels.map((channel) =>
-      invalid
-        ? Promise.resolve<ChannelResult>({
-            channel: channel.name,
-            status: "failed",
-            reason: invalid,
-          })
-        : deliverTo(channel, notification, context),
-    ),
+    channels.map((channel) => deliverTo(channel, notification, context)),
   );
 }

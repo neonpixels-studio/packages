@@ -586,7 +586,7 @@ describe("retry", () => {
   });
 
   it("reads an HTTP-date Retry-After and ignores garbage", async () => {
-    const soon = new Date(Date.now() + 2000).toUTCString();
+    const soon = new Date(Date.now() + 4000).toUTCString();
     const dated = fakeFetch(
       respond(500, { "retry-after": soon }),
       respond(200),
@@ -596,7 +596,9 @@ describe("retry", () => {
       fetch: dated.fetch,
       sleep: datedSleep,
     });
-    expect(firstOf(firstOf(datedSleep.mock.calls))).toBeLessThanOrEqual(2000);
+    const waited = firstOf(firstOf(datedSleep.mock.calls));
+    expect(waited).toBeGreaterThan(2000);
+    expect(waited).toBeLessThanOrEqual(4000);
     const garbage = fakeFetch(
       respond(500, { "retry-after": "soon" }),
       respond(200),
@@ -816,5 +818,74 @@ describe("edge cases", () => {
     expect(firstOf(calls).url).toBe(
       "https://discordapp.com/api/webhooks/1/abc?thread_id=9",
     );
+  });
+});
+
+describe("review follow-ups", () => {
+  it("does not retry a timeout", async () => {
+    let attempts = 0;
+    const hanging = (_url: string, init: RequestInit) => {
+      attempts += 1;
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted")),
+        );
+      });
+    };
+    const sleep = vi.fn(noSleep);
+    const results = await sendNotification(
+      BASE,
+      [slackChannel({ webhookUrl: SLACK_URL })],
+      {
+        fetch: hanging,
+        timeoutMs: 20,
+        sleep,
+      },
+    );
+    expect(attempts).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(firstOf(results)).toMatchObject({ reason: "timeout" });
+  });
+
+  it("clamps timer options Node would treat as 1 ms and rejects a zero timeout", async () => {
+    const { fetch } = fakeFetch(respond(500), respond(200));
+    const sleep = vi.fn(noSleep);
+    await sendNotification(BASE, [slackChannel({ webhookUrl: SLACK_URL })], {
+      fetch,
+      sleep,
+      retryDelayMs: 3_000_000_000,
+      maxRetryAfterMs: 3_000_000_000,
+      timeoutMs: 0,
+    });
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(2_147_483_647);
+  });
+
+  it("rejects a non-string dedupeKey", async () => {
+    const results = await sendNotification(
+      { ...BASE, dedupeKey: 12345 as unknown as string },
+      [
+        emailChannel({
+          apiKey: API_KEY,
+          from: "a@example.com",
+          to: "b@example.com",
+        }),
+      ],
+      { fetch: fakeFetch().fetch },
+    );
+    expect(firstOf(results)).toMatchObject({
+      reason: "invalid notification: dedupeKey must be a string",
+    });
+  });
+
+  it("does not leave a lone backslash before the Discord truncation marker", () => {
+    const payload = renderDiscordPayload({
+      ...BASE,
+      body: "a".repeat(4082) + "*".repeat(20),
+    });
+    const description = (payload.embeds[0] as Loose).description as string;
+    expect(description.endsWith(TRUNCATION_MARKER)).toBe(true);
+    const kept = description.slice(0, -TRUNCATION_MARKER.length);
+    expect(kept.match(/\\+$/)?.[0].length ?? 0).toBe(0);
+    expect(description.length).toBeLessThanOrEqual(4096);
   });
 });

@@ -6,6 +6,7 @@ import {
   safeLink,
   singleLineOrPlaceholder,
   truncate,
+  withoutDanglingEscape,
 } from "./text.ts";
 import { parseDiscordWebhookUrl } from "./urls.ts";
 import type { Channel, Notification, Severity } from "./types.ts";
@@ -35,7 +36,7 @@ interface EmbedField {
 }
 
 function discordText(text: string, maxLength: number): string {
-  return truncate(escapeDiscordText(text), maxLength);
+  return withoutDanglingEscape(truncate(escapeDiscordText(text), maxLength));
 }
 
 /** Fields are added in order until the embed's combined 6000-character budget is spent. */
