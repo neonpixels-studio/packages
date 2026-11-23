@@ -1,23 +1,6 @@
-import type { NetlifyDeploy } from "../netlify/client.ts";
-
-const READY_STATE = "ready";
-const PRODUCTION_CONTEXT = "production";
-
 export interface DeployDecision {
   deploy: boolean;
   reason: string;
-}
-
-// Netlify lists deploys newest first and includes failed deploys, so the live
-// commit is the first ready production deploy that recorded a commit.
-export function findLastDeployedSha(deploys: NetlifyDeploy[]): string | null {
-  const lastReady = deploys.find(
-    (deploy) =>
-      deploy.state === READY_STATE &&
-      deploy.context === PRODUCTION_CONTEXT &&
-      deploy.commitRef !== null,
-  );
-  return lastReady?.commitRef ?? null;
 }
 
 // Every uncertain case deploys: a redundant deploy is cheap, a silently
