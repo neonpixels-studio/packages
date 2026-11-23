@@ -6,7 +6,11 @@
     "checkJs": true,
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@neon-pixels/consent": ["../consent/src/index.ts"],
+      "@neon-pixels/consent/testing": ["../consent/src/testing.ts"]
+    }
   },
   "include": ["*.js", "*.d.ts", "tests"]
 }
