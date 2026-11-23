@@ -41,8 +41,30 @@ By default the gate reads `audit-allowlist.json` in the working directory. The f
 - `reason` says why it is accepted, so a reviewer can judge it.
 - `expires` is a `YYYY-MM-DD` date (UTC). On that date the entry fails the gate until someone re-reviews it and moves the date. An expired entry fails even if it matches nothing.
 - `package` (optional, but never blank) limits the entry to the advisory in that package. Without it the entry covers the advisory in every package.
+- `buildTimeOnly` (optional, `true` or `false`) records that the package never ships in the built server output. It needs `package` and does not change what the gate allows; `np-check-absent-dependency` reads it to verify the claim.
 
 Unknown fields are rejected, so a typo cannot widen an entry. An entry that no longer matches any high or critical advisory is reported as stale. It does not fail the gate, but you should remove it.
+
+## `np-check-absent-dependency`
+
+Fails when a package appears in a build output directory. It backs the claim that an allowlisted advisory is build-time only: the audit gate accepts it, and this check proves the package did not reach the output.
+
+```sh
+pnpm exec np-check-absent-dependency .output/server vite
+pnpm exec np-check-absent-dependency .output --from-allowlist
+pnpm exec np-check-absent-dependency .output --allowlist path/to/audit-allowlist.json other-package
+```
+
+The first argument is the output directory, followed by any number of package names (scoped names such as `@scope/name` work). `--from-allowlist` adds the `package` of every entry marked `"buildTimeOnly": true` in `audit-allowlist.json`, and `--allowlist <path>` does the same from another file (which must exist). An allowlist with no such entries checks nothing and passes; no names and no allowlist flag is a usage error, so a wrong invocation cannot pass silently. Names are checked against npm's naming rules.
+
+A bundled copy has no `node_modules/<name>` path, so each file is checked for these signals, and the first hit per package is reported with its file:
+
+- **node_modules path:** a file or directory whose path has a `node_modules/<name>` segment (including pnpm's nested `.pnpm/<name>@x/node_modules/<name>`).
+- **package.json name:** a `package.json` whose `name` is exactly the package, wherever it was copied.
+- **node_modules reference:** text containing `node_modules/<name>/`, which bundlers leave in region comments, source maps, and error stacks.
+- **import specifier:** `from "<name>"`, `import("<name>")`, `import "<name>"`, or `require("<name>")`, with or without a subpath, which means the output loads the package at runtime.
+
+Every signal needs the name followed by a delimiter, so `vite` does not match `vite-plugin-x` or `@scope/vite`. A minified, renamed bundle that keeps none of these markers can still hide a copy, so build with the bundler's module-path comments or source maps kept in the checked directory if you rely on this. A string such as `from "vite"` inside prose or a code sample also counts, and so does a type-only `import type ... from "vite"` quoted in a source map's `sourcesContent`. Files are read as UTF-8, and a file with a NUL byte in its first 8000 characters is treated as binary and not scanned. Symlinks are followed, and a dangling one fails the check. It fails if the directory is missing or empty.
 
 ## `np-check-action-pinning`
 

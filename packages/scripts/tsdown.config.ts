@@ -3,6 +3,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
   entry: [
     "src/audit-gate.ts",
+    "src/check-absent-dependency.ts",
     "src/check-action-pinning.ts",
     "src/check-migration-drift.ts",
     "src/check-migration-snapshots.ts",
