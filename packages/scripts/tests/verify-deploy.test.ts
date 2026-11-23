@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NetlifyFatalError,
-  type NetlifyClient,
+  type NetlifyVerifyClient,
   type NetlifyDeploy,
 } from "../src/netlify/client.ts";
 import {
@@ -154,13 +154,14 @@ describe("verifyDeploy", () => {
     intervalMs: 10,
   };
 
-  function harness(client: Partial<NetlifyClient>) {
+  function harness(client: Partial<NetlifyVerifyClient>) {
     let clock = 0;
     const sleeps: number[] = [];
     const environment: PollEnvironment = {
       client: {
         listProductionDeploys: () => Promise.resolve([]),
         getDeploy: () => Promise.reject(new Error("unused")),
+        getSiteId: () => Promise.resolve("site"),
         ...client,
       },
       sleep: async (milliseconds) => {
@@ -247,6 +248,20 @@ describe("verifyDeploy", () => {
     expect(list).toHaveBeenCalledTimes(11);
   });
 
+  it("never looks the site up when searching by title", async () => {
+    const getSiteId = vi.fn(async () => "site-uuid");
+    const { environment } = harness({
+      listProductionDeploys: async () => [deploy({ siteId: "site-uuid" })],
+      getSiteId,
+    });
+    const result = await verifyDeploy(
+      { ...request, siteId: "my-site" },
+      environment,
+    );
+    expect(result).toMatchObject({ ok: true });
+    expect(getSiteId).not.toHaveBeenCalled();
+  });
+
   describe("verify-only mode", () => {
     const byId: VerifyRequest = {
       ...request,
@@ -265,6 +280,108 @@ describe("verifyDeploy", () => {
       expect(await verifyDeploy(byId, environment)).toMatchObject({
         ok: false,
       });
+    });
+
+    it.each(["my-site", "my-site.netlify.app"])(
+      "accepts %s by resolving it to the deploy's site",
+      async (siteName) => {
+        const getSiteId = vi.fn(async () => "site-uuid");
+        const { environment } = harness({
+          getDeploy: async () => deploy({ siteId: "site-uuid" }),
+          getSiteId,
+        });
+        const result = await verifyDeploy(
+          { ...byId, siteId: siteName },
+          environment,
+        );
+        expect(result).toMatchObject({ ok: true });
+        expect(getSiteId).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("accepts a site UUID without a site lookup", async () => {
+      const getSiteId = vi.fn(async () => "other");
+      const { environment } = harness({
+        getDeploy: async () => deploy({ siteId: "site-uuid" }),
+        getSiteId,
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "site-uuid" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: true });
+      expect(getSiteId).not.toHaveBeenCalled();
+    });
+
+    it("rejects a deploy from another site named by name", async () => {
+      const { environment } = harness({
+        getDeploy: async () => deploy({ siteId: "elsewhere" }),
+        getSiteId: async () => "site-uuid",
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "my-site" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: false });
+      expect(JSON.stringify(result)).toContain("does not belong");
+    });
+
+    it("rejects a deploy with no site id", async () => {
+      const { environment } = harness({
+        getDeploy: async () => deploy({ siteId: null }),
+        getSiteId: async () => "site-uuid",
+      });
+      expect(
+        await verifyDeploy({ ...byId, siteId: "my-site" }, environment),
+      ).toMatchObject({ ok: false });
+    });
+
+    it("looks the site up once across several polls", async () => {
+      const states = ["building", "building", "ready"];
+      const getSiteId = vi.fn(async () => "site-uuid");
+      const { environment } = harness({
+        getDeploy: async () =>
+          deploy({ siteId: "site-uuid", state: states.shift() ?? "ready" }),
+        getSiteId,
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "my-site" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: true });
+      expect(getSiteId).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails at once when the site cannot be found", async () => {
+      const { environment, sleeps } = harness({
+        getDeploy: async () => deploy({ siteId: "site-uuid" }),
+        getSiteId: async () => {
+          throw new NetlifyFatalError("not found");
+        },
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "typo" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: false });
+      expect(sleeps).toEqual([]);
+    });
+
+    it("retries a transient site lookup error", async () => {
+      const getSiteId = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(new Error("HTTP 503"))
+        .mockResolvedValue("site-uuid");
+      const { environment, sleeps } = harness({
+        getDeploy: async () => deploy({ siteId: "site-uuid" }),
+        getSiteId,
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "my-site" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: true });
+      expect(sleeps).toHaveLength(1);
     });
 
     it("rejects a non-production deploy", async () => {
@@ -379,6 +496,7 @@ describe("runVerifyNetlifyDeploy", () => {
       createClient: () => ({
         listProductionDeploys: async () => listed,
         getDeploy: () => Promise.reject(new Error("unused")),
+        getSiteId: () => Promise.resolve("site"),
       }),
       sleep: async () => undefined,
       now: () => 0,
@@ -422,6 +540,7 @@ describe("runVerifyNetlifyDeploy", () => {
     testEnvironment.createClient = () => ({
       listProductionDeploys: () => Promise.reject(new Error("unused")),
       getDeploy,
+      getSiteId: () => Promise.resolve("site"),
     });
     expect(await runVerifyNetlifyDeploy([], testEnvironment)).toBe(0);
     expect(getDeploy).toHaveBeenCalledWith(DEPLOY_ID);

@@ -1,6 +1,7 @@
 import {
   NetlifyFatalError,
   type NetlifyClient,
+  type NetlifyVerifyClient,
   type NetlifyDeploy,
 } from "../netlify/client.ts";
 import { describeError } from "../workflow-command.ts";
@@ -26,7 +27,7 @@ export type VerifyResult =
   { ok: true; deploy: NetlifyDeploy } | { ok: false; message: string };
 
 export interface PollEnvironment {
-  client: NetlifyClient;
+  client: NetlifyVerifyClient;
   sleep(milliseconds: number): Promise<void>;
   now(): number;
   log(message: string): void;
@@ -53,16 +54,42 @@ async function fetchTargetDeploy(
   return findTriggeredDeploy(await client.listProductionDeploys(), target);
 }
 
-function judgeDeploy(
+// NETLIFY_SITE_ID may be a name or domain, which Netlify's API accepts in a
+// path as the trigger mode relies on; a deploy only carries the UUID, so
+// resolve through the API unless the value already matches it.
+async function resolveSiteId(
   request: VerifyRequest,
   deploy: NetlifyDeploy,
-  log: (message: string) => void,
-): Step {
-  log(`Deploy ${deploy.id}: ${deploy.state}`);
-  const ownershipProblem =
-    request.target.kind === "deploy-id"
-      ? describeOwnershipProblem(deploy, request.siteId)
-      : null;
+  client: NetlifyVerifyClient,
+): Promise<string> {
+  return deploy.siteId === request.siteId ? request.siteId : client.getSiteId();
+}
+
+async function describeOwnership(
+  request: VerifyRequest,
+  deploy: NetlifyDeploy,
+  client: NetlifyVerifyClient,
+): Promise<string | null> {
+  if (request.target.kind !== "deploy-id") {
+    return null;
+  }
+  return describeOwnershipProblem(
+    deploy,
+    await resolveSiteId(request, deploy, client),
+  );
+}
+
+async function judgeDeploy(
+  request: VerifyRequest,
+  deploy: NetlifyDeploy,
+  environment: PollEnvironment,
+): Promise<Step> {
+  environment.log(`Deploy ${deploy.id}: ${deploy.state}`);
+  const ownershipProblem = await describeOwnership(
+    request,
+    deploy,
+    environment.client,
+  );
   if (ownershipProblem !== null) {
     return { done: { ok: false, message: ownershipProblem } };
   }
@@ -87,7 +114,7 @@ async function pollOnce(
       environment.log(`No Netlify deploy found: ${observation}`);
       return { observation };
     }
-    return judgeDeploy(request, deploy, environment.log);
+    return await judgeDeploy(request, deploy, environment);
   } catch (error) {
     const reason = describeError(error);
     if (error instanceof NetlifyFatalError) {
@@ -109,13 +136,31 @@ function timeoutResult(
   };
 }
 
+// Keeps the first successful site lookup so a long wait does not repeat it; a
+// failed lookup is not kept, so a transient error is retried on the next poll.
+function rememberSiteLookup(client: NetlifyVerifyClient): NetlifyVerifyClient {
+  let siteId: string | null = null;
+  return {
+    listProductionDeploys: () => client.listProductionDeploys(),
+    getDeploy: (deployId) => client.getDeploy(deployId),
+    async getSiteId() {
+      siteId ??= await client.getSiteId();
+      return siteId;
+    },
+  };
+}
+
 // Transient API errors are retried until the timeout so one blip does not fail
 // a healthy deploy; auth and not-found errors abort immediately. The deadline
 // is checked after a poll, so one last poll always happens at the end.
 export async function verifyDeploy(
   request: VerifyRequest,
-  environment: PollEnvironment,
+  pollEnvironment: PollEnvironment,
 ): Promise<VerifyResult> {
+  const environment = {
+    ...pollEnvironment,
+    client: rememberSiteLookup(pollEnvironment.client),
+  };
   const deadline = environment.now() + request.timeoutMs;
   while (true) {
     const step = await pollOnce(request, environment);
