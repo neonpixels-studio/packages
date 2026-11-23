@@ -97,6 +97,22 @@ describe("report building", () => {
     ]);
   });
 
+  it("treats a locally served audit as the fallback site whatever its port", () => {
+    const results: AssertionResult[] = [
+      { url: "http://localhost:43817/", passed: false },
+      { url: "http://localhost:51234/about", passed: false },
+    ];
+    expect(failingSites(results, "site")).toEqual(["site"]);
+  });
+
+  it("groups one site's pages despite differing ports", () => {
+    const results: AssertionResult[] = [
+      { url: "https://a.example.com:8443/", passed: false },
+      { url: "https://a.example.com/x", passed: false },
+    ];
+    expect(failingSites(results, "site")).toEqual(["a.example.com"]);
+  });
+
   it("falls back to one site when nothing was recorded", () => {
     expect(failingSites([], "site")).toEqual(["site"]);
   });

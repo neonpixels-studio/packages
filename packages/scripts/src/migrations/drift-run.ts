@@ -1,8 +1,12 @@
-import { describeError, prefixedConsole } from "../workflow-command.ts";
+import {
+  describeError,
+  prefixedConsole,
+  type Variables,
+} from "../workflow-command.ts";
 import { findMigrationDrift, type RecordedMigration } from "./drift.ts";
 import { systemFiles, type MigrationFiles } from "./filesystem.ts";
 import { readJournal, readJournalMigrations } from "./journal.ts";
-import { readMigrationsOptions, type Variables } from "./options.ts";
+import { readMigrationsOptions } from "./options.ts";
 import { createNeonSqlClient, type SqlClient } from "./sql-client.ts";
 
 const TABLE_EXISTS_QUERY = `select exists (

@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { describeError, prefixedConsole } from "../workflow-command.ts";
+import {
+  describeError,
+  prefixedConsole,
+  type Variables,
+} from "../workflow-command.ts";
 import { systemFiles, type MigrationFiles } from "./filesystem.ts";
 import {
   journalPath,
@@ -7,7 +11,7 @@ import {
   parseJsonFile,
   readJournal,
 } from "./journal.ts";
-import { readMigrationsOptions, type Variables } from "./options.ts";
+import { readMigrationsOptions } from "./options.ts";
 import {
   findBrokenChainLinks,
   findMissingSnapshotTags,

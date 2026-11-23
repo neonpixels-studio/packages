@@ -1,10 +1,9 @@
 import { parseArgs } from "node:util";
+import type { Variables } from "../workflow-command.ts";
 
 export const DEFAULT_MIGRATIONS_DIRECTORY = "server/db/migrations";
 export const DEFAULT_DATABASE_URL_VARIABLE = "DATABASE_URL";
 const MIGRATIONS_DIRECTORY_VARIABLE = "MIGRATIONS_DIR";
-
-export type Variables = Record<string, string | undefined>;
 
 export interface MigrationsOptions {
   migrationsDirectory: string;

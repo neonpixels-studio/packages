@@ -1,3 +1,5 @@
+export type Variables = Record<string, string | undefined>;
+
 export function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

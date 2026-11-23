@@ -5,6 +5,7 @@ export const DEFAULT_RESULTS_PATH = ".lighthouseci/assertion-results.json";
 // Keeps the issue body well under GitHub's 65,536 character limit.
 const MAX_TABLE_ROWS = 100;
 const MAX_CELL_LENGTH = 200;
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export const ISSUE_TITLE_PREFIX = "Lighthouse regression on ";
 
 export interface AssertionResult {
@@ -83,7 +84,9 @@ export function failingResults(results: AssertionResult[]): AssertionResult[] {
 /** The host of a page URL, or null when the result has no usable URL. */
 export function siteOf(result: AssertionResult): string | null {
   try {
-    return new URL(result.url ?? "").host || null;
+    const { hostname } = new URL(result.url ?? "");
+    // Lighthouse CI audits a local server on a random port: that is not a site.
+    return LOOPBACK_HOSTNAMES.has(hostname) ? null : hostname || null;
   } catch {
     return null;
   }

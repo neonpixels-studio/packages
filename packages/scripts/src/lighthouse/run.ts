@@ -1,8 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { describeError, prefixedConsole } from "../workflow-command.ts";
+import {
+  describeError,
+  prefixedConsole,
+  type Variables,
+} from "../workflow-command.ts";
 import { closePassedIssues, fileFailureIssues } from "./file-issues.ts";
-import type { Variables } from "../migrations/options.ts";
 import { createGhIssueClient, type IssueClient } from "./github.ts";
 import {
   DEFAULT_RESULTS_PATH,

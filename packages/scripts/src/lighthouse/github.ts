@@ -36,8 +36,17 @@ export interface IssueClient {
 
 export type GhRunner = (args: string[]) => string;
 
-export const runGh: GhRunner = (args) =>
-  execFileSync("gh", args, { encoding: "utf8" });
+// execFileSync's own error message repeats the whole command line, issue body included.
+export const runGh: GhRunner = (args) => {
+  try {
+    return execFileSync("gh", args, { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    const stderr = String((error as { stderr?: unknown }).stderr ?? "").trim();
+    throw new Error(`gh ${args.slice(0, 2).join(" ")} failed: ${stderr}`, {
+      cause: error,
+    });
+  }
+};
 
 function ghJson<Shape>(gh: GhRunner, args: string[]): Shape {
   return JSON.parse(gh(args)) as Shape;
