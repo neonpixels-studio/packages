@@ -79,13 +79,13 @@ function snapshot(id: string, prevId: string): string {
 function run(files: Record<string, string>) {
   const errors: string[] = [];
   const log: string[] = [];
-  const env: CheckSnapshotsEnvironment = {
+  const testEnvironment: CheckSnapshotsEnvironment = {
     variables: { MIGRATIONS_DIR: DIRECTORY },
     files: fakeFiles(files),
     log: (message) => log.push(message),
     error: (message) => errors.push(message),
   };
-  return { env, errors, log };
+  return { testEnvironment, errors, log };
 }
 
 const JOURNAL = journalJson([
@@ -95,48 +95,59 @@ const JOURNAL = journalJson([
 
 describe("runCheckMigrationSnapshots", () => {
   it("passes a complete, chained set", async () => {
-    const { env, log } = run({
+    const { testEnvironment, log } = run({
       [`${META}/_journal.json`]: JOURNAL,
       [`${META}/0000_snapshot.json`]: snapshot("a", ROOT_SNAPSHOT_PREV_ID),
       [`${META}/0001_snapshot.json`]: snapshot("b", "a"),
     });
-    expect(await runCheckMigrationSnapshots([], env)).toBe(0);
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(0);
     expect(log.join("\n")).toContain("All 2 journal entries");
   });
 
   it("fails on a missing snapshot", async () => {
-    const { env, errors } = run({
+    const { testEnvironment, errors } = run({
       [`${META}/_journal.json`]: JOURNAL,
       [`${META}/0000_snapshot.json`]: snapshot("a", ROOT_SNAPSHOT_PREV_ID),
     });
-    expect(await runCheckMigrationSnapshots([], env)).toBe(1);
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(1);
     expect(errors.join("\n")).toContain("0001_b (expected 0001_snapshot.json)");
   });
 
   it("fails on an orphan snapshot", async () => {
-    const { env, errors } = run({
+    const { testEnvironment, errors } = run({
       [`${META}/_journal.json`]: JOURNAL,
       [`${META}/0000_snapshot.json`]: snapshot("a", ROOT_SNAPSHOT_PREV_ID),
       [`${META}/0001_snapshot.json`]: snapshot("b", "a"),
       [`${META}/0002_snapshot.json`]: snapshot("c", "b"),
     });
-    expect(await runCheckMigrationSnapshots([], env)).toBe(1);
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(1);
     expect(errors.join("\n")).toContain("0002_snapshot.json");
   });
 
   it("fails on a broken chain", async () => {
-    const { env, errors } = run({
+    const { testEnvironment, errors } = run({
       [`${META}/_journal.json`]: JOURNAL,
       [`${META}/0000_snapshot.json`]: snapshot("a", ROOT_SNAPSHOT_PREV_ID),
       [`${META}/0001_snapshot.json`]: snapshot("b", "zzz"),
     });
-    expect(await runCheckMigrationSnapshots([], env)).toBe(1);
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(1);
     expect(errors.join("\n")).toContain("Broken migration snapshot chain");
+  });
+
+  it("fails on a snapshot file containing null", async () => {
+    const { testEnvironment, errors } = run({
+      [`${META}/_journal.json`]: journalJson([
+        { idx: 0, tag: "0000_a", when: 1 },
+      ]),
+      [`${META}/0000_snapshot.json`]: "null",
+    });
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(1);
+    expect(errors.join("\n")).toContain('missing a string "id"');
   });
 
   it("fails on an empty journal and on a snapshot without ids", async () => {
     const empty = run({ [`${META}/_journal.json`]: journalJson([]) });
-    expect(await runCheckMigrationSnapshots([], empty.env)).toBe(1);
+    expect(await runCheckMigrationSnapshots([], empty.testEnvironment)).toBe(1);
 
     const noIds = run({
       [`${META}/_journal.json`]: journalJson([
@@ -144,15 +155,17 @@ describe("runCheckMigrationSnapshots", () => {
       ]),
       [`${META}/0000_snapshot.json`]: "{}",
     });
-    expect(await runCheckMigrationSnapshots([], noIds.env)).toBe(1);
+    expect(await runCheckMigrationSnapshots([], noIds.testEnvironment)).toBe(1);
     expect(noIds.errors.join("\n")).toContain('missing a string "id"');
   });
 });
 
 describe("malformed files", () => {
   it("names the journal file when it is not JSON", async () => {
-    const { env, errors } = run({ [`${META}/_journal.json`]: "{ nope" });
-    expect(await runCheckMigrationSnapshots([], env)).toBe(1);
+    const { testEnvironment, errors } = run({
+      [`${META}/_journal.json`]: "{ nope",
+    });
+    expect(await runCheckMigrationSnapshots([], testEnvironment)).toBe(1);
     expect(errors.join("\n")).toContain("_journal.json is not valid JSON");
   });
 });

@@ -43,7 +43,7 @@ function loadSnapshotChain(
   return journalTags.map((tag) => {
     const filename = snapshotFilenameForTag(tag) ?? "";
     const path = join(metaFolder, filename);
-    const snapshot = parseJsonFile(files.readText(path), path) as {
+    const snapshot = (parseJsonFile(files.readText(path), path) ?? {}) as {
       id?: unknown;
       prevId?: unknown;
     };

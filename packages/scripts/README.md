@@ -120,7 +120,7 @@ pnpm exec np-check-migration-snapshots
 pnpm exec np-check-migration-snapshots --migrations-dir server/db/migrations
 ```
 
-The migrations directory is resolved as for `np-check-migration-drift`. A journal whose `idx` does not match its tag prefix, with duplicate `idx` values, or with no entries also fails.
+The migrations directory is resolved as for `np-check-migration-drift`. A journal whose `idx` does not match its tag's `NNNN_` prefix, with duplicate `idx` values, or with no entries also fails, so both migration bins expect drizzle-kit's default `index` migration prefix.
 
 ## `np-report-lighthouse-failure`
 

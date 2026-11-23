@@ -1,4 +1,5 @@
-import type { IssueClient } from "./github.ts";
+import { describeError } from "../workflow-command.ts";
+import type { IssueClient, OpenIssue } from "./github.ts";
 import {
   buildReport,
   failingSites,
@@ -10,11 +11,31 @@ import {
 
 export interface FilingResult {
   site: string;
-  action: "created" | "commented";
+  action: "created" | "commented" | "failed";
   output: string;
 }
 
-/** Opens one issue per failing site, or comments on the site's open one. */
+async function fileSiteIssue(
+  client: IssueClient,
+  open: OpenIssue[],
+  site: string,
+  body: string,
+): Promise<FilingResult> {
+  const title = issueTitleFor(site);
+  const existing = open.find((issue) => issue.title === title);
+  if (existing) {
+    await client.commentOnIssue(existing.number, body);
+    return { site, action: "commented", output: `#${existing.number}` };
+  }
+  const url = await client.createRegressionIssue(title, body);
+  return { site, action: "created", output: url };
+}
+
+/**
+ * Opens one issue per failing site, or comments on the site's open one. A
+ * site that fails is recorded and the rest still run, so the caller can report
+ * every issue that was filed.
+ */
 export async function fileFailureIssues(
   client: IssueClient,
   context: FailureContext,
@@ -24,23 +45,15 @@ export async function fileFailureIssues(
   const open = await client.listOpenRegressionIssues();
   const filings: FilingResult[] = [];
   for (const site of failingSites(results, fallbackSite)) {
-    const title = issueTitleFor(site);
     const body = buildReport(
       context,
       resultsForSite(results, site, fallbackSite),
     );
-    const existing = open.find((issue) => issue.title === title);
-    if (existing) {
-      await client.commentOnIssue(existing.number, body);
-      filings.push({
-        site,
-        action: "commented",
-        output: `#${existing.number}`,
-      });
-      continue;
+    try {
+      filings.push(await fileSiteIssue(client, open, site, body));
+    } catch (error) {
+      filings.push({ site, action: "failed", output: describeError(error) });
     }
-    const url = await client.createRegressionIssue(title, body);
-    filings.push({ site, action: "created", output: url });
   }
   return filings;
 }

@@ -41,15 +41,12 @@ function readAssertionResults(
   environment: ReportEnvironment,
   path: string,
 ): AssertionResult[] {
-  const raw = environment.readResults(path);
-  if (raw === null) {
-    return [];
-  }
   try {
-    return parseAssertionResults(raw);
+    const raw = environment.readResults(path);
+    return raw === null ? [] : parseAssertionResults(raw);
   } catch {
     environment.warn(
-      `Could not parse ${path}; reporting without assertion rows`,
+      `Could not read or parse ${path}; reporting without assertion rows`,
     );
     return [];
   }
@@ -120,6 +117,9 @@ async function reportFailure(
     environment.log(
       `Issue ${filing.action} for ${filing.site}: ${filing.output}`,
     );
+  }
+  if (filings.some((filing) => filing.action === "failed")) {
+    throw new Error("Could not file every Lighthouse regression issue");
   }
 }
 

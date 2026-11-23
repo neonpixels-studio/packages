@@ -2,6 +2,8 @@ export const REGRESSION_LABEL = "lighthouse-regression";
 export const PRIORITY_LABEL = "p1";
 export const DEFAULT_WORKFLOW_FILE = "lighthouse.yml";
 export const DEFAULT_RESULTS_PATH = ".lighthouseci/assertion-results.json";
+// Keeps the issue body well under GitHub's 65,536 character limit.
+const MAX_TABLE_ROWS = 100;
 export const ISSUE_TITLE_PREFIX = "Lighthouse regression on ";
 
 export interface AssertionResult {
@@ -148,16 +150,23 @@ export function formatAssertionRows(failing: AssertionResult[]): string {
   }
   const header =
     "| Page | Category | Score | Threshold | Level |\n| --- | --- | --- | --- | --- |";
-  const rows = failing.map((result) =>
-    [
-      tableCell(result.url ?? "n/a"),
-      tableCell(auditLabel(result)),
-      formatScore(result.actual),
-      `${tableCell(result.operator ?? ">=")} ${formatScore(result.expected)}`,
-      tableCell(result.level ?? "n/a"),
-    ].join(" | "),
-  );
-  return [header, ...rows.map((row) => `| ${row} |`)].join("\n");
+  const rows = failing
+    .slice(0, MAX_TABLE_ROWS)
+    .map((result) =>
+      [
+        tableCell(result.url ?? "n/a"),
+        tableCell(auditLabel(result)),
+        formatScore(result.actual),
+        `${tableCell(result.operator ?? ">=")} ${formatScore(result.expected)}`,
+        tableCell(result.level ?? "n/a"),
+      ].join(" | "),
+    );
+  const omitted = failing.length - MAX_TABLE_ROWS;
+  const note =
+    omitted > 0
+      ? [`\n...and ${omitted} more failing assertion(s); see the run log.`]
+      : [];
+  return [header, ...rows.map((row) => `| ${row} |`), ...note].join("\n");
 }
 
 export function formatCommitRange(context: FailureContext): string {

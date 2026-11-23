@@ -206,6 +206,69 @@ describe("fileFailureIssues", () => {
   });
 });
 
+describe("partial failures", () => {
+  it("records a failing site and still files the others", async () => {
+    const { client, created } = fakeClient();
+    const create = client.createRegressionIssue;
+    client.createRegressionIssue = async (title, body) => {
+      if (title.endsWith("one.example.com")) {
+        throw new Error("rate limited");
+      }
+      return create(title, body);
+    };
+    const filings = await fileFailureIssues(
+      client,
+      CONTEXT,
+      FAILING_RESULTS,
+      "site",
+    );
+    expect(filings.map((filing) => filing.action)).toEqual([
+      "failed",
+      "created",
+    ]);
+    expect(filings[0]?.output).toBe("rate limited");
+    expect(created).toHaveLength(1);
+  });
+
+  it("exits non-zero after logging every filing when one failed", async () => {
+    const { client } = fakeClient();
+    client.createRegressionIssue = async (title) => {
+      if (title.endsWith("one.example.com")) {
+        throw new Error("rate limited");
+      }
+      return "https://github.com/acme/site/issues/1";
+    };
+    const { testEnvironment, lines } = environment(
+      FAILURE_VARIABLES,
+      JSON.stringify(FAILING_RESULTS),
+      client,
+    );
+    expect(await runReportLighthouseFailure([], testEnvironment)).toBe(1);
+    expect(lines.join("\n")).toContain("Issue created for two.example.com");
+    expect(lines.join("\n")).toContain("Issue failed for one.example.com");
+  });
+
+  it("caps a very large table", () => {
+    const many = Array.from({ length: 500 }, (_, index) => ({
+      url: `https://x.test/${index}`,
+      passed: false,
+    }));
+    const table = formatAssertionRows(many);
+    expect(table).toContain("400 more failing assertion(s)");
+    expect(table.length).toBeLessThan(30_000);
+  });
+
+  it("still files the issue when the results file cannot be read", async () => {
+    const { client, created } = fakeClient();
+    const { testEnvironment } = environment(FAILURE_VARIABLES, null, client);
+    testEnvironment.readResults = () => {
+      throw new Error("EISDIR");
+    };
+    expect(await runReportLighthouseFailure([], testEnvironment)).toBe(0);
+    expect(created).toHaveLength(1);
+  });
+});
+
 describe("closePassedIssues", () => {
   it("closes every open regression issue with the run link", async () => {
     const { client, closed } = fakeClient([
@@ -282,7 +345,7 @@ function environment(
   client: IssueClient,
 ) {
   const lines: string[] = [];
-  const env: ReportEnvironment = {
+  const testEnvironment: ReportEnvironment = {
     variables,
     createClient: vi.fn(() => client),
     readResults: () => resultsFile,
@@ -290,7 +353,7 @@ function environment(
     warn: (message) => lines.push(`warn ${message}`),
     error: (message) => lines.push(`error ${message}`),
   };
-  return { env, lines };
+  return { testEnvironment, lines };
 }
 
 const FAILURE_VARIABLES = {
@@ -303,22 +366,22 @@ const FAILURE_VARIABLES = {
 describe("runReportLighthouseFailure", () => {
   it("files issues from a failing assertion-results file", async () => {
     const { client, created } = fakeClient();
-    const { env } = environment(
+    const { testEnvironment } = environment(
       FAILURE_VARIABLES,
       JSON.stringify(FAILING_RESULTS),
       client,
     );
-    expect(await runReportLighthouseFailure([], env)).toBe(0);
+    expect(await runReportLighthouseFailure([], testEnvironment)).toBe(0);
     expect(created).toHaveLength(2);
   });
 
   it("still files an issue when the results file is missing or unreadable", async () => {
     for (const file of [null, "not json"]) {
       const { client, created } = fakeClient();
-      const { env } = environment(FAILURE_VARIABLES, file, client);
-      expect(await runReportLighthouseFailure(["--site", "mysite"], env)).toBe(
-        0,
-      );
+      const { testEnvironment } = environment(FAILURE_VARIABLES, file, client);
+      expect(
+        await runReportLighthouseFailure(["--site", "mysite"], testEnvironment),
+      ).toBe(0);
       expect(created[0]?.title).toBe("Lighthouse regression on mysite");
     }
   });
@@ -328,12 +391,12 @@ describe("runReportLighthouseFailure", () => {
     client.findLastPassSha = async () => {
       throw new Error("workflow not found");
     };
-    const { env, lines } = environment(
+    const { testEnvironment, lines } = environment(
       FAILURE_VARIABLES,
       JSON.stringify(FAILING_RESULTS),
       client,
     );
-    expect(await runReportLighthouseFailure([], env)).toBe(0);
+    expect(await runReportLighthouseFailure([], testEnvironment)).toBe(0);
     expect(created).toHaveLength(2);
     expect(lines.join("\n")).toContain("workflow not found");
     expect(created[0]?.body).toContain("No earlier successful scheduled run");
@@ -343,23 +406,25 @@ describe("runReportLighthouseFailure", () => {
     const { client, closed } = fakeClient([
       { number: 4, title: "Lighthouse regression on a" },
     ]);
-    const { env } = environment(
+    const { testEnvironment } = environment(
       { GITHUB_REPOSITORY: "acme/site" },
       null,
       client,
     );
-    expect(await runReportLighthouseFailure(["--passed"], env)).toBe(0);
+    expect(
+      await runReportLighthouseFailure(["--passed"], testEnvironment),
+    ).toBe(0);
     expect(closed.map((entry) => entry.number)).toEqual([4]);
   });
 
   it("fails loudly when a required variable is missing", async () => {
     const { client } = fakeClient();
-    const { env, lines } = environment(
+    const { testEnvironment, lines } = environment(
       { GITHUB_REPOSITORY: "acme/site" },
       null,
       client,
     );
-    expect(await runReportLighthouseFailure([], env)).toBe(1);
+    expect(await runReportLighthouseFailure([], testEnvironment)).toBe(1);
     expect(lines.join("\n")).toContain("RUN_URL");
   });
 });

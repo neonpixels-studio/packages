@@ -56,7 +56,9 @@ export function parseJsonFile(raw: string, source: string): unknown {
   try {
     return JSON.parse(raw);
   } catch (error) {
-    throw new Error(`${source} is not valid JSON (${describeError(error)})`);
+    throw new Error(`${source} is not valid JSON (${describeError(error)})`, {
+      cause: error,
+    });
   }
 }
 
