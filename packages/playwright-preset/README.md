@@ -121,7 +121,7 @@ test.describe("consent banner", () => {
 });
 ```
 
-A project has one `storageState`. With the Clerk entry point, which loads a saved sign-in file, spread the `origins` entry from `consentDeclinedStorageState` into your own state instead of replacing it.
+A project has one `storageState`, so this replaces a saved sign-in file rather than merging with it.
 
 To change anything, override it in your own config: spread the result and replace the key.
 

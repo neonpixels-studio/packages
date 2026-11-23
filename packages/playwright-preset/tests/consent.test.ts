@@ -84,6 +84,25 @@ describe("consentDeclinedStorageState", () => {
     ).toThrow(/"origin" must be an absolute URL/);
   });
 
+  it("rejects an origin without a scheme", () => {
+    expect(() =>
+      consentDeclinedStorageState({ app: APP, origin: "localhost:3000" }),
+    ).toThrow(/"origin" must be an absolute URL/);
+  });
+
+  it.each([null, Number.NaN, "1700000000000"])(
+    "rejects a time of %s",
+    (now) => {
+      expect(() =>
+        consentDeclinedStorageState({
+          app: APP,
+          origin: ORIGIN,
+          now: now as number,
+        }),
+      ).toThrow(/"now" must be a finite number/);
+    },
+  );
+
   it("rejects an empty app name", () => {
     expect(() =>
       consentDeclinedStorageState({ app: " ", origin: ORIGIN }),

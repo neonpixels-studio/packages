@@ -1,15 +1,32 @@
 import { URL } from "node:url";
 import { CONSENT_LIFETIME_MS, consentStorageKey } from "@neon-pixels/consent";
 
+const OPAQUE_ORIGIN = "null";
+
+/** @param {string} origin */
+function invalidOriginError(origin) {
+  return new Error(
+    `@neon-pixels/playwright-preset: "origin" must be an absolute URL such as "http://localhost:3000", received ${String(origin)}.`,
+  );
+}
+
+/** @param {string} origin */
+function parseUrl(origin) {
+  try {
+    return new URL(origin);
+  } catch {
+    throw invalidOriginError(origin);
+  }
+}
+
 /** @param {string} origin */
 function normalizeOrigin(origin) {
-  try {
-    return new URL(origin).origin;
-  } catch {
-    throw new Error(
-      `@neon-pixels/playwright-preset: "origin" must be an absolute URL such as "http://localhost:3000", received ${String(origin)}.`,
-    );
+  const { origin: normalized } = parseUrl(origin);
+  // A value without a scheme, such as "localhost:3000", parses with an opaque origin.
+  if (normalized === OPAQUE_ORIGIN) {
+    throw invalidOriginError(origin);
   }
+  return normalized;
 }
 
 /** @param {string} app */
@@ -19,6 +36,16 @@ function assertValidApp(app) {
   }
   throw new Error(
     '@neon-pixels/playwright-preset: "app" must be a non-empty string.',
+  );
+}
+
+/** @param {number} now */
+function assertValidNow(now) {
+  if (Number.isFinite(now)) {
+    return;
+  }
+  throw new Error(
+    '@neon-pixels/playwright-preset: "now" must be a finite number of epoch milliseconds.',
   );
 }
 
@@ -32,6 +59,7 @@ function assertValidApp(app) {
 export function consentDeclinedStorageState(options) {
   const { app, origin, now = Date.now() } = options;
   assertValidApp(app);
+  assertValidNow(now);
   const record = { choice: "denied", expiresAt: now + CONSENT_LIFETIME_MS };
 
   return {
