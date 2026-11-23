@@ -5,12 +5,17 @@ const MIME_PARAMETER_SEPARATOR = ";";
 
 // Matches a whole <script> or <style> element. The opening tag tolerates ">"
 // inside quoted attribute values.
-const ELEMENT_PATTERN =
-  /<(script|style)\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/\1\s*>/gi;
+// Comments are matched in the same pass so an element named inside a comment
+// is not mistaken for a real one.
+const ELEMENT_OR_COMMENT_PATTERN =
+  /<!--[\s\S]*?-->|<(script|style)\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/\1\s*>/gi;
 const COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
+const LINE_BREAK_PATTERN = /\r\n?/g;
+const JAVASCRIPT_URL_PATTERN = /^\s*javascript:/i;
+const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction"]);
 const TAG_PATTERN = /<([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 const ATTRIBUTE_PATTERN =
-  /([^\s"'<>/=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+  /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 const TYPE_PATTERN = /(?:^|\s)type\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
 const SRC_PATTERN = /(?:^|\s)src\s*=/i;
 const EVENT_HANDLER_PATTERN = /^on[a-z]/i;
@@ -21,11 +26,23 @@ const EXECUTABLE_SCRIPT_TYPES = new Set([
   "",
   "module",
   "importmap",
+  "speculationrules",
   "text/javascript",
   "application/javascript",
   "text/ecmascript",
   "application/ecmascript",
   "application/x-javascript",
+  "application/x-ecmascript",
+  "text/x-javascript",
+  "text/x-ecmascript",
+  "text/jscript",
+  "text/livescript",
+  "text/javascript1.0",
+  "text/javascript1.1",
+  "text/javascript1.2",
+  "text/javascript1.3",
+  "text/javascript1.4",
+  "text/javascript1.5",
 ]);
 const STYLE_TYPES = new Set(["", "text/css"]);
 
@@ -42,9 +59,10 @@ function declaredType(attributes: string): string {
   return (value.split(MIME_PARAMETER_SEPARATOR)[0] ?? "").trim().toLowerCase();
 }
 
+// The HTML parser turns CRLF and lone CR into LF before the browser hashes the text.
 function hashSource(content: string): string {
   const digest = createHash(HASH_ALGORITHM)
-    .update(content, "utf8")
+    .update(content.replace(LINE_BREAK_PATTERN, "\n"), "utf8")
     .digest("base64");
   return `'${HASH_ALGORITHM}-${digest}'`;
 }
@@ -60,13 +78,21 @@ function isHashableStyle(attributes: string): boolean {
   return STYLE_TYPES.has(declaredType(attributes));
 }
 
+function isUnhashable(name: string, value: string): boolean {
+  if (name === "style" || EVENT_HANDLER_PATTERN.test(name)) {
+    return true;
+  }
+  return URL_ATTRIBUTES.has(name) && JAVASCRIPT_URL_PATTERN.test(value);
+}
+
 function unhashableAttributes(attributes: string): string[] {
-  const names = [...attributes.matchAll(ATTRIBUTE_PATTERN)].map((match) =>
-    (match[1] ?? "").toLowerCase(),
-  );
-  return names.filter(
-    (name) => name === "style" || EVENT_HANDLER_PATTERN.test(name),
-  );
+  return [...attributes.matchAll(ATTRIBUTE_PATTERN)]
+    .map((match) => ({
+      name: (match[1] ?? "").toLowerCase(),
+      value: match[2] ?? match[3] ?? match[4] ?? "",
+    }))
+    .filter(({ name, value }) => isUnhashable(name, value))
+    .map(({ name }) => name);
 }
 
 function sortedUnique(values: readonly string[]): string[] {
@@ -82,8 +108,16 @@ export function findInlineSources(html: string): InlineFindings {
   const scriptHashes: string[] = [];
   const styleHashes: string[] = [];
   const markup = html.replace(
-    ELEMENT_PATTERN,
-    (_element, tagName: string, attributes: string, content: string) => {
+    ELEMENT_OR_COMMENT_PATTERN,
+    (
+      match,
+      tagName: string | undefined,
+      attributes: string,
+      content: string,
+    ) => {
+      if (tagName === undefined) {
+        return match;
+      }
       const isScript = tagName.toLowerCase() === "script";
       if (isScript && isHashableScript(attributes)) {
         scriptHashes.push(hashSource(content));

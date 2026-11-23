@@ -61,7 +61,47 @@ describe("buildContentSecurityPolicy", () => {
   });
 });
 
+describe("nonce and name safety", () => {
+  it("adds the nonce to script-src-elem when it is set", () => {
+    expect(
+      buildContentSecurityPolicy(
+        { "script-src": ["'self'"], "script-src-elem": ["'self'"] },
+        { nonce: "abc" },
+      ),
+    ).toBe("script-src 'self' 'nonce-abc'; script-src-elem 'self' 'nonce-abc'");
+  });
+
+  it("rejects a nonce that could break out of its source", () => {
+    expect(() =>
+      buildContentSecurityPolicy(
+        { "script-src": ["'self'"] },
+        { nonce: "a' *" },
+      ),
+    ).toThrow(TypeError);
+  });
+
+  it("rejects a directive name that could inject another directive", () => {
+    expect(() =>
+      buildContentSecurityPolicy({
+        ["img-src; script-src *" as "img-src"]: ["'self'"],
+      }),
+    ).toThrow(TypeError);
+  });
+});
+
 describe("mergeCspDirectives", () => {
+  it("skips directives set to undefined instead of emptying them", () => {
+    expect(
+      mergeCspDirectives(
+        { "script-src": ["'self'"] },
+        { "script-src": undefined },
+      ),
+    ).toEqual({ "script-src": ["'self'"] });
+    expect(mergeCspDirectives({ "script-src": undefined })).toEqual({});
+  });
+});
+
+describe("mergeCspDirectives sources", () => {
   it("merges sources per directive and de-duplicates", () => {
     expect(
       mergeCspDirectives(

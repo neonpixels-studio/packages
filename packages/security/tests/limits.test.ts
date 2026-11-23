@@ -24,6 +24,18 @@ describe("assertContentLengthWithinLimit", () => {
   });
 });
 
+describe("limit validation", () => {
+  it.each([Number.NaN, -1, Number.POSITIVE_INFINITY, 1.5])(
+    "rejects maxBytes %s instead of disabling the check",
+    (maxBytes) => {
+      expect(() => assertContentLengthWithinLimit("5", maxBytes)).toThrow(
+        TypeError,
+      );
+      expect(() => assertBodyWithinLimit("abc", maxBytes)).toThrow(TypeError);
+    },
+  );
+});
+
 describe("assertBodyWithinLimit", () => {
   it("passes at the limit", () => {
     expect(() => assertBodyWithinLimit("a".repeat(100), 100)).not.toThrow();

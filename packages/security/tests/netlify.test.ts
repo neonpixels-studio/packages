@@ -110,7 +110,10 @@ describe("writeHeadersFile", () => {
     });
     const error = await failure(writeHeadersFile(outDir));
     expect(error.code).toBe("unhashable-inline");
-    expect(error.files).toHaveLength(2);
+    expect(error.files.slice().sort()).toEqual([
+      "about/index.html",
+      "index.html",
+    ]);
     expect(error.message).toContain("index.html: <p style>");
     expect(error.message).toContain("about/index.html: <button onclick>");
     expect(error.message).not.toContain("clean.html");
@@ -155,6 +158,43 @@ describe("writeHeadersFile", () => {
     expect(file).toContain("Content-Security-Policy:");
   });
 
+  it("reports a file once however many attributes it has", async () => {
+    await writeSite({
+      "index.html": page(
+        '<p style="a" onclick="b()">x</p><a href=" JavaScript:void(0)">y</a>',
+      ),
+    });
+    const error = await failure(writeHeadersFile(outDir));
+    expect(error.files).toEqual(["index.html"]);
+    expect(error.message).toContain("index.html: <a href>");
+  });
+
+  it("refuses to append a second Content-Security-Policy", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    await writeHeadersFile(outDir);
+    const error = await failure(writeHeadersFile(outDir, { append: true }));
+    expect(error.code).toBe("csp-already-present");
+  });
+
+  it("puts the hashes in script-src-elem and style-src-elem when supplied", async () => {
+    await writeSite({
+      "index.html": page(
+        `<script>${BOOTSTRAP_SCRIPT}</script><style>${INLINE_STYLE}</style>`,
+      ),
+    });
+    await writeHeadersFile(outDir, {
+      directives: {
+        "script-src-elem": ["'self'"],
+        "style-src-elem": ["'self'"],
+      },
+    });
+    const file = await readFile(join(outDir, "_headers"), "utf8");
+    expect(file).toContain(
+      `script-src-elem 'self' ${sha256(BOOTSTRAP_SCRIPT)}`,
+    );
+    expect(file).toContain(`style-src-elem 'self' ${sha256(INLINE_STYLE)}`);
+  });
+
   it("refuses directives that allow 'unsafe-inline' for scripts or styles", async () => {
     await writeSite({ "index.html": page("<p>x</p>") });
     const error = await failure(
@@ -167,6 +207,31 @@ describe("writeHeadersFile", () => {
 });
 
 describe("findInlineSources", () => {
+  it("hashes text as the browser sees it: CRLF becomes LF", () => {
+    expect(
+      findInlineSources("<script>\r\nvar a;\r\n</script>").scriptHashes,
+    ).toEqual([sha256("\nvar a;\n")]);
+  });
+
+  it("is not thrown off by an element named inside a comment", () => {
+    const html = "<!-- old <style> --><style>body{}</style>";
+    expect(findInlineSources(html).styleHashes).toEqual([sha256("body{}")]);
+  });
+
+  it("hashes speculation rules and legacy JavaScript types", () => {
+    const html = `<script type="speculationrules">{}</script><script type="text/jscript">a</script>`;
+    expect(findInlineSources(html).scriptHashes).toHaveLength(2);
+  });
+
+  it("flags javascript: URLs but not other URLs", () => {
+    expect(
+      findInlineSources('<a href="javascript:x()">a</a>').unhashable,
+    ).toEqual(["<a href>"]);
+    expect(
+      findInlineSources('<a href="/javascript:x">a</a>').unhashable,
+    ).toEqual([]);
+  });
+
   it("hashes the exact text without trimming", () => {
     const content = "\n  var a = 1;\n";
     expect(

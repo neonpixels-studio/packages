@@ -1,6 +1,7 @@
 const DEFAULT_GROUP = "csp-endpoint";
 const GROUP_PATTERN = /^[A-Za-z0-9_-]+$/;
-const FORBIDDEN_ENDPOINT_PATTERN = /["\s;]/;
+const FORBIDDEN_ENDPOINT_PATTERN = /["\s;,\\]|[^\x20-\x7e]/;
+export const REPORTING_ENDPOINTS_HEADER = "Reporting-Endpoints";
 
 export interface ReportingOptions {
   /** Where reports are sent: a path such as `/csp-report` or an https URL. */

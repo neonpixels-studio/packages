@@ -87,9 +87,10 @@ Options: `directives`, `reportEndpoint`, `production` (default `true`), `hstsPre
 
 It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 
-- `unhashable-inline`: a page has an inline `style` attribute or an event handler such as `onclick`. A hash cannot cover those. The message lists each file and attribute.
+- `unhashable-inline`: a page has an inline `style` attribute, an event handler such as `onclick`, or a `javascript:` URL. A hash cannot cover those. `error.files` lists each file once (relative to the output directory) and the message lists every offending attribute.
 - `no-html`: the directory holds no HTML, which usually means the wrong directory.
 - `headers-file-exists`: a `_headers` file is already there. Pass `append: true` to add to it.
+- `csp-already-present`: with `append`, the existing file already sets `Content-Security-Policy`. Two policies would both be enforced.
 - `unsafe-inline-directive`: `directives` allows `'unsafe-inline'` for scripts or styles.
 
 ### CSP reports
@@ -120,4 +121,4 @@ if (!result.ok) {
 
 `parseCspReports` accepts `application/csp-report`, `application/reports+json`, and `application/json`. It returns `{ ok: true, violations }` with at most 20 violations, every field cut to 512 characters, and every URL stripped of its query string, fragment, and credentials. It never throws: an unknown content type or a body that is not a JSON object or array returns `{ ok: false, reason }`.
 
-`assertContentLengthWithinLimit(header, maxBytes)` and `assertBodyWithinLimit(body, maxBytes)` throw `PayloadTooLargeError`, which carries `status` 413. A missing or non-numeric `Content-Length` passes the first check, so always run the second on the body you read. This package does not store, forward, or prune reports.
+`assertContentLengthWithinLimit(header, maxBytes)` and `assertBodyWithinLimit(body, maxBytes)` throw `PayloadTooLargeError`, which carries `status` 413. A missing or non-numeric `Content-Length` passes the first check, so always run the second on the body you read. The body check runs after the body is in memory: for chunked uploads, also cap the read itself with your framework's body-size option. This package does not store, forward, or prune reports.

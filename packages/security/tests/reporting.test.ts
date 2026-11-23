@@ -36,6 +36,10 @@ describe("withReporting", () => {
       TypeError,
     );
     expect(() => withReporting("a", { endpoint: "" })).toThrow(TypeError);
+    expect(() => withReporting("a", { endpoint: "/x,script-src" })).toThrow(
+      TypeError,
+    );
+    expect(() => withReporting("a", { endpoint: "/x\\y" })).toThrow(TypeError);
     expect(() => withReporting("a", { endpoint: "/x", group: "a b" })).toThrow(
       TypeError,
     );

@@ -3,7 +3,12 @@ import { randomBytes } from "node:crypto";
 const NONCE_BYTE_LENGTH = 16;
 const SCRIPT_SRC = "script-src";
 const DEFAULT_SRC = "default-src";
-const NONE_SOURCE = "'none'";
+export const SELF_SOURCE = "'self'";
+export const NONE_SOURCE = "'none'";
+export const UNSAFE_INLINE_SOURCE = "'unsafe-inline'";
+const SCRIPT_SRC_ELEM = "script-src-elem";
+const DIRECTIVE_NAME_PATTERN = /^[a-z][a-z-]*$/;
+const NONCE_PATTERN = /^[A-Za-z0-9+/_-]+=*$/;
 
 export type CspDirectiveName =
   | "default-src"
@@ -53,10 +58,12 @@ export function mergeCspDirectives(
   ...maps: readonly CspDirectives[]
 ): CspDirectives {
   const merged: Record<string, string[]> = {};
-  for (const map of maps) {
-    for (const [name, sources = []] of Object.entries(map)) {
-      merged[name] = unique([...(merged[name] ?? []), ...sources]);
+  const entries = maps.flatMap((map) => Object.entries(map));
+  for (const [name, sources] of entries) {
+    if (sources === undefined) {
+      continue;
     }
+    merged[name] = unique([...(merged[name] ?? []), ...sources]);
   }
   return merged;
 }
@@ -76,6 +83,9 @@ function withoutRedundantNone(sources: readonly string[]): string[] {
 }
 
 function serializeDirective(name: string, sources: readonly string[]): string {
+  if (!DIRECTIVE_NAME_PATTERN.test(name)) {
+    throw new TypeError(`Invalid CSP directive name: ${JSON.stringify(name)}`);
+  }
   sources.forEach(validateSource);
   return [name, ...withoutRedundantNone(unique(sources))].join(" ");
 }
@@ -83,11 +93,21 @@ function serializeDirective(name: string, sources: readonly string[]): string {
 // A script-src that did not exist would fall back to default-src, so the
 // nonce must not replace those sources.
 function addNonce(directives: CspDirectives, nonce: string): CspDirectives {
+  if (!NONCE_PATTERN.test(nonce)) {
+    throw new TypeError("Invalid CSP nonce");
+  }
+  const nonceSource = `'nonce-${nonce}'`;
   const inherited = directives[SCRIPT_SRC] ?? directives[DEFAULT_SRC] ?? [];
-  return {
+  const withNonce: CspDirectives = {
     ...directives,
-    [SCRIPT_SRC]: [...inherited, `'nonce-${nonce}'`],
+    [SCRIPT_SRC]: [...inherited, nonceSource],
   };
+  // script-src-elem takes precedence over script-src for <script> elements.
+  const elementSources = directives[SCRIPT_SRC_ELEM];
+  if (elementSources) {
+    withNonce[SCRIPT_SRC_ELEM] = [...elementSources, nonceSource];
+  }
+  return withNonce;
 }
 
 /** Turns a directive map into a Content-Security-Policy string. */

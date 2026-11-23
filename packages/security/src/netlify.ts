@@ -2,29 +2,34 @@ import { existsSync } from "node:fs";
 import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
+  NONE_SOURCE,
+  SELF_SOURCE,
+  UNSAFE_INLINE_SOURCE,
   buildContentSecurityPolicy,
   mergeCspDirectives,
   type CspDirectives,
 } from "./csp.ts";
 import { securityHeaders, type SecurityHeadersOptions } from "./headers.ts";
 import { findInlineSources } from "./inline.ts";
-import { withReporting } from "./reporting.ts";
+import { REPORTING_ENDPOINTS_HEADER, withReporting } from "./reporting.ts";
 
 const HEADERS_FILENAME = "_headers";
 const HTML_EXTENSION = ".html";
 const HEADER_INDENT = "  ";
-const UNSAFE_INLINE = "'unsafe-inline'";
 const CSP_HEADER_NAME = "Content-Security-Policy";
-const REPORTING_ENDPOINTS_HEADER_NAME = "Reporting-Endpoints";
 
+// Directives that govern inline elements and so carry the hashes.
+const SCRIPT_HASH_DIRECTIVES = ["script-src", "script-src-elem"] as const;
+const STYLE_HASH_DIRECTIVES = ["style-src", "style-src-elem"] as const;
+const HASH_DIRECTIVES = [...SCRIPT_HASH_DIRECTIVES, ...STYLE_HASH_DIRECTIVES];
 const BASE_DIRECTIVES: CspDirectives = {
-  "default-src": ["'self'"],
-  "script-src": ["'self'"],
-  "style-src": ["'self'"],
-  "object-src": ["'none'"],
-  "base-uri": ["'self'"],
-  "form-action": ["'self'"],
-  "frame-ancestors": ["'none'"],
+  "default-src": [SELF_SOURCE],
+  "script-src": [SELF_SOURCE],
+  "style-src": [SELF_SOURCE],
+  "object-src": [NONE_SOURCE],
+  "base-uri": [SELF_SOURCE],
+  "form-action": [SELF_SOURCE],
+  "frame-ancestors": [NONE_SOURCE],
 };
 
 export interface WriteHeadersFileOptions extends Omit<
@@ -51,6 +56,7 @@ export type HeadersFileErrorCode =
   | "no-html"
   | "unhashable-inline"
   | "headers-file-exists"
+  | "csp-already-present"
   | "unsafe-inline-directive";
 
 /** Thrown for every way writeHeadersFile refuses to write. `files` lists the offending paths. */
@@ -81,20 +87,16 @@ async function findHtmlFiles(outDir: string): Promise<string[]> {
     .sort();
 }
 
-function describeUnhashable(files: readonly string[]): string {
-  return files.join("\n");
-}
-
 function assertNoUnsafeInline(directives: CspDirectives): void {
-  const offending = (["script-src", "style-src"] as const).filter((name) =>
-    directives[name]?.includes(UNSAFE_INLINE),
+  const offending = HASH_DIRECTIVES.filter((name) =>
+    directives[name]?.includes(UNSAFE_INLINE_SOURCE),
   );
   if (offending.length === 0) {
     return;
   }
   throw new HeadersFileError(
     "unsafe-inline-directive",
-    `directives must not allow 'unsafe-inline' in ${offending.join(" or ")}: the hashes replace it`,
+    `directives must not allow 'unsafe-inline' in ${offending.join(", ")}: the hashes replace it`,
   );
 }
 
@@ -105,6 +107,26 @@ function formatHeadersBlock(headers: Record<string, string>): string {
   return `/*\n${lines.join("\n")}\n`;
 }
 
+// A script-src-elem or style-src-elem the app supplied overrides script-src
+// or style-src for elements, so it needs the hashes too.
+function hashDirectives(
+  supplied: CspDirectives,
+  scriptHashes: readonly string[],
+  styleHashes: readonly string[],
+): CspDirectives {
+  const directives: CspDirectives = {
+    "script-src": scriptHashes,
+    "style-src": styleHashes,
+  };
+  if (supplied["script-src-elem"]) {
+    directives["script-src-elem"] = scriptHashes;
+  }
+  if (supplied["style-src-elem"]) {
+    directives["style-src-elem"] = styleHashes;
+  }
+  return directives;
+}
+
 function buildHeaders(
   options: WriteHeadersFileOptions,
   scriptHashes: readonly string[],
@@ -113,10 +135,7 @@ function buildHeaders(
   const directives = mergeCspDirectives(
     BASE_DIRECTIVES,
     options.directives ?? {},
-    {
-      "script-src": scriptHashes,
-      "style-src": styleHashes,
-    },
+    hashDirectives(options.directives ?? {}, scriptHashes, styleHashes),
   );
   const policy = buildContentSecurityPolicy(directives);
   const headers = securityHeaders({
@@ -131,8 +150,26 @@ function buildHeaders(
   return {
     ...headers,
     [CSP_HEADER_NAME]: reporting.policy,
-    [REPORTING_ENDPOINTS_HEADER_NAME]: reporting.reportingEndpoints,
+    [REPORTING_ENDPOINTS_HEADER]: reporting.reportingEndpoints,
   };
+}
+
+// A second Content-Security-Policy for the same path would be enforced as well
+// as the first, and the older one lacks this build's hashes.
+async function persistBlock(headersPath: string, block: string): Promise<void> {
+  if (!existsSync(headersPath)) {
+    await writeFile(headersPath, block);
+    return;
+  }
+  const existing = await readFile(headersPath, "utf8");
+  if (existing.includes(`${CSP_HEADER_NAME}:`)) {
+    throw new HeadersFileError(
+      "csp-already-present",
+      `${HEADERS_FILENAME} already sets ${CSP_HEADER_NAME}; appending another would enforce both`,
+      [HEADERS_FILENAME],
+    );
+  }
+  await appendFile(headersPath, `\n${block}`);
 }
 
 async function scanSite(outDir: string) {
@@ -142,21 +179,25 @@ async function scanSite(outDir: string) {
   }
   const scriptHashes = new Set<string>();
   const styleHashes = new Set<string>();
-  const unhashableFiles: string[] = [];
+  const unhashableFiles = new Set<string>();
+  const unhashableDetails: string[] = [];
   for (const file of htmlFiles) {
     const findings = findInlineSources(await readFile(file, "utf8"));
     findings.scriptHashes.forEach((hash) => scriptHashes.add(hash));
     findings.styleHashes.forEach((hash) => styleHashes.add(hash));
-    unhashableFiles.push(
-      ...findings.unhashable.map(
-        (entry) => `${relative(outDir, file)}: ${entry}`,
-      ),
+    const relativePath = relative(outDir, file);
+    if (findings.unhashable.length > 0) {
+      unhashableFiles.add(relativePath);
+    }
+    unhashableDetails.push(
+      ...findings.unhashable.map((entry) => `${relativePath}: ${entry}`),
     );
   }
   return {
     scriptHashes: [...scriptHashes].sort(),
     styleHashes: [...styleHashes].sort(),
-    unhashableFiles,
+    unhashableFiles: [...unhashableFiles],
+    unhashableDetails,
   };
 }
 
@@ -176,26 +217,22 @@ export async function writeHeadersFile(
   if (existsSync(headersPath) && !options.append) {
     throw new HeadersFileError(
       "headers-file-exists",
-      `${headersPath} already exists; pass append to add to it`,
-      [headersPath],
+      `${HEADERS_FILENAME} already exists in ${outDir}; pass append to add to it`,
+      [HEADERS_FILENAME],
     );
   }
   const site = await scanSite(outDir);
   if (site.unhashableFiles.length > 0) {
     throw new HeadersFileError(
       "unhashable-inline",
-      `Inline style attributes and event handlers cannot be covered by a hash. Move them out of the markup:\n${describeUnhashable(site.unhashableFiles)}`,
+      `Inline style attributes, event handlers, and javascript: URLs cannot be covered by a hash. Move them out of the markup:\n${site.unhashableDetails.join("\n")}`,
       site.unhashableFiles,
     );
   }
   const block = formatHeadersBlock(
     buildHeaders(options, site.scriptHashes, site.styleHashes),
   );
-  if (existsSync(headersPath)) {
-    await appendFile(headersPath, `\n${block}`);
-  } else {
-    await writeFile(headersPath, block);
-  }
+  await persistBlock(headersPath, block);
   return {
     path: headersPath,
     scriptHashes: site.scriptHashes,

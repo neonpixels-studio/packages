@@ -47,12 +47,18 @@ function contentTypeEssence(contentType: string | null | undefined): string {
 function stripWithoutParsing(value: string): string {
   const withoutQuery = value.split(/[?#]/)[0] ?? "";
   const authorityStart = withoutQuery.indexOf("//");
-  const atIndex = withoutQuery.lastIndexOf("@");
-  if (authorityStart === -1 || atIndex < authorityStart) {
+  if (authorityStart === -1) {
+    return withoutQuery;
+  }
+  const authorityOffset = authorityStart + 2;
+  const pathStart = withoutQuery.indexOf("/", authorityOffset);
+  const authorityEnd = pathStart === -1 ? withoutQuery.length : pathStart;
+  const atIndex = withoutQuery.lastIndexOf("@", authorityEnd);
+  if (atIndex < authorityOffset) {
     return withoutQuery;
   }
   return (
-    withoutQuery.slice(0, authorityStart + 2) + withoutQuery.slice(atIndex + 1)
+    withoutQuery.slice(0, authorityOffset) + withoutQuery.slice(atIndex + 1)
   );
 }
 

@@ -1,9 +1,15 @@
-import { type CspDirectives, buildContentSecurityPolicy } from "./csp.ts";
+import {
+  type CspDirectives,
+  NONE_SOURCE,
+  SELF_SOURCE,
+  UNSAFE_INLINE_SOURCE,
+  buildContentSecurityPolicy,
+} from "./csp.ts";
 import {
   clerkOriginFromPublishableKey,
   sentryOriginFromDsn,
 } from "./origins.ts";
-import { withReporting } from "./reporting.ts";
+import { REPORTING_ENDPOINTS_HEADER, withReporting } from "./reporting.ts";
 
 export interface NuxtReportOnlyPolicyOptions {
   clerkPublishableKey?: string;
@@ -20,7 +26,6 @@ export interface NuxtReportOnlyPolicy {
   headers: Record<string, string>;
 }
 
-const SELF = "'self'";
 const REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
 const CLERK_TELEMETRY_ORIGIN = "https://clerk-telemetry.com";
 const CLERK_IMAGE_ORIGIN = "https://img.clerk.com";
@@ -47,33 +52,33 @@ function nuxtDirectives(options: NuxtReportOnlyPolicyOptions): CspDirectives {
   const sentryOrigin = sentryOriginFromDsn(options.sentryDsn);
   const analytics = options.analytics ?? false;
   return {
-    "default-src": [SELF],
-    "base-uri": [SELF],
-    "object-src": ["'none'"],
-    "frame-ancestors": ["'none'"],
-    "form-action": [SELF],
+    "default-src": [SELF_SOURCE],
+    "base-uri": [SELF_SOURCE],
+    "object-src": [NONE_SOURCE],
+    "frame-ancestors": [NONE_SOURCE],
+    "form-action": [SELF_SOURCE],
     // Nuxt renders its hydration payload as an inline script, so a policy
     // without nonces or hashes needs 'unsafe-inline' for it.
     "script-src": [
-      SELF,
-      "'unsafe-inline'",
+      SELF_SOURCE,
+      UNSAFE_INLINE_SOURCE,
       "blob:",
       ...present([clerkOrigin]),
       ...CLERK_BOT_PROTECTION_ORIGINS,
       TURNSTILE_ORIGIN,
       ...(analytics ? [GOOGLE_TAG_MANAGER_ORIGIN] : []),
     ],
-    "style-src": [SELF, "'unsafe-inline'"],
+    "style-src": [SELF_SOURCE, UNSAFE_INLINE_SOURCE],
     "img-src": [
-      SELF,
+      SELF_SOURCE,
       "data:",
       "blob:",
       CLERK_IMAGE_ORIGIN,
       ...(analytics ? GOOGLE_ANALYTICS_ORIGINS : []),
     ],
-    "font-src": [SELF, "data:"],
+    "font-src": [SELF_SOURCE, "data:"],
     "connect-src": [
-      SELF,
+      SELF_SOURCE,
       ...present([clerkOrigin, sentryOrigin]),
       CLERK_TELEMETRY_ORIGIN,
       ...CLERK_BOT_PROTECTION_ORIGINS,
@@ -81,9 +86,9 @@ function nuxtDirectives(options: NuxtReportOnlyPolicyOptions): CspDirectives {
         ? [GOOGLE_TAG_MANAGER_ORIGIN, ...GOOGLE_ANALYTICS_ORIGINS]
         : []),
     ],
-    "worker-src": [SELF, "blob:"],
-    "frame-src": [SELF, TURNSTILE_ORIGIN],
-    "manifest-src": [SELF],
+    "worker-src": [SELF_SOURCE, "blob:"],
+    "frame-src": [SELF_SOURCE, TURNSTILE_ORIGIN],
+    "manifest-src": [SELF_SOURCE],
   };
 }
 
@@ -103,7 +108,7 @@ export function nuxtReportOnlyPolicy(
     policy: reporting.policy,
     headers: {
       [REPORT_ONLY_HEADER]: reporting.policy,
-      "Reporting-Endpoints": reporting.reportingEndpoints,
+      [REPORTING_ENDPOINTS_HEADER]: reporting.reportingEndpoints,
     },
   };
 }

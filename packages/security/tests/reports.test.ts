@@ -126,6 +126,20 @@ describe("parseCspReports", () => {
     });
   });
 
+  it("keeps the host when an unparseable URL has @ in its path", () => {
+    const result = parseCspReports({
+      contentType: "application/csp-report",
+      body: legacyBody({
+        "document-uri": "https://example.com:99999/u/@me?x=1",
+        "violated-directive": "script-src",
+      }),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      violations: [{ documentUri: "https://example.com:99999/u/@me" }],
+    });
+  });
+
   it("cuts every field to 512 characters", () => {
     const long = "a".repeat(2000);
     const result = parseCspReports({

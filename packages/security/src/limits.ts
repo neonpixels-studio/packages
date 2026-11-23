@@ -12,11 +12,20 @@ export class PayloadTooLargeError extends Error {
   }
 }
 
+function assertValidLimit(maxBytes: number): void {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    throw new TypeError(
+      `maxBytes must be a non-negative integer, got ${maxBytes}`,
+    );
+  }
+}
+
 /** Throws a 413 error when a Content-Length header declares more than `maxBytes`. A missing or unparseable header passes: the body check still applies. */
 export function assertContentLengthWithinLimit(
   header: string | null | undefined,
   maxBytes: number,
 ): void {
+  assertValidLimit(maxBytes);
   if (!header || !/^\d+$/.test(header.trim())) {
     return;
   }
@@ -30,6 +39,7 @@ export function assertBodyWithinLimit(
   body: string | Uint8Array | ArrayBuffer,
   maxBytes: number,
 ): void {
+  assertValidLimit(maxBytes);
   const size =
     typeof body === "string" ? Buffer.byteLength(body) : body.byteLength;
   if (size > maxBytes) {
