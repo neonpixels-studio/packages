@@ -37,6 +37,13 @@ export function setAnalyticsDisabled(
   (browserWindow as DataLayerWindow)[disableFlagName(measurementId)] = disabled;
 }
 
+/** Switches off every measurement id this package configured on the window. */
+export function disableConfiguredAnalytics(browserWindow: BrowserWindow) {
+  for (const measurementId of configuredIds.get(browserWindow) ?? []) {
+    setAnalyticsDisabled(browserWindow, measurementId, true);
+  }
+}
+
 // gtag.js only understands the `arguments` object, not an array.
 function queueCommand(dataLayer: unknown[], ...args: unknown[]) {
   function gtag(..._args: unknown[]) {

@@ -26,7 +26,9 @@ export function createFakeWindow(
         .find((attribute) => attribute.startsWith("domain="))
         ?.slice("domain=".length);
       writes.push({ name, domain });
-      jar.delete(name);
+      if (attributes.includes("max-age=0")) {
+        jar.delete(name);
+      }
     },
   };
   return {

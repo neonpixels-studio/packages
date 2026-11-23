@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CONSENT_LIFETIME_MS, createConsent } from "../src/index.ts";
+import {
+  CONSENT_LIFETIME_MS,
+  createConsent,
+  loadGoogleAnalytics,
+} from "../src/index.ts";
 import { createMemoryStorage, stubPrivacySignal } from "../src/testing.ts";
 import { createFakeWindow } from "./fakes.ts";
 
@@ -362,6 +366,40 @@ describe("deny() cookie clearing", () => {
     );
     expect(consent.deny()).toBe("signal");
     expect(fakeWindow.cookieNames()).toEqual(["other"]);
+    expect(JSON.parse(storage.entries.get(KEY)!).choice).toBe("denied");
+  });
+
+  it("disables every measurement id loaded on the page", () => {
+    const fakeWindow = createFakeWindow();
+    const document = {
+      createElement: () => ({ async: false, src: "" }),
+      head: { appendChild: () => {} },
+    };
+    loadGoogleAnalytics("G-A", { document, window: fakeWindow });
+    loadGoogleAnalytics("G-B", { document, window: fakeWindow });
+    const { consent } = setup({}, { window: fakeWindow });
+    consent.deny();
+    const flags = fakeWindow as unknown as Record<string, unknown>;
+    expect([flags["ga-disable-G-A"], flags["ga-disable-G-B"]]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("still stores the denial when cookie access throws", () => {
+    const { consent, storage } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      {
+        window: {
+          document: {
+            get cookie(): string {
+              throw new Error("SecurityError");
+            },
+          },
+        },
+      },
+    );
+    expect(consent.deny()).toBe("denied");
     expect(JSON.parse(storage.entries.get(KEY)!).choice).toBe("denied");
   });
 

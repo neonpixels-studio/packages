@@ -1,6 +1,9 @@
 import { consentStorageKey } from "./constants.ts";
 import { clearGoogleAnalyticsCookies } from "./cookies.ts";
-import { setAnalyticsDisabled } from "./google-analytics.ts";
+import {
+  disableConfiguredAnalytics,
+  setAnalyticsDisabled,
+} from "./google-analytics.ts";
 import { newRecord, readConsent, writeConsent } from "./record.ts";
 import { hasPrivacySignal } from "./signals.ts";
 import type {
@@ -70,17 +73,27 @@ export function createConsent(options: ConsentOptions): Consent {
     return status();
   }
 
+  function clearCookiesQuietly() {
+    try {
+      clearGoogleAnalyticsCookies(window);
+    } catch {
+      // Cookie access throws on an opaque origin; the denial must still be saved.
+    }
+  }
+
   function deny(): ConsentStatus {
     const { hadGrant } = read();
     const measurementId = options.services.analytics?.measurementId;
     if (measurementId !== undefined) {
       setAnalyticsDisabled(window, measurementId, true);
     }
+    disableConfiguredAnalytics(window);
+    const result = store("denied");
     if (hadGrant || grantedThisSession) {
-      clearGoogleAnalyticsCookies(window);
+      clearCookiesQuietly();
     }
     grantedThisSession = false;
-    return store("denied");
+    return result;
   }
 
   function grant(): ConsentStatus {
