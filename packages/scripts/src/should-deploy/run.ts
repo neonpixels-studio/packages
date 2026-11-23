@@ -24,7 +24,7 @@ function log(message: string): void {
   console.log(`np-should-deploy: ${escapeWorkflowCommand(message)}`);
 }
 
-async function lookUpLastDeployedSha(
+async function lookUpPublishedSha(
   environment: ShouldDeployEnvironment,
 ): Promise<string | null> {
   const siteId = environment.variables["NETLIFY_SITE_ID"];
@@ -39,7 +39,7 @@ async function lookUpLastDeployedSha(
     const client = environment.createClient(siteId, token);
     return await client.getPublishedCommitRef();
   } catch (error) {
-    log(`could not read the last deploy (${describeError(error)}).`);
+    log(`could not read the published deploy (${describeError(error)}).`);
     return null;
   }
 }
@@ -65,7 +65,7 @@ export async function runShouldDeploy(
     parseArgs({ args: argv, options: {} });
     const currentSha = environment.variables["CURRENT_SHA"] || null;
     const lastDeployedSha =
-      currentSha === null ? null : await lookUpLastDeployedSha(environment);
+      currentSha === null ? null : await lookUpPublishedSha(environment);
     const { deploy, reason } = decideDeploy(currentSha, lastDeployedSha);
     log(reason);
     writeDecision(environment, deploy);

@@ -37,7 +37,6 @@ describe("runShouldDeploy", () => {
     const output: string[] = [];
     const client: NetlifyPublishedDeployClient = {
       getPublishedCommitRef: publishedCommit,
-      getDeploy: () => Promise.reject(new Error("unused")),
     };
     return {
       variables,
@@ -64,18 +63,6 @@ describe("runShouldDeploy", () => {
     const testEnvironment = environment(full, async () => "old");
     await runShouldDeploy([], testEnvironment);
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
-  });
-
-  it("deploys after a rollback, when the published deploy is older than main", async () => {
-    const testEnvironment = environment(full, async () => "rolled-back");
-    await runShouldDeploy([], testEnvironment);
-    expect(testEnvironment.output).toEqual(["skip=false\n"]);
-  });
-
-  it("skips when locked publishing keeps the current commit live", async () => {
-    const testEnvironment = environment(full, async () => "abc");
-    await runShouldDeploy([], testEnvironment);
-    expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
   it("deploys when the site has no published deploy", async () => {
@@ -105,10 +92,13 @@ describe("runShouldDeploy", () => {
   });
 
   it("does not query Netlify when the current commit is unknown", async () => {
-    const list = vi.fn(async () => "abc");
-    const testEnvironment = environment({ ...full, CURRENT_SHA: "" }, list);
+    const getPublishedCommitRef = vi.fn(async () => "abc");
+    const testEnvironment = environment(
+      { ...full, CURRENT_SHA: "" },
+      getPublishedCommitRef,
+    );
     await runShouldDeploy([], testEnvironment);
-    expect(list).not.toHaveBeenCalled();
+    expect(getPublishedCommitRef).not.toHaveBeenCalled();
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
 
@@ -125,13 +115,13 @@ describe("runShouldDeploy", () => {
   });
 
   it("deploys when credentials are missing", async () => {
-    const list = vi.fn(async () => "abc");
+    const getPublishedCommitRef = vi.fn(async () => "abc");
     const testEnvironment = environment(
       { CURRENT_SHA: "abc", GITHUB_OUTPUT: "/tmp/output" },
-      list,
+      getPublishedCommitRef,
     );
     await runShouldDeploy([], testEnvironment);
-    expect(list).not.toHaveBeenCalled();
+    expect(getPublishedCommitRef).not.toHaveBeenCalled();
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
   });
 

@@ -65,8 +65,21 @@ describe("createNetlifyClient", () => {
       fetchImpl,
     });
     expect(await client.getPublishedCommitRef()).toBe("live");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
     expect(new URL(String(url)).pathname).toBe("/api/v1/sites/site%201");
+  });
+
+  it("ignores a newer ready deploy after a rollback or locked publishing", async () => {
+    const client = createNetlifyClient({
+      siteId: "s",
+      token: "t",
+      fetchImpl: respond(200, {
+        published_deploy: { commit_ref: "rolled-back-to" },
+        deploys: [{ state: "ready", commit_ref: "newer" }],
+      }),
+    });
+    expect(await client.getPublishedCommitRef()).toBe("rolled-back-to");
   });
 
   it("lists production deploys with the token in the header only", async () => {
