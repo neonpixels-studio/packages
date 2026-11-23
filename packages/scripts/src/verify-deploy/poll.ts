@@ -1,7 +1,7 @@
 import {
   NetlifyFatalError,
   type NetlifyClient,
-  type NetlifySiteLookup,
+  type NetlifyVerifyClient,
   type NetlifyDeploy,
 } from "../netlify/client.ts";
 import { describeError } from "../workflow-command.ts";
@@ -27,7 +27,7 @@ export type VerifyResult =
   { ok: true; deploy: NetlifyDeploy } | { ok: false; message: string };
 
 export interface PollEnvironment {
-  client: NetlifyClient & NetlifySiteLookup;
+  client: NetlifyVerifyClient;
   sleep(milliseconds: number): Promise<void>;
   now(): number;
   log(message: string): void;
@@ -136,13 +136,31 @@ function timeoutResult(
   };
 }
 
+// Keeps the first successful site lookup so a long wait does not repeat it; a
+// failed lookup is not kept, so a transient error is retried on the next poll.
+function rememberSiteLookup(client: NetlifyVerifyClient): NetlifyVerifyClient {
+  let siteId: string | null = null;
+  return {
+    listProductionDeploys: () => client.listProductionDeploys(),
+    getDeploy: (deployId) => client.getDeploy(deployId),
+    async getSiteId() {
+      siteId ??= await client.getSiteId();
+      return siteId;
+    },
+  };
+}
+
 // Transient API errors are retried until the timeout so one blip does not fail
 // a healthy deploy; auth and not-found errors abort immediately. The deadline
 // is checked after a poll, so one last poll always happens at the end.
 export async function verifyDeploy(
   request: VerifyRequest,
-  environment: PollEnvironment,
+  pollEnvironment: PollEnvironment,
 ): Promise<VerifyResult> {
+  const environment = {
+    ...pollEnvironment,
+    client: rememberSiteLookup(pollEnvironment.client),
+  };
   const deadline = environment.now() + request.timeoutMs;
   while (true) {
     const step = await pollOnce(request, environment);

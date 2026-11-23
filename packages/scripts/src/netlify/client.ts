@@ -34,6 +34,9 @@ export interface NetlifySiteLookup {
   getSiteId(): Promise<string>;
 }
 
+/** What np-verify-netlify-deploy needs: deploy reads plus the site lookup. */
+export type NetlifyVerifyClient = NetlifyClient & NetlifySiteLookup;
+
 /** An error retrying cannot fix: bad token, wrong site id, unexpected payload. */
 export class NetlifyFatalError extends Error {}
 
@@ -116,7 +119,7 @@ export interface NetlifyClientOptions {
 // Error messages never include the request headers, so the token cannot leak.
 export function createNetlifyClient(
   options: NetlifyClientOptions,
-): NetlifyClient & NetlifySiteLookup {
+): NetlifyVerifyClient {
   const { siteId, token, fetchImpl = fetch } = options;
 
   async function getJson(path: string): Promise<unknown> {

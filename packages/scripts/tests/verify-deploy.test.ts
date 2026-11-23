@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NetlifyFatalError,
-  type NetlifyClient,
-  type NetlifySiteLookup,
+  type NetlifyVerifyClient,
   type NetlifyDeploy,
 } from "../src/netlify/client.ts";
 import {
@@ -155,7 +154,7 @@ describe("verifyDeploy", () => {
     intervalMs: 10,
   };
 
-  function harness(client: Partial<NetlifyClient & NetlifySiteLookup>) {
+  function harness(client: Partial<NetlifyVerifyClient>) {
     let clock = 0;
     const sleeps: number[] = [];
     const environment: PollEnvironment = {
@@ -321,6 +320,54 @@ describe("verifyDeploy", () => {
       expect(
         await verifyDeploy({ ...byId, siteId: "my-site" }, environment),
       ).toMatchObject({ ok: false });
+    });
+
+    it("looks the site up once across several polls", async () => {
+      const states = ["building", "building", "ready"];
+      const getSiteId = vi.fn(async () => "site-uuid");
+      const { environment } = harness({
+        getDeploy: async () =>
+          deploy({ siteId: "site-uuid", state: states.shift() ?? "ready" }),
+        getSiteId,
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "my-site" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: true });
+      expect(getSiteId).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails at once when the site cannot be found", async () => {
+      const { environment, sleeps } = harness({
+        getDeploy: async () => deploy({ siteId: "site-uuid" }),
+        getSiteId: async () => {
+          throw new NetlifyFatalError("not found");
+        },
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "typo" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: false });
+      expect(sleeps).toEqual([]);
+    });
+
+    it("retries a transient site lookup error", async () => {
+      const getSiteId = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(new Error("HTTP 503"))
+        .mockResolvedValue("site-uuid");
+      const { environment, sleeps } = harness({
+        getDeploy: async () => deploy({ siteId: "site-uuid" }),
+        getSiteId,
+      });
+      const result = await verifyDeploy(
+        { ...byId, siteId: "my-site" },
+        environment,
+      );
+      expect(result).toMatchObject({ ok: true });
+      expect(sleeps).toHaveLength(1);
     });
 
     it("rejects a non-production deploy", async () => {
