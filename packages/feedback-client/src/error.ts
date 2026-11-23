@@ -1,4 +1,5 @@
-export type FeedbackErrorReason = "config" | "http" | "timeout" | "network";
+export type FeedbackErrorReason =
+  "config" | "invalid" | "http" | "timeout" | "network";
 
 /** The one error `sendFeedback` throws. Its message never contains the token. */
 export class FeedbackError extends Error {

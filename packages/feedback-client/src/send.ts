@@ -34,7 +34,7 @@ function requireToken(token: string | undefined): string {
 function requireTimeout(timeoutMs: number): number {
   if (
     !Number.isFinite(timeoutMs) ||
-    timeoutMs <= 0 ||
+    timeoutMs < 1 ||
     timeoutMs > MAX_TIMEOUT_MS
   ) {
     throw new FeedbackError(
@@ -45,13 +45,35 @@ function requireTimeout(timeoutMs: number): number {
   return timeoutMs;
 }
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+function isSafeEndpoint(endpoint: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(endpoint);
+    return (
+      protocol === "https:" ||
+      (protocol === "http:" && LOCAL_HOSTS.has(hostname))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// The bearer token must never travel over plain http to a remote host.
+function requireEndpoint(endpoint: string): string {
+  if (!isSafeEndpoint(endpoint)) {
+    throw new FeedbackError("config", "endpoint must be an https URL.");
+  }
+  return endpoint;
+}
+
 function requireValidFeedback(feedback: FeedbackInput): void {
   const problems = validateFeedback(feedback);
   if (problems.length === 0) {
     return;
   }
   const detail = problems.map((problem) => problem.message).join(" ");
-  throw new FeedbackError("config", `Invalid feedback. ${detail}`);
+  throw new FeedbackError("invalid", `Invalid feedback. ${detail}`);
 }
 
 async function post(
@@ -142,6 +164,7 @@ export async function sendFeedback(
     endpoint = DEFAULT_FEEDBACK_ENDPOINT,
     timeoutMs = DEFAULT_TIMEOUT_MS,
   } = options;
+  requireEndpoint(endpoint);
   requireTimeout(timeoutMs);
   requireValidFeedback(feedback);
   const body = buildBody(feedback);
@@ -153,7 +176,7 @@ export async function sendFeedback(
       post(fetchFunction, endpoint, bearer, body, controller.signal),
       timeout.expired,
     ]);
-    await discardBody(response);
+    void discardBody(response);
     assertOk(response);
   } catch (error) {
     throw toFeedbackError(error, controller, timeoutMs);

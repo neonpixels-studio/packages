@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FEEDBACK_ENDPOINT,
-  DEFAULT_TIMEOUT_MS,
   FEEDBACK_LIMITS,
   FeedbackError,
   sendFeedback,
@@ -92,8 +91,42 @@ describe("sendFeedback request", () => {
     expect(fetchMock.mock.calls[0]![1].redirect).toBe("manual");
   });
 
-  it("defaults the timeout to 10 seconds", () => {
-    expect(DEFAULT_TIMEOUT_MS).toBe(10_000);
+  it("omits null optional fields", async () => {
+    const fetchMock = okFetch();
+    await sendFeedback(
+      { token: TOKEN, message: "hi", title: null as unknown as string },
+      { fetch: fetchMock },
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(body).toEqual({ message: "hi" });
+  });
+
+  it("allows http only for local endpoints and accepts the largest timeout", async () => {
+    const fetchMock = okFetch();
+    await sendFeedback(
+      { token: TOKEN, message: "hi" },
+      {
+        fetch: fetchMock,
+        endpoint: "http://localhost:3000/f",
+        timeoutMs: 2 ** 31 - 1,
+      },
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the response body on success and on failure", async () => {
+    for (const status of [201, 500]) {
+      const cancel = vi.fn();
+      const body = new ReadableStream({ cancel });
+      const fetchMock = vi.fn<FetchLike>(
+        async () => new Response(body, { status }),
+      );
+      await sendFeedback(
+        { token: TOKEN, message: "hi" },
+        { fetch: fetchMock },
+      ).catch(() => undefined);
+      await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
+    }
   });
 });
 
@@ -109,7 +142,21 @@ describe("sendFeedback failures", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid input as a config error before any request", async () => {
+  it("rejects an insecure or malformed endpoint as a config error", async () => {
+    const fetchMock = okFetch();
+    for (const endpoint of ["", "not a url", "http://example.test/f"]) {
+      const error = await captureError(
+        sendFeedback(
+          { token: TOKEN, message: "hi" },
+          { fetch: fetchMock, endpoint },
+        ),
+      );
+      expect(error.reason).toBe("config");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid input as an invalid error before any request", async () => {
     const fetchMock = okFetch();
     const inputs = [
       { message: undefined as unknown as string },
@@ -121,14 +168,14 @@ describe("sendFeedback failures", () => {
       const error = await captureError(
         sendFeedback({ token: TOKEN, ...input }, { fetch: fetchMock }),
       );
-      expect(error.reason).toBe("config");
+      expect(error.reason).toBe("invalid");
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects an unusable timeout as a config error", async () => {
     const fetchMock = okFetch();
-    for (const timeoutMs of [Infinity, NaN, 0, -1, 2 ** 31]) {
+    for (const timeoutMs of [Infinity, NaN, 0, 0.5, -1, 2 ** 31]) {
       const error = await captureError(
         sendFeedback(
           { token: TOKEN, message: "hi" },

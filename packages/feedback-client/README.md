@@ -30,7 +30,7 @@ try {
   await sendFeedback({ token, message, title, email, url });
 } catch (error) {
   if (error instanceof FeedbackError) {
-    // error.reason: "config" | "http" | "timeout" | "network"
+    // error.reason: "config" | "invalid" | "http" | "timeout" | "network"
     // error.status: the HTTP status, when the dashboard answered
   }
   throw error;
@@ -39,7 +39,7 @@ try {
 
 ### `sendFeedback(input, options?)`
 
-Sends a `POST` with `Authorization: Bearer <token>` and a JSON body. `message` is required; `title`, `email`, and `url` are left out of the body when empty after trimming. A missing token throws before any request is made.
+Sends a `POST` with `Authorization: Bearer <token>` and a JSON body. `message` is required; `title`, `email`, and `url` are left out of the body when empty after trimming. A missing token, a non-https `endpoint` (plain http is allowed for localhost only), or an unusable `timeoutMs` throws a `FeedbackError` with reason `"config"` before any request is made. Input that `validateFeedback` would reject throws with reason `"invalid"`. Redirects are not followed.
 
 | Option      | Default                           | Meaning                                         |
 | ----------- | --------------------------------- | ----------------------------------------------- |
