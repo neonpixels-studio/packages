@@ -56,7 +56,7 @@ export type HeadersFileErrorCode =
   | "no-html"
   | "unhashable-inline"
   | "headers-file-exists"
-  | "csp-already-present"
+  | "header-already-present"
   | "unsafe-inline-directive";
 
 /** Thrown for every way writeHeadersFile refuses to write. `files` lists the offending paths. */
@@ -80,6 +80,11 @@ async function findHtmlFiles(outDir: string): Promise<string[]> {
   const entries = await readdir(outDir, {
     recursive: true,
     withFileTypes: true,
+  }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
   });
   return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(HTML_EXTENSION))
@@ -154,18 +159,33 @@ function buildHeaders(
   };
 }
 
-// A second Content-Security-Policy for the same path would be enforced as well
-// as the first, and the older one lacks this build's hashes.
-async function persistBlock(headersPath: string, block: string): Promise<void> {
+function existingHeaderNames(content: string): Set<string> {
+  const names = content
+    .split("\n")
+    .filter((line) => /^\s+\S/.test(line))
+    .map((line) => line.slice(0, line.indexOf(":")).trim().toLowerCase());
+  return new Set(names);
+}
+
+// Netlify combines repeated header values and browsers enforce every
+// Content-Security-Policy, so a second copy of a header would not replace the first.
+async function persistBlock(
+  headersPath: string,
+  block: string,
+  headerNames: readonly string[],
+): Promise<void> {
   if (!existsSync(headersPath)) {
-    await writeFile(headersPath, block);
+    await writeFile(headersPath, block, { flag: "wx" });
     return;
   }
-  const existing = await readFile(headersPath, "utf8");
-  if (existing.includes(`${CSP_HEADER_NAME}:`)) {
+  const existing = existingHeaderNames(await readFile(headersPath, "utf8"));
+  const duplicated = headerNames.filter((name) =>
+    existing.has(name.toLowerCase()),
+  );
+  if (duplicated.length > 0) {
     throw new HeadersFileError(
-      "csp-already-present",
-      `${HEADERS_FILENAME} already sets ${CSP_HEADER_NAME}; appending another would enforce both`,
+      "header-already-present",
+      `${HEADERS_FILENAME} already sets ${duplicated.join(", ")}; appending would send both values`,
       [HEADERS_FILENAME],
     );
   }
@@ -229,10 +249,12 @@ export async function writeHeadersFile(
       site.unhashableFiles,
     );
   }
-  const block = formatHeadersBlock(
-    buildHeaders(options, site.scriptHashes, site.styleHashes),
+  const headers = buildHeaders(options, site.scriptHashes, site.styleHashes);
+  await persistBlock(
+    headersPath,
+    formatHeadersBlock(headers),
+    Object.keys(headers),
   );
-  await persistBlock(headersPath, block);
   return {
     path: headersPath,
     scriptHashes: site.scriptHashes,

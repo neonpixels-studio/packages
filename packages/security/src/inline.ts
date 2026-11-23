@@ -12,12 +12,12 @@ const ELEMENT_OR_COMMENT_PATTERN =
 const COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 const LINE_BREAK_PATTERN = /\r\n?/g;
 const JAVASCRIPT_URL_PATTERN = /^\s*javascript:/i;
+// URL parsers drop tabs and newlines anywhere in the value.
+const URL_IGNORED_CHARACTERS = /[\t\n\r]/g;
 const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction"]);
 const TAG_PATTERN = /<([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 const ATTRIBUTE_PATTERN =
   /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
-const TYPE_PATTERN = /(?:^|\s)type\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
-const SRC_PATTERN = /(?:^|\s)src\s*=/i;
 const EVENT_HANDLER_PATTERN = /^on[a-z]/i;
 
 // script-src governs executable scripts and import maps. Data blocks such as
@@ -53,9 +53,20 @@ export interface InlineFindings {
   unhashable: string[];
 }
 
-function declaredType(attributes: string): string {
-  const match = TYPE_PATTERN.exec(attributes);
-  const value = match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
+// The first occurrence of a repeated attribute wins, as in the HTML parser.
+function parseAttributes(attributes: string): Map<string, string> {
+  const parsed = new Map<string, string>();
+  for (const match of attributes.matchAll(ATTRIBUTE_PATTERN)) {
+    const name = (match[1] ?? "").toLowerCase();
+    if (!parsed.has(name)) {
+      parsed.set(name, match[2] ?? match[3] ?? match[4] ?? "");
+    }
+  }
+  return parsed;
+}
+
+function declaredType(attributes: Map<string, string>): string {
+  const value = attributes.get("type") ?? "";
   return (value.split(MIME_PARAMETER_SEPARATOR)[0] ?? "").trim().toLowerCase();
 }
 
@@ -67,14 +78,14 @@ function hashSource(content: string): string {
   return `'${HASH_ALGORITHM}-${digest}'`;
 }
 
-function isHashableScript(attributes: string): boolean {
+function isHashableScript(attributes: Map<string, string>): boolean {
   return (
-    !SRC_PATTERN.test(attributes) &&
+    !attributes.has("src") &&
     EXECUTABLE_SCRIPT_TYPES.has(declaredType(attributes))
   );
 }
 
-function isHashableStyle(attributes: string): boolean {
+function isHashableStyle(attributes: Map<string, string>): boolean {
   return STYLE_TYPES.has(declaredType(attributes));
 }
 
@@ -82,17 +93,16 @@ function isUnhashable(name: string, value: string): boolean {
   if (name === "style" || EVENT_HANDLER_PATTERN.test(name)) {
     return true;
   }
-  return URL_ATTRIBUTES.has(name) && JAVASCRIPT_URL_PATTERN.test(value);
+  return (
+    URL_ATTRIBUTES.has(name) &&
+    JAVASCRIPT_URL_PATTERN.test(value.replace(URL_IGNORED_CHARACTERS, ""))
+  );
 }
 
 function unhashableAttributes(attributes: string): string[] {
-  return [...attributes.matchAll(ATTRIBUTE_PATTERN)]
-    .map((match) => ({
-      name: (match[1] ?? "").toLowerCase(),
-      value: match[2] ?? match[3] ?? match[4] ?? "",
-    }))
-    .filter(({ name, value }) => isUnhashable(name, value))
-    .map(({ name }) => name);
+  return [...parseAttributes(attributes)]
+    .filter(([name, value]) => isUnhashable(name, value))
+    .map(([name]) => name);
 }
 
 function sortedUnique(values: readonly string[]): string[] {
@@ -119,10 +129,10 @@ export function findInlineSources(html: string): InlineFindings {
         return match;
       }
       const isScript = tagName.toLowerCase() === "script";
-      if (isScript && isHashableScript(attributes)) {
+      if (isScript && isHashableScript(parseAttributes(attributes))) {
         scriptHashes.push(hashSource(content));
       }
-      if (!isScript && isHashableStyle(attributes)) {
+      if (!isScript && isHashableStyle(parseAttributes(attributes))) {
         styleHashes.push(hashSource(content));
       }
       return `<${tagName}${attributes}>`;

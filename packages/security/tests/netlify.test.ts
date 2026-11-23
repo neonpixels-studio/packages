@@ -169,11 +169,26 @@ describe("writeHeadersFile", () => {
     expect(error.message).toContain("index.html: <a href>");
   });
 
+  it("refuses to append when a header is already set, whatever its case", async () => {
+    await writeSite({
+      "index.html": page("<p>x</p>"),
+      _headers: "/*\n  content-security-policy: default-src 'self'\n",
+    });
+    const error = await failure(writeHeadersFile(outDir, { append: true }));
+    expect(error.code).toBe("header-already-present");
+    expect(error.message).toContain("Content-Security-Policy");
+  });
+
+  it("fails with no-html for a directory that does not exist", async () => {
+    const error = await failure(writeHeadersFile(join(outDir, "missing")));
+    expect(error.code).toBe("no-html");
+  });
+
   it("refuses to append a second Content-Security-Policy", async () => {
     await writeSite({ "index.html": page("<p>x</p>") });
     await writeHeadersFile(outDir);
     const error = await failure(writeHeadersFile(outDir, { append: true }));
-    expect(error.code).toBe("csp-already-present");
+    expect(error.code).toBe("header-already-present");
   });
 
   it("puts the hashes in script-src-elem and style-src-elem when supplied", async () => {
@@ -221,6 +236,20 @@ describe("findInlineSources", () => {
   it("hashes speculation rules and legacy JavaScript types", () => {
     const html = `<script type="speculationrules">{}</script><script type="text/jscript">a</script>`;
     expect(findInlineSources(html).scriptHashes).toHaveLength(2);
+  });
+
+  it("does not read src or type out of another attribute's value", () => {
+    const html = `<script data-note="see src=x">a</script><script title=" type=text/template">b</script>`;
+    expect(findInlineSources(html).scriptHashes).toHaveLength(2);
+  });
+
+  it("flags javascript: URLs split by a tab", () => {
+    expect(
+      findInlineSources('<a href="java&#9;script:x()">a</a>').unhashable,
+    ).toEqual([]);
+    expect(
+      findInlineSources('<a href="java\tscript:x()">a</a>').unhashable,
+    ).toEqual(["<a href>"]);
   });
 
   it("flags javascript: URLs but not other URLs", () => {

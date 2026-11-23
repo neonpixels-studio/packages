@@ -35,12 +35,14 @@ import {
   withReporting,
 } from "@neon-pixels/security";
 
+const clerkOrigin = clerkOriginFromPublishableKey(key);
+const sentryOrigin = sentryOriginFromDsn(dsn);
 const nonce = generateCspNonce();
 const policy = buildContentSecurityPolicy(
   {
     "default-src": ["'self'"],
-    "script-src": ["'self'", clerkOriginFromPublishableKey(key) ?? ""],
-    "connect-src": ["'self'", sentryOriginFromDsn(dsn) ?? ""],
+    "script-src": ["'self'", ...(clerkOrigin ? [clerkOrigin] : [])],
+    "connect-src": ["'self'", ...(sentryOrigin ? [sentryOrigin] : [])],
   },
   { nonce },
 );
@@ -90,7 +92,7 @@ It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 - `unhashable-inline`: a page has an inline `style` attribute, an event handler such as `onclick`, or a `javascript:` URL. A hash cannot cover those. `error.files` lists each file once (relative to the output directory) and the message lists every offending attribute.
 - `no-html`: the directory holds no HTML, which usually means the wrong directory.
 - `headers-file-exists`: a `_headers` file is already there. Pass `append: true` to add to it.
-- `csp-already-present`: with `append`, the existing file already sets `Content-Security-Policy`. Two policies would both be enforced.
+- `header-already-present`: with `append`, the existing file already sets one of the headers being written (`Content-Security-Policy` for example). Two values would both apply.
 - `unsafe-inline-directive`: `directives` allows `'unsafe-inline'` for scripts or styles.
 
 ### CSP reports
