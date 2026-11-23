@@ -129,7 +129,7 @@ jobs:
       scripts-version: 0.3.0
 ```
 
-The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, which the deploy job uses.
+The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, which the deploy job uses, or `np-lighthouse-report-<owner>/<repo>`, which the Lighthouse report job uses.
 
 Pin the workflow to a full commit SHA of this repository, with the release or date in a trailing comment:
 

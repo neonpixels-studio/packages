@@ -121,6 +121,10 @@ jobs:
     permissions:
       contents: read
       issues: write
+    # Serializes the issue writes so two close runs cannot both file one.
+    concurrency:
+      group: np-lighthouse-report-${{ github.repository }}
+      cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
       AUDIT_RESULT: ${{ needs.audit.result }}
@@ -136,9 +140,15 @@ jobs:
         with:
           name: ${{ env.ASSERTION_ARTIFACT }}
           path: .lighthouseci
+      # Validated again here: this job holds issues: write and must not trust
+      # a value the audit job may have rejected.
       - name: Install the report bin
         run: |
           set -euo pipefail
+          if ! [[ "${SCRIPTS_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::scripts-version must be an exact version such as 0.3.0"
+            exit 1
+          fi
           npm install --prefix "${RUNNER_TEMP}/np-scripts" --ignore-scripts --no-audit --no-fund --no-save "@neon-pixels/scripts@${SCRIPTS_VERSION}"
           echo "${RUNNER_TEMP}/np-scripts/node_modules/.bin" >> "${GITHUB_PATH}"
       - name: Close or file the Lighthouse regression issue
@@ -153,4 +163,8 @@ jobs:
           # what the report uses to link the commits since its last passing run.
           workflow_file="${GITHUB_WORKFLOW_REF#"${GITHUB_REPOSITORY}"/.github/workflows/}"
           workflow_file="${workflow_file%%@*}"
+          if [ -z "${workflow_file}" ] || [[ "${workflow_file}" == */* ]]; then
+            echo "::error::Could not read the calling workflow filename from GITHUB_WORKFLOW_REF=${GITHUB_WORKFLOW_REF:-}"
+            exit 1
+          fi
           np-report-lighthouse-failure --workflow "${workflow_file}"

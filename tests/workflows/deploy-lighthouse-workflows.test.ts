@@ -466,14 +466,50 @@ describe("reusable lighthouse workflow", () => {
       "Close or file the Lighthouse regression issue",
     );
 
-    function runReport(auditResult: string, workflowRef: string): string[] {
+    function runReportRaw(
+      auditResult: string,
+      workflowRef: string,
+      binBody = "",
+    ): { status: number; calls: string[] } {
       const result = runScript(
         script,
         { GITHUB_WORKFLOW_REF: workflowRef, AUDIT_RESULT: auditResult },
-        { "np-report-lighthouse-failure": "" },
+        { "np-report-lighthouse-failure": binBody },
       );
-      return result.calls["np-report-lighthouse-failure"] ?? [];
+      return {
+        status: result.status,
+        calls: result.calls["np-report-lighthouse-failure"] ?? [],
+      };
     }
+
+    function runReport(auditResult: string, workflowRef: string): string[] {
+      return runReportRaw(auditResult, workflowRef).calls;
+    }
+
+    it("rejects a workflow ref that is not in this repository", () => {
+      const result = runReportRaw(
+        "failure",
+        "other/repo/.github/workflows/a.yml@refs/heads/main",
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.calls).toEqual([]);
+    });
+
+    it("fails the step when the report bin fails", () => {
+      const result = runReportRaw(
+        "failure",
+        "owner/repo/.github/workflows/a.yml@refs/heads/main",
+        "exit 1",
+      );
+      expect(result.status).not.toBe(0);
+    });
+
+    it("installs the report bin only at an exact version", () => {
+      const install = stepScript(LIGHTHOUSE, "Install the report bin");
+      expect(
+        statusOf(install, { SCRIPTS_VERSION: "npm:other-package@1.0.0" }),
+      ).toBe(1);
+    });
 
     it("closes open issues after a passing audit", () => {
       const result = runReport(
