@@ -7,6 +7,7 @@ import {
   createStripeClient,
   extractSubscriptionData,
   InvalidSignatureError,
+  StripeKitError,
   isEntitledStatus,
   isStaleEvent,
   MissingSecretKeyError,
@@ -184,6 +185,18 @@ describe("constructWebhookEvent", () => {
       }),
     ) as InvalidSignatureError;
     expect(error.cause).toBeInstanceOf(Error);
+  });
+
+  it("extends one base error with a matching name", () => {
+    for (const error of [
+      new MissingSecretKeyError(),
+      new MissingWebhookSecretError(),
+      new MissingSignatureError(),
+      new InvalidSignatureError(),
+    ]) {
+      expect(error).toBeInstanceOf(StripeKitError);
+      expect(error.name).toBe(error.constructor.name);
+    }
   });
 
   it("keeps the three webhook errors distinguishable", () => {
@@ -423,6 +436,7 @@ describe("createCheckoutSession", () => {
     const { create, stripe } = stubStripe();
     await createCheckoutSession(stripe, { ...base, trialDays: 1.5 });
     await createCheckoutSession(stripe, { ...base, trialDays: -1 });
+    expect(create).toHaveBeenCalledTimes(2);
     for (const [sent] of create.mock.calls) {
       expect(sent.subscription_data).not.toHaveProperty("trial_period_days");
     }
@@ -435,6 +449,7 @@ describe("createCheckoutSession", () => {
       customerId: "cus_1",
       customerEmail: "a@b.test",
     });
+    expect(create.mock.calls[0]?.[0].customer).toBe("cus_1");
     expect(create.mock.calls[0]?.[0].customer_email).toBeUndefined();
   });
 });
