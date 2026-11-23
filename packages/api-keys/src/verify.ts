@@ -21,7 +21,8 @@ export type VerifyApiKeyOptions<TRecord extends ApiKeyRecord> = {
 
 /**
  * Hashes the token, calls the app's lookup, and classifies the result. Invalid
- * keys never throw (a misconfigured marker does, so an outage is loud); errors thrown by `findByHash` itself propagate. The raw
+ * keys never throw (a misconfigured marker does, so a misconfiguration is
+ * loud); errors thrown by `findByHash` itself propagate. The raw
  * token is never logged or returned.
  */
 export async function verifyApiKey<TRecord extends ApiKeyRecord>({

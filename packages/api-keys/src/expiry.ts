@@ -56,11 +56,11 @@ export function isLastUsedStale(
   now: Date = new Date(),
   intervalMs: number = DEFAULT_LAST_USED_INTERVAL_MS,
 ): boolean {
-  if (!(lastUsedAt instanceof Date)) {
-    return true;
-  }
   if (!(intervalMs >= 0)) {
     throw new RangeError("intervalMs must be a number of 0 or more");
+  }
+  if (!(lastUsedAt instanceof Date)) {
+    return true;
   }
   const elapsedMs = now.getTime() - lastUsedAt.getTime();
   // An unreadable or future timestamp (clock skew) is treated as stale.

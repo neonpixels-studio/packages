@@ -71,6 +71,10 @@ describe("hasMarker", () => {
     expect(hasMarker("", MARKER)).toBe(false);
   });
 
+  it("returns false for a non-string token", () => {
+    expect(hasMarker(undefined as unknown as string, MARKER)).toBe(false);
+  });
+
   it("never matches with an empty marker", () => {
     expect(hasMarker("anything", "")).toBe(false);
   });
@@ -286,6 +290,7 @@ describe("isLastUsedStale", () => {
     expect(isLastUsedStale("2020-01-01" as unknown as Date, NOW)).toBe(true);
     expect(() => isLastUsedStale(NOW, NOW, Number.NaN)).toThrow(RangeError);
     expect(() => isLastUsedStale(NOW, NOW, -1)).toThrow(RangeError);
+    expect(() => isLastUsedStale(null, NOW, -1)).toThrow(RangeError);
   });
 
   it("honors a custom interval", () => {
@@ -331,6 +336,12 @@ describe("hasScope", () => {
     expect(hasScope(["records:read"], "records:read")).toBe(true);
     expect(hasScope(["records:read"], "records:write")).toBe(false);
     expect(hasScope([], "records:read")).toBe(false);
+  });
+
+  it("does not substring-match when granted is an unparsed string", () => {
+    const unparsed = '["records:write:own"]' as unknown as string[];
+    expect(hasScope(unparsed, "records:write")).toBe(false);
+    expect(isScopeSubset(["records:write"], unparsed)).toBe(false);
   });
 });
 

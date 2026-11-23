@@ -35,6 +35,9 @@ export function hasScope(
   granted: readonly string[],
   required: string,
 ): boolean {
+  if (!Array.isArray(granted)) {
+    return false;
+  }
   return granted.includes(required);
 }
 
@@ -43,6 +46,9 @@ export function isScopeSubset(
   requested: readonly string[],
   granted: readonly string[],
 ): boolean {
+  if (!Array.isArray(requested) || !Array.isArray(granted)) {
+    return false;
+  }
   return requested.every((scope) => granted.includes(scope));
 }
 

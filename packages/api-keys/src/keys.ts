@@ -18,7 +18,8 @@ export function hashApiKey(key: string): string {
 }
 
 export function hasMarker(token: string, marker: string): boolean {
-  return marker.length > 0 && token.startsWith(marker);
+  const isStrings = typeof token === "string" && typeof marker === "string";
+  return isStrings && marker.length > 0 && token.startsWith(marker);
 }
 
 export function assertValidMarker(marker: string): void {
