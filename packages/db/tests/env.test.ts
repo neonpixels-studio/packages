@@ -17,6 +17,12 @@ describe("resolveDatabaseUrl", () => {
     ).toBe("app");
   });
 
+  it("skips a whitespace-only value", () => {
+    expect(
+      resolveDatabaseUrl({ E2E_DATABASE_URL: " ", DATABASE_URL: "app" }),
+    ).toBe("app");
+  });
+
   it("returns an empty string when nothing is set", () => {
     expect(resolveDatabaseUrl({})).toBe("");
     expect(resolveDatabaseUrl({ DATABASE_URL: "" })).toBe("");

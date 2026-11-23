@@ -14,7 +14,7 @@ export function createDatabase<TSchema extends Schema>(
   databaseUrl: string,
   schema: TSchema,
 ): NeonHttpDatabase<TSchema> {
-  if (!databaseUrl) {
+  if (!databaseUrl.trim()) {
     throw new DatabaseError(
       "missing-database-url",
       "Cannot create a database client: the database URL is empty.",

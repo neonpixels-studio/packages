@@ -13,6 +13,7 @@ import {
 describe("parsePageNumber", () => {
   it("accepts numbers and numeric strings in range", () => {
     expect(parsePageNumber("3")).toBe(3);
+    expect(parsePageNumber(" 3 ")).toBe(3);
     expect(parsePageNumber(MAX_PAGE)).toBe(MAX_PAGE);
   });
 
@@ -22,6 +23,11 @@ describe("parsePageNumber", () => {
     "",
     " ",
     "abc",
+    "0x3",
+    "1e2",
+    "0b11",
+    1.5,
+    Number.NaN,
     "1.5",
     0,
     -2,

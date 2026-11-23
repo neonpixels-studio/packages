@@ -92,4 +92,4 @@ await client.exec("INSERT ...");
 await applyMigration(client, "server/db/migrations", "0007_rewrite_slugs");
 ```
 
-Migrations run in `meta/_journal.json` order. Boot one instance per test file in `beforeAll` (give it `PGLITE_BOOT_TIMEOUT_MS`) and call `truncateAllTables(client)` in `beforeEach`.
+Migrations run in `meta/_journal.json` order, each in a transaction. They are not recorded in drizzle's migrations table, so do not pass this database to drizzle's `migrate()`. Boot one instance per test file in `beforeAll` (give it `PGLITE_BOOT_TIMEOUT_MS`) and call `truncateAllTables(client)` in `beforeEach`.

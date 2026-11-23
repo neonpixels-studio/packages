@@ -1,7 +1,7 @@
 export type DatabaseEnvironment = Record<string, string | undefined>;
 
 function firstSet(env: DatabaseEnvironment, names: string[]): string {
-  return names.map((name) => env[name]).find(Boolean) ?? "";
+  return names.map((name) => env[name]?.trim()).find(Boolean) ?? "";
 }
 
 /** `E2E_DATABASE_URL`, else `DATABASE_URL`, else an empty string. */
