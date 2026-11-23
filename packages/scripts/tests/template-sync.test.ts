@@ -279,7 +279,9 @@ describe("repo-specific sections", () => {
   it("uses the template's default when the repository has no such section", () => {
     put(".gitleaks.toml", "useDefault = false\n");
     sync(["--stack", "node"]);
-    expect(read(".gitleaks.toml")).toContain("# np-sync:begin allowlist\n#");
+    expect(read(".gitleaks.toml")).toBe(
+      readFileSync(join(TEMPLATES_ROOT, "base/.gitleaks.toml"), "utf8"),
+    );
   });
 
   it("stops without writing anything when the repository's markers are broken", () => {
@@ -306,7 +308,7 @@ describe("repo-specific sections", () => {
       ),
     ).toThrow("appears twice");
     expect(() =>
-      preserveSections("x\n", `${begin("custom")}${end("custom")}`, "f"),
+      preserveSections("x\n", `${begin("custom")}keep\n${end("custom")}`, "f"),
     ).toThrow("not in the template");
     expect(preserveSections("x\n", `${begin("old")}${end("old")}`, "f")).toBe(
       "x\n",
@@ -371,6 +373,14 @@ describe("symlinks", () => {
 
     expect(errors.join("\n")).toContain("symbolic link");
     expect(listFiles(outside)).toEqual([]);
+  });
+});
+
+describe("a dangling directory symlink", () => {
+  it("is refused with a clear message", () => {
+    symlinkSync(join(sandbox, "missing"), join(repository, ".husky"));
+    expect(sync(["--stack", "node"])).toBe(1);
+    expect(errors.join("\n")).toContain("broken symbolic link");
   });
 });
 

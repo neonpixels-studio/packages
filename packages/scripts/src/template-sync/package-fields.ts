@@ -37,9 +37,10 @@ function detectIndent(text: string): number | string {
 }
 
 /**
- * Sets the template's fields in a `package.json`, leaving every other field,
- * the key order, and the indentation alone. Returns the text unchanged when
- * the fields already match.
+ * Sets the template's fields in a `package.json`, keeping every other field
+ * and the key order. When something changes the file is re-serialized with its
+ * detected indentation, so hand formatting beyond that (such as inline arrays)
+ * is normalized. Returns the text unchanged when the fields already match.
  */
 export function applyPackageFields(
   packageJsonText: string,

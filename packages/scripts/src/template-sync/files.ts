@@ -21,6 +21,16 @@ function deepestExistingAncestor(path: string): string {
   return current;
 }
 
+function realpathOrRefuse(existingAncestor: string, path: string): string {
+  try {
+    return realpathSync(existingAncestor);
+  } catch {
+    throw new Error(
+      `Refusing to touch ${path}: it passes through a broken symbolic link.`,
+    );
+  }
+}
+
 /**
  * Resolves a repository-relative path and throws unless it stays inside the
  * root, following symlinks, so a linked directory cannot lead a write out of
@@ -36,7 +46,7 @@ export function resolveInsideRoot(root: string, path: string): string {
   }
   const existingAncestor = deepestExistingAncestor(target);
   const realTarget = join(
-    realpathSync(existingAncestor),
+    realpathOrRefuse(existingAncestor, path),
     relative(existingAncestor, target),
   );
   if (!isInside(realpathSync(root), realTarget)) {
