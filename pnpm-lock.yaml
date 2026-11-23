@@ -224,6 +224,8 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1(@types/node@26.6.6)(happy-dom@21.0.4)(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
 
+  packages/api-keys: {}
+
   packages/crypto: {}
 
   packages/db:
@@ -281,6 +283,8 @@ importers:
         specifier: ^1.0.0
         version: 1.99.1
 
+  packages/notifications: {}
+
   packages/playwright-preset:
     devDependencies:
       '@clerk/testing':
@@ -299,7 +303,18 @@ importers:
         specifier: ^0.8.0
         version: 0.8.1(prettier@3.10.1)
 
+  packages/rate-limit:
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.17
+        version: 0.5.17
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@electric-sql/pglite@0.5.17)(@neondatabase/serverless@1.2.1)
+
   packages/scripts: {}
+
+  packages/security: {}
 
   packages/stripe:
     devDependencies:
