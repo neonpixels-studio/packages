@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { DatabaseError } from "./errors.ts";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
@@ -42,7 +43,10 @@ async function readJournalTags(migrationsFolder: string): Promise<string[]> {
 
 function assertKnownTag(tags: string[], tag: string): void {
   if (!tags.includes(tag)) {
-    throw new Error(`Migration "${tag}" is not in the migrations journal.`);
+    throw new DatabaseError(
+      "unknown-migration",
+      `Migration "${tag}" is not in the migrations journal.`,
+    );
   }
 }
 
@@ -52,10 +56,11 @@ async function runMigrationFile(
   tag: string,
 ): Promise<void> {
   const sql = await readFile(join(migrationsFolder, `${tag}.sql`), "utf8");
-  for (const statement of sql.split(STATEMENT_BREAKPOINT)) {
-    if (statement.trim()) {
-      await client.exec(statement);
-    }
+  const statements = sql
+    .split(STATEMENT_BREAKPOINT)
+    .filter((statement) => statement.trim());
+  for (const statement of statements) {
+    await client.exec(statement);
   }
 }
 
@@ -88,8 +93,13 @@ export async function createMigratedDatabase<
     stopBefore === undefined ? tags.length : tags.indexOf(stopBefore);
 
   const client = new PGlite();
-  for (const tag of tags.slice(0, stopIndex)) {
-    await runMigrationFile(client, migrationsFolder, tag);
+  try {
+    for (const tag of tags.slice(0, stopIndex)) {
+      await runMigrationFile(client, migrationsFolder, tag);
+    }
+  } catch (error) {
+    await client.close();
+    throw error;
   }
   const database = drizzle(client, { schema: options.schema });
   return { client, database } as MigratedDatabase<TSchema>;
@@ -106,6 +116,8 @@ export async function truncateAllTables(client: PGlite): Promise<void> {
   if (rows.length === 0) {
     return;
   }
-  const tableList = rows.map((row) => `"${row.tablename}"`).join(", ");
+  const tableList = rows
+    .map((row) => `"${row.tablename.replaceAll('"', '""')}"`)
+    .join(", ");
   await client.exec(`TRUNCATE ${tableList} RESTART IDENTITY CASCADE`);
 }

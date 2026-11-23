@@ -49,13 +49,28 @@ describe("createMigratedDatabase", () => {
     expect(await slugs(client)).toEqual(["hello-world", "abc"]);
   });
 
-  it("truncates every table and restarts identities between tests", async () => {
+  it("truncates every table and restarts identities", async () => {
+    await client.exec(`INSERT INTO posts (slug) VALUES ('x'), ('y')`);
+    await client.exec(`INSERT INTO tags (post_id) VALUES (1)`);
+
+    await truncateAllTables(client);
+
     expect(await slugs(client)).toEqual([]);
-    await client.exec(`INSERT INTO posts (slug) VALUES ('x')`);
+    const tags = await client.query("SELECT id FROM tags");
+    expect(tags.rows).toEqual([]);
+    await client.exec(`INSERT INTO posts (slug) VALUES ('z')`);
     const { rows } = await client.query<{ id: number }>("SELECT id FROM posts");
     expect(rows[0]?.id).toBe(1);
   });
 });
+
+async function columnsOf(client: PGlite, table: string): Promise<string[]> {
+  const { rows } = await client.query<{ column_name: string }>(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
+    [table],
+  );
+  return rows.map((row) => row.column_name);
+}
 
 describe("createMigratedDatabase options", () => {
   it(
@@ -64,10 +79,30 @@ describe("createMigratedDatabase options", () => {
       const { client, database } = await createMigratedDatabase({
         migrationsFolder: MIGRATIONS,
       });
-      await client.exec(`INSERT INTO posts (slug) VALUES ('MiXed')`);
-      expect(database).toBeDefined();
-      await expect(slugs(client)).resolves.toEqual(["MiXed"]);
-      await client.close();
+      try {
+        expect(await columnsOf(client, "posts")).toContain("title");
+        await expect(
+          database.execute("SELECT 1 AS one"),
+        ).resolves.toBeDefined();
+      } finally {
+        await client.close();
+      }
+    },
+    PGLITE_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "applies nothing when stopping before the first migration",
+    async () => {
+      const { client } = await createMigratedDatabase({
+        migrationsFolder: MIGRATIONS,
+        stopBefore: "0000_create_posts",
+      });
+      try {
+        expect(await columnsOf(client, "posts")).toEqual([]);
+      } finally {
+        await client.close();
+      }
     },
     PGLITE_BOOT_TIMEOUT_MS,
   );
@@ -78,6 +113,6 @@ describe("createMigratedDatabase options", () => {
         migrationsFolder: MIGRATIONS,
         stopBefore: "nope",
       }),
-    ).rejects.toThrow('"nope"');
+    ).rejects.toMatchObject({ code: "unknown-migration" });
   });
 });
