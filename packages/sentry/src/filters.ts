@@ -12,6 +12,8 @@ export const IGNORED_ERRORS: readonly RegExp[] = [
   /ResizeObserver loop (limit exceeded|completed with undelivered notifications)/,
 ];
 
+const WEB_PROTOCOLS = new Set(["http:", "https:"]);
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
@@ -22,6 +24,9 @@ function originToPattern(origin: string): RegExp {
     parsed = new URL(origin);
   } catch {
     throw new TypeError(`allowUrlsFor: "${origin}" is not an absolute origin`);
+  }
+  if (!WEB_PROTOCOLS.has(parsed.protocol)) {
+    throw new TypeError(`allowUrlsFor: "${origin}" is not an http(s) origin`);
   }
   return new RegExp(`^${escapeRegExp(parsed.origin)}(/|$)`);
 }

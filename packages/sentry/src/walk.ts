@@ -6,6 +6,7 @@ import {
   TRUNCATED,
 } from "./constants.ts";
 import { SENSITIVE_KEY_PATTERN } from "./patterns.ts";
+import { isRecord, type PlainRecord } from "./types.ts";
 import type { TextScrubber } from "./text.ts";
 import { redactQueryParameters } from "./urls.ts";
 
@@ -38,11 +39,9 @@ const URL_KEYS = new Set([
 const QUERY_KEYS = new Set(["query_string", "http.query", "url.query"]);
 const FRAGMENT_KEYS = new Set(["http.fragment", "url.fragment"]);
 
-type PlainRecord = Record<string, unknown>;
-
-function isPlainRecord(value: unknown): value is PlainRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+// A number under a plural "tokens" key is a usage count (`input_tokens`,
+// `maxTokens`), not a credential.
+const TOKEN_COUNT_KEY_PATTERN = /tokens$/i;
 
 // Booleans and null carry no secret (`hasToken: true`); anything else under a
 // credential-named key, numbers and objects included, is redacted whole.
@@ -50,24 +49,51 @@ function isCredentialEntry(key: string, value: unknown): boolean {
   if (!SENSITIVE_KEY_PATTERN.test(key)) {
     return false;
   }
+  if (typeof value === "number" && TOKEN_COUNT_KEY_PATTERN.test(key)) {
+    return false;
+  }
   return value !== null && value !== undefined && typeof value !== "boolean";
 }
 
-function mapUrlEntry(entry: unknown, context: ScrubContext): unknown {
+function mapUrlEntry(
+  entry: unknown,
+  context: ScrubContext,
+  depth: number,
+  ancestors: WeakSet<object>,
+): unknown {
   if (typeof entry === "string") {
     return context.url(entry);
   }
-  if (Array.isArray(entry)) {
-    return entry.map((item) => mapUrlEntry(item, context));
+  if (Array.isArray(entry) && depth >= MAX_SCRUB_DEPTH) {
+    return TRUNCATED;
   }
-  if (isPlainRecord(entry) && "value" in entry) {
+  if (Array.isArray(entry) && !ancestors.has(entry)) {
+    ancestors.add(entry);
+    const mapped = entry.map((item) =>
+      mapUrlEntry(item, context, depth + 1, ancestors),
+    );
+    ancestors.delete(entry);
+    return mapped;
+  }
+  if (isRecord(entry) && "value" in entry) {
     // Streamed span attributes arrive wrapped as { value, type }.
-    return {
-      ...(scrubValue(entry, context) as PlainRecord),
-      value: mapUrlEntry(entry.value, context),
-    };
+    const scrubbed = scrubValue(entry, context, depth + 1, ancestors);
+    return isRecord(scrubbed)
+      ? {
+          ...scrubbed,
+          value: mapUrlEntry(entry.value, context, depth + 1, ancestors),
+        }
+      : scrubbed;
   }
-  return scrubValue(entry, context);
+  return scrubValue(entry, context, depth + 1, ancestors);
+}
+
+function scrubQueryPair(pair: unknown, context: ScrubContext): unknown {
+  if (!Array.isArray(pair)) {
+    return scrubQueryEntry(pair, context);
+  }
+  const name = typeof pair[0] === "string" ? context.text(pair[0]) : REDACTED;
+  return [name, REDACTED];
 }
 
 function scrubQueryEntry(entry: unknown, context: ScrubContext): unknown {
@@ -77,16 +103,9 @@ function scrubQueryEntry(entry: unknown, context: ScrubContext): unknown {
     return `${prefix}${redactQueryParameters(bare)}`;
   }
   if (Array.isArray(entry)) {
-    return entry.map((pair) =>
-      Array.isArray(pair)
-        ? [
-            typeof pair[0] === "string" ? context.text(pair[0]) : REDACTED,
-            REDACTED,
-          ]
-        : scrubQueryEntry(pair, context),
-    );
+    return entry.map((pair) => scrubQueryPair(pair, context));
   }
-  if (isPlainRecord(entry)) {
+  if (isRecord(entry)) {
     return Object.fromEntries(
       Object.keys(entry).map((name) => [context.text(name), REDACTED]),
     );
@@ -110,7 +129,7 @@ function scrubEntry(
     return REDACTED;
   }
   if (URL_KEYS.has(lowerKey)) {
-    return mapUrlEntry(entry, context);
+    return mapUrlEntry(entry, context, depth, ancestors);
   }
   if (QUERY_KEYS.has(lowerKey)) {
     return scrubQueryEntry(entry, context);

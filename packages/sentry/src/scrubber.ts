@@ -1,5 +1,6 @@
 import { REDACTED } from "./constants.ts";
 import { scrubFields, unreadableResult, withDroppedTag } from "./fields.ts";
+import type { PlainRecord } from "./types.ts";
 import { stripReplayUrls } from "./replay.ts";
 import {
   createTextScrubber,
@@ -16,7 +17,6 @@ export interface ScrubberOptions {
   extraPatterns?: readonly RegExp[];
 }
 
-type PlainRecord = Record<string, unknown>;
 const REPLAY_EVENT_TYPE = "replay_event";
 
 export interface Scrubber {
@@ -89,13 +89,7 @@ export function createScrubber(options: ScrubberOptions = {}): Scrubber {
     if (!isReplayEvent(event)) {
       return event;
     }
-    const scrubbed = scrubObject(event, context);
-    try {
-      return stripReplayUrls(scrubbed, text) as T;
-    } catch {
-      const { urls: _urls, request: _request, ...rest } = scrubbed;
-      return withDroppedTag(rest, ["urls", "request"]) as T;
-    }
+    return stripReplayUrls(scrubObject(event, context), text) as T;
   };
 
   return {

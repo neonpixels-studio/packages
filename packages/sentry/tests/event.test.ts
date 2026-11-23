@@ -207,6 +207,18 @@ describe("scrubEvent", () => {
     });
   });
 
+  it("keeps token usage counts", () => {
+    const scrubbed = scrubEvent({
+      extra: { "gen_ai.usage.input_tokens": 512, maxTokens: 4096, token: 512 },
+    });
+
+    expect(scrubbed.extra).toEqual({
+      "gen_ai.usage.input_tokens": 512,
+      maxTokens: 4096,
+      token: REDACTED,
+    });
+  });
+
   it("handles a __proto__ key as plain data", () => {
     const extra = JSON.parse('{"__proto__": {"polluted": "yes"}, "a": 1}');
 
@@ -252,6 +264,18 @@ describe("scrubEvent resilience", () => {
 
     expect(JSON.stringify(scrubbed)).toContain(TRUNCATED);
     expectNoSecrets(scrubbed);
+  });
+
+  it("survives a cycle through a URL-bearing key", () => {
+    const route: Record<string, unknown> = { path: "/a" };
+    route.to = route;
+    const attributes: unknown[] = [];
+    attributes.push(attributes);
+
+    const scrubbed = scrubEvent({ extra: { route, location: attributes } });
+
+    expect("extra" in scrubbed).toBe(true);
+    expect(JSON.stringify(scrubbed)).toContain(CIRCULAR);
   });
 
   it("caps string length and drops the partial trailing token", () => {

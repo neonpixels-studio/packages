@@ -8,7 +8,7 @@ Sentry event scrubbing, an expected-client-error filter, filter lists, and envir
 pnpm add @neon-pixels/sentry
 ```
 
-`@sentry/core` is an optional peer dependency used only for TypeScript types (`Event`, `EventHint`). Install whichever Sentry SDK your app uses; it brings `@sentry/core` along.
+`@sentry/core` is an optional peer dependency used only for TypeScript types (`Event`, `EventHint`). Under pnpm's strict layout, add `@sentry/core` as a dev dependency of your app if you want the types to resolve.
 
 ## Usage
 
@@ -55,7 +55,7 @@ Calling `Sentry.init` and deciding when Replay starts stay in your app.
 
 Returns a scrubbed copy and never throws. Use it as `beforeSend` and as `beforeSendTransaction`. It covers the message, log entry, exception values, stack-frame variables, paths, and source lines, breadcrumbs, `extra`, `contexts`, `tags`, `user`, `transaction`, spans, and request data (URL, query string, cookies, headers, body). Fields that hold no user data (ids, timestamps, `level`, `release`, `sdk`) are left as they are, and the SDK's private `sdkProcessingMetadata` is neither read nor changed.
 
-- **Sensitive keys.** Any value under a key matching authorization, cookie, password, API key, secret, token, private key, access key, credential, or signature becomes `[redacted]`, whatever its type (objects and numbers included; only booleans and null stay).
+- **Sensitive keys.** Any value under a key matching authorization, cookie, password, API key, secret, token, private key, access key, credential, or signature becomes `[redacted]`, whatever its type (objects and numbers included; only booleans, null, and numeric usage counts under a plural `tokens` key such as `input_tokens` stay).
 - **Patterns, wherever a string appears.** URLs with credentials (`[redacted-url]`), `Basic` and `Bearer` tokens, `Authorization` and `Cookie` header text, `key=value` and JSON pairs with a sensitive key, Stripe keys and webhook secrets, JSON Web Tokens, PEM blocks (including one cut off by the length cap), and email addresses.
 - **URLs.** Query values and the whole fragment are redacted in full URLs, in URLs embedded in free text, and in the separate `http.query`, `url.query`, `http.fragment`, `url.fragment`, and `query_string` fields. Parameter names stay, so events remain groupable.
 - **Limits.** Circular references become `[circular]`, structures stop at a fixed depth (`[truncated]`), and a string longer than `MAX_SCRUB_LENGTH` is cut at its last whitespace so a secret is never split in half.

@@ -139,7 +139,7 @@ describe("scrubReplayEvent", () => {
     expect(scrubReplayEvent(event)).toBe(event);
   });
 
-  it("does not throw when the URLs cannot be processed", () => {
+  it("removes a section it cannot scrub and names it in the tag", () => {
     const event = {
       ...replayEvent(),
       get urls(): never {
@@ -251,6 +251,9 @@ describe("filter lists", () => {
 
   it("fails loudly on an origin that does not parse or an empty list", () => {
     expect(() => allowUrlsFor(["not an origin"])).toThrow(TypeError);
+    expect(() => allowUrlsFor(["localhost:3000"])).toThrow(TypeError);
+    expect(() => allowUrlsFor(["example.com:8080"])).toThrow(TypeError);
+    expect(() => allowUrlsFor(["chrome-extension://abc"])).toThrow(TypeError);
     expect(() => allowUrlsFor([])).toThrow(TypeError);
   });
 });
@@ -288,10 +291,11 @@ describe("entry point portability", () => {
 
   it("imports Sentry types only", () => {
     for (const source of sources) {
-      const sentryImports = source.match(/^import .*@sentry.*$/gm) ?? [];
-      for (const statement of sentryImports) {
-        expect(statement).toMatch(/^import type /);
-      }
+      expect(source).not.toMatch(
+        /(?:import|export)\s+(?!type\b)[^;]*?from\s*["']@sentry/,
+      );
+      expect(source).not.toMatch(/import\(\s*["']@sentry/);
+      expect(source).not.toMatch(/^import\s+["']@sentry/m);
     }
   });
 });

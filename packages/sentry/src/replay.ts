@@ -1,8 +1,7 @@
 import { REDACTED } from "./constants.ts";
 import type { TextScrubber } from "./text.ts";
+import { isRecord, type PlainRecord } from "./types.ts";
 import { stripQueryAndFragment } from "./urls.ts";
-
-type PlainRecord = Record<string, unknown>;
 
 // Replay URL lists are page identifiers only, so the query string and the
 // fragment (OAuth callbacks put one-time codes in either) are dropped whole.
@@ -12,10 +11,17 @@ function stripUrl(url: unknown, scrubText: TextScrubber): string {
     : REDACTED;
 }
 
+function stripUrlList(urls: unknown, scrubText: TextScrubber): unknown {
+  if (!Array.isArray(urls)) {
+    return urls;
+  }
+  return urls.map((url) => stripUrl(url, scrubText));
+}
+
 const URL_HEADER_PATTERN = /^(referer|referrer|location)$/i;
 
 function stripHeaders(headers: unknown, scrubText: TextScrubber): unknown {
-  if (typeof headers !== "object" || headers === null) {
+  if (!isRecord(headers)) {
     return headers;
   }
   return Object.fromEntries(
@@ -47,13 +53,7 @@ export function stripReplayUrls(
 ): PlainRecord {
   return {
     ...event,
-    ...("urls" in event
-      ? {
-          urls: Array.isArray(event.urls)
-            ? event.urls.map((url) => stripUrl(url, scrubText))
-            : event.urls,
-        }
-      : {}),
+    ...("urls" in event ? { urls: stripUrlList(event.urls, scrubText) } : {}),
     ...("request" in event
       ? { request: stripRequest(event.request, scrubText) }
       : {}),

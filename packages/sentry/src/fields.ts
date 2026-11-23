@@ -1,7 +1,7 @@
 import { SCRUB_DROPPED_TAG } from "./constants.ts";
+import { isRecord, type PlainRecord } from "./types.ts";
 import { scrubValue, type ScrubContext } from "./walk.ts";
 
-type PlainRecord = Record<string, unknown>;
 const UNREADABLE_SECTION_NAME = "event";
 type FieldScrubber = (value: unknown, context: ScrubContext) => unknown;
 
@@ -38,10 +38,10 @@ function scrubEachItem(value: unknown, context: ScrubContext): unknown {
 // Exceptions and threads hold a list under `values`; each entry is walked from
 // depth zero so deep stack-frame variables are not cut off by the depth cap.
 function scrubValueList(value: unknown, context: ScrubContext): unknown {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return scrubEachItem(value, context);
   }
-  const { values, ...rest } = value as PlainRecord;
+  const { values, ...rest } = value;
   return {
     ...(scrubValue(rest, context) as PlainRecord),
     ...("values" in value ? { values: scrubEachItem(values, context) } : {}),
@@ -65,6 +65,20 @@ function scrubField(name: string, value: unknown, context: ScrubContext) {
   return (scrubber ?? scrubValue)(value, context);
 }
 
+type FieldResult = { ok: true; value: unknown } | { ok: false };
+
+function scrubFieldSafely(
+  source: PlainRecord,
+  name: string,
+  context: ScrubContext,
+): FieldResult {
+  try {
+    return { ok: true, value: scrubField(name, source[name], context) };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /**
  * Scrubs each top-level field on its own. A field that cannot be scrubbed
  * (a getter that throws, a hostile structure) is left out of the result and
@@ -77,12 +91,12 @@ export function scrubFields(
   const entries: Array<[string, unknown]> = [];
   const dropped: string[] = [];
   for (const name of Object.keys(source)) {
-    try {
-      const value = (source as PlainRecord)[name];
-      entries.push([name, scrubField(name, value, context)]);
-    } catch {
-      dropped.push(name);
+    const result = scrubFieldSafely(source as PlainRecord, name, context);
+    if (result.ok) {
+      entries.push([name, result.value]);
+      continue;
     }
+    dropped.push(name);
   }
   return { scrubbed: Object.fromEntries(entries), dropped };
 }
