@@ -1,3 +1,5 @@
+const DECIMAL_INTEGER = /^[+-]?\d+$/;
+
 export const MAX_PAGE = 1000;
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -22,6 +24,9 @@ function toSafeInteger(value: unknown): number | undefined {
     return undefined;
   }
   if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  if (typeof value === "string" && !DECIMAL_INTEGER.test(value.trim())) {
     return undefined;
   }
   const parsed = Number(value);

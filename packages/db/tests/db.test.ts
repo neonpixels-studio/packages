@@ -6,7 +6,7 @@ import {
   runBatch,
 } from "../src/index.ts";
 
-const URL = "postgresql://user:pass@example.neon.tech/db";
+const DATABASE_URL = "postgresql://user:pass@example.neon.tech/db";
 
 function errorOf(action: () => unknown): unknown {
   try {
@@ -18,20 +18,20 @@ function errorOf(action: () => unknown): unknown {
 }
 
 describe("createDatabase", () => {
-  it("throws a typed error for an empty URL", () => {
+  it("throws a typed error for an empty DATABASE_URL", () => {
     const error = errorOf(() => createDatabase("", {}));
     expect(error).toBeInstanceOf(DatabaseError);
     expect((error as DatabaseError).code).toBe("missing-database-url");
   });
 
-  it("returns a drizzle client for a URL", () => {
-    expect(typeof createDatabase(URL, {}).select).toBe("function");
+  it("returns a drizzle client for a DATABASE_URL", () => {
+    expect(typeof createDatabase(DATABASE_URL, {}).select).toBe("function");
   });
 });
 
 describe("createCachedDatabase", () => {
   it("builds once and reuses the client", () => {
-    const resolveUrl = vi.fn(() => URL);
+    const resolveUrl = vi.fn(() => DATABASE_URL);
     const getDatabase = createCachedDatabase(resolveUrl, {});
     expect(getDatabase()).toBe(getDatabase());
     expect(resolveUrl).toHaveBeenCalledTimes(1);

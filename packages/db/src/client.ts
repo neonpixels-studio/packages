@@ -4,7 +4,7 @@ import type { NeonHttpDatabase } from "drizzle-orm/neon-http";
 import type { BatchItem } from "drizzle-orm/batch";
 import { DatabaseError } from "./errors.ts";
 
-type Schema = Record<string, unknown>;
+import type { Schema } from "./types.ts";
 
 /**
  * Builds a drizzle client on the Neon HTTP driver from an explicit

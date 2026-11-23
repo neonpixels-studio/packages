@@ -100,6 +100,24 @@ describe("createMigratedDatabase options", () => {
       });
       try {
         expect(await columnsOf(client, "posts")).toEqual([]);
+        await expect(truncateAllTables(client)).resolves.toBeUndefined();
+      } finally {
+        await client.close();
+      }
+    },
+    PGLITE_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "rejects applying an unknown migration tag",
+    async () => {
+      const { client } = await createMigratedDatabase({
+        migrationsFolder: MIGRATIONS,
+      });
+      try {
+        await expect(
+          applyMigration(client, MIGRATIONS, "nope"),
+        ).rejects.toMatchObject({ code: "unknown-migration" });
       } finally {
         await client.close();
       }

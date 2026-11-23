@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseError } from "./errors.ts";
+import type { Schema } from "./types.ts";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
@@ -18,9 +19,7 @@ interface JournalEntry {
   tag: string;
 }
 
-export interface CreateMigratedDatabaseOptions<
-  TSchema extends Record<string, unknown>,
-> {
+export interface CreateMigratedDatabaseOptions<TSchema extends Schema> {
   /** The folder drizzle-kit writes: `*.sql` files plus `meta/_journal.json`. */
   migrationsFolder: string;
   schema?: TSchema;
@@ -28,7 +27,7 @@ export interface CreateMigratedDatabaseOptions<
   stopBefore?: string;
 }
 
-export interface MigratedDatabase<TSchema extends Record<string, unknown>> {
+export interface MigratedDatabase<TSchema extends Schema> {
   client: PGlite;
   database: PgliteDatabase<TSchema>;
 }
@@ -59,9 +58,11 @@ async function runMigrationFile(
   const statements = sql
     .split(STATEMENT_BREAKPOINT)
     .filter((statement) => statement.trim());
-  for (const statement of statements) {
-    await client.exec(statement);
-  }
+  await client.transaction(async (transaction) => {
+    for (const statement of statements) {
+      await transaction.exec(statement);
+    }
+  });
 }
 
 /** Applies one migration by tag, for the step after `stopBefore`. */
@@ -80,7 +81,7 @@ export async function applyMigration(
  * test can seed rows, call `applyMigration`, and assert on the result.
  */
 export async function createMigratedDatabase<
-  TSchema extends Record<string, unknown> = Record<string, never>,
+  TSchema extends Schema = Record<string, never>,
 >(
   options: CreateMigratedDatabaseOptions<TSchema>,
 ): Promise<MigratedDatabase<TSchema>> {
