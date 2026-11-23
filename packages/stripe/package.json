@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/stripe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Stripe client, webhook verification, subscription mapping, and checkout helpers.",
   "license": "MIT",
   "type": "module",
