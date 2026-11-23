@@ -8,6 +8,7 @@ import type {
   RateLimitStore,
 } from "./types.ts";
 
+// Denied hits past limit + 1 are not counted, so a hammered key cannot overflow the integer column.
 export const DEFAULT_PRUNE_BATCH_SIZE = 1000;
 
 export interface PruneOptions {
@@ -56,7 +57,7 @@ export function createPostgresStore(
       .onConflictDoUpdate({
         target: table.key,
         set: {
-          count: sql`CASE WHEN ${expired} THEN 1 ELSE ${table.count} + 1 END`,
+          count: sql`CASE WHEN ${expired} THEN 1 ELSE LEAST(${table.count}, ${policy.limit}::integer) + 1 END`,
           expiresAt: sql`CASE WHEN ${expired} THEN ${windowEndSql} ELSE ${table.expiresAt} END`,
         },
       })

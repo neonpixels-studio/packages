@@ -101,7 +101,8 @@ if (!reservation.allowed) {
 
 const valid = await verifyPassword(user, password);
 if (valid) {
-  await store.refund(key);
+  // A failed refund must not turn a correct sign-in into an error.
+  await store.refund(key).catch((error) => reportError(error));
 }
 ```
 

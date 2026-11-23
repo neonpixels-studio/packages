@@ -1,4 +1,4 @@
-import { assertValidPolicy } from "./policy.ts";
+import { assertValidNow, assertValidPolicy } from "./policy.ts";
 import type {
   RateLimitPolicy,
   RateLimitResult,
@@ -90,6 +90,7 @@ export async function consumeFailOpen(
   } = options;
   assertValidPolicy(policy);
   assertValidTimeout(timeoutMs);
+  assertValidNow(now);
   const timeout = rejectAfter(timeoutMs);
   try {
     return await Promise.race([

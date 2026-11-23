@@ -154,6 +154,14 @@ describe("postgres store", () => {
     ).rejects.toThrow(RangeError);
   });
 
+  it("keeps denying instead of overflowing a very large count", async () => {
+    await client.exec(
+      `INSERT INTO rate_limit_counters VALUES ('hot', 2147483647, '${new Date(START + POLICY.windowMs).toISOString()}')`,
+    );
+    const result = await store.consume("hot", POLICY, START);
+    expect(result).toMatchObject({ allowed: false, remaining: 0 });
+  });
+
   it("rejects a non-finite now", async () => {
     await expect(store.consume("a", POLICY, Number.NaN)).rejects.toThrow(
       RangeError,
@@ -340,6 +348,12 @@ describe("consumeFailOpen", () => {
     );
     expect(result.resetAt).toBe(START + POLICY.windowMs);
     expect(consume).toHaveBeenCalledWith("a", POLICY, START);
+  });
+
+  it("rejects a non-finite now instead of allowing the request", async () => {
+    await expect(
+      consumeFailOpen(createMemoryStore(), "a", POLICY, { now: Number.NaN }),
+    ).rejects.toThrow(RangeError);
   });
 
   it("rejects an invalid policy instead of allowing the request", async () => {
