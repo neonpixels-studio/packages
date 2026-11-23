@@ -1,0 +1,54 @@
+export const MIN_EXPIRY_DAYS = 1;
+export const MAX_EXPIRY_DAYS = 3650;
+export const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+export const DEFAULT_LAST_USED_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * Returns the expiry date for a key valid for `days` days, or `null` for a key
+ * that never expires (`days` is `undefined` or `null`). Throws a `RangeError`
+ * for anything else outside the whole numbers 1 to 3650.
+ */
+export function computeExpiresAt(
+  days: number | null | undefined,
+  now: Date = new Date(),
+): Date | null {
+  if (days === undefined || days === null) {
+    return null;
+  }
+  const isValid =
+    Number.isInteger(days) &&
+    days >= MIN_EXPIRY_DAYS &&
+    days <= MAX_EXPIRY_DAYS;
+  if (!isValid) {
+    throw new RangeError(
+      `days must be a whole number from ${MIN_EXPIRY_DAYS} to ${MAX_EXPIRY_DAYS}, or omitted for no expiry`,
+    );
+  }
+  return new Date(now.getTime() + days * MILLISECONDS_PER_DAY);
+}
+
+/** A key with no expiry (`null` or `undefined`) is never expired. */
+export function isExpired(
+  expiresAt: Date | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!expiresAt) {
+    return false;
+  }
+  return expiresAt.getTime() <= now.getTime();
+}
+
+/**
+ * True when the last-used timestamp is missing or older than `intervalMs`, so
+ * the app only writes it at most once per interval.
+ */
+export function isLastUsedStale(
+  lastUsedAt: Date | null | undefined,
+  now: Date = new Date(),
+  intervalMs: number = DEFAULT_LAST_USED_INTERVAL_MS,
+): boolean {
+  if (!lastUsedAt) {
+    return true;
+  }
+  return now.getTime() - lastUsedAt.getTime() >= intervalMs;
+}
