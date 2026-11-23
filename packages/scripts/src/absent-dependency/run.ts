@@ -15,6 +15,7 @@ import {
 
 const DEFAULT_ALLOWLIST_PATH = "audit-allowlist.json";
 const NUL_BYTE = "\0";
+const BINARY_SNIFF_LENGTH = 8000;
 const LOG_PREFIX = "np-check-absent-dependency:";
 
 export interface OutputEntry {
@@ -39,11 +40,10 @@ function listOutputOnDisk(directory: string): OutputEntry[] {
   return readdirSync(directory, { recursive: true, withFileTypes: true })
     .map((entry) => {
       const absolute = join(entry.parentPath, entry.name);
+      const target = entry.isSymbolicLink() ? statSync(absolute) : entry;
       return {
         path: relative(directory, absolute),
-        isFile: entry.isSymbolicLink()
-          ? statSync(absolute).isFile()
-          : entry.isFile(),
+        isFile: target.isFile(),
       };
     })
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -114,7 +114,7 @@ function resolveNames(
 }
 
 function isBinary(content: string): boolean {
-  return content.includes(NUL_BYTE);
+  return content.slice(0, BINARY_SNIFF_LENGTH).includes(NUL_BYTE);
 }
 
 function signalFor(
@@ -169,9 +169,9 @@ function findDependencies(
       break;
     }
     const content = readTextContent(entry, readContent);
-    for (const finding of findingsForEntry(remaining, entry, content)) {
-      found.set(finding.name, finding);
-    }
+    findingsForEntry(remaining, entry, content).forEach((finding) =>
+      found.set(finding.name, finding),
+    );
   }
   return [...found.values()];
 }

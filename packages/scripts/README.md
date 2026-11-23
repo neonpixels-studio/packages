@@ -64,7 +64,7 @@ A bundled copy has no `node_modules/<name>` path, so each file is checked for th
 - **node_modules reference:** text containing `node_modules/<name>/`, which bundlers leave in region comments, source maps, and error stacks.
 - **import specifier:** `from "<name>"`, `import("<name>")`, `import "<name>"`, or `require("<name>")`, with or without a subpath, which means the output loads the package at runtime.
 
-Every signal needs the name followed by a delimiter, so `vite` does not match `vite-plugin-x` or `@scope/vite`. A minified, renamed bundle that keeps none of these markers can still hide a copy, so build with the bundler's module-path comments or source maps kept in the checked directory if you rely on this. A string such as `from "vite"` inside prose or a code sample also counts. Text files are read as UTF-8 and files containing a NUL byte are skipped as binary. It fails if the directory is missing or empty.
+Every signal needs the name followed by a delimiter, so `vite` does not match `vite-plugin-x` or `@scope/vite`. A minified, renamed bundle that keeps none of these markers can still hide a copy, so build with the bundler's module-path comments or source maps kept in the checked directory if you rely on this. A string such as `from "vite"` inside prose or a code sample also counts. Files are read as UTF-8, and a file with a NUL byte in its first 8000 characters is treated as binary and not scanned. Symlinks are followed, and a dangling one fails the check. It fails if the directory is missing or empty.
 
 ## `np-check-action-pinning`
 

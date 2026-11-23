@@ -130,13 +130,33 @@ describe("runAbsentDependencyCheck", () => {
   });
 
   it("reads through a symlinked file", () => {
-    writeOutput({ "real/chunk.mjs": "//#region node_modules/vite/a.js" });
+    const externalDirectory = mkdtempSync(join(tmpdir(), "np-absent-ext-"));
+    writeFileSync(
+      join(externalDirectory, "chunk.mjs"),
+      "//#region node_modules/vite/a.js",
+    );
+    writeOutput({ "a.mjs": "" });
     symlinkSync(
-      join(outputDirectory, "real/chunk.mjs"),
+      join(externalDirectory, "chunk.mjs"),
       join(outputDirectory, "linked.mjs"),
     );
-    expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
-    expect(errors).toEqual([expect.stringContaining("vite found in")]);
+    const exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
+    rmSync(externalDirectory, { recursive: true, force: true });
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      expect.stringContaining("vite found in linked.mjs"),
+    ]);
+  });
+
+  it("follows a symlinked directory", () => {
+    const externalDirectory = mkdtempSync(join(tmpdir(), "np-absent-ext-"));
+    writeFileSync(join(externalDirectory, "package.json"), '{"name":"vite"}');
+    writeOutput({ "a.mjs": "" });
+    symlinkSync(externalDirectory, join(outputDirectory, "vendor"));
+    const exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
+    rmSync(externalDirectory, { recursive: true, force: true });
+    expect(exitCode).toBe(1);
+    expect(errors[0]).toContain("vite found in vendor");
   });
 
   it("fails closed on a dangling symlink", () => {
@@ -156,6 +176,38 @@ describe("runAbsentDependencyCheck", () => {
   it("accepts legacy package names with capitals", () => {
     writeOutput({ "a/node_modules/JSONStream/index.js": "" });
     expect(runAbsentDependencyCheck([outputDirectory, "JSONStream"])).toBe(1);
+  });
+
+  it("scans the references in a file with a late NUL byte only past the sniff window", () => {
+    writeOutput({
+      "a.mjs": `//#region node_modules/vite/a.js\n${"x".repeat(9000)}\0`,
+    });
+    expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
+  });
+
+  it("merges explicit names with the default allowlist without repeats", () => {
+    writeOutput({
+      "audit-allowlist.json": JSON.stringify([
+        {
+          id: "GHSA-aaaa-bbbb-cccc",
+          reason: "build tooling",
+          expires: "2027-01-01",
+          package: "vite",
+          buildTimeOnly: true,
+        },
+      ]),
+      "out/node_modules/vite/index.js": "",
+    });
+    const previous = process.cwd();
+    process.chdir(outputDirectory);
+    try {
+      expect(
+        runAbsentDependencyCheck(["out", "vite", "--from-allowlist"]),
+      ).toBe(1);
+    } finally {
+      process.chdir(previous);
+    }
+    expect(errors).toHaveLength(1);
   });
 
   it("ignores binary files", () => {
@@ -244,6 +296,9 @@ describe("detection helpers", () => {
       "import specifier",
     );
     expect(contentSignal("await import('vite')", "vite")).toBe(
+      "import specifier",
+    );
+    expect(contentSignal('var v = __require("vite");', "vite")).toBe(
       "import specifier",
     );
     expect(contentSignal('from "vite-plugin"', "vite")).toBeNull();

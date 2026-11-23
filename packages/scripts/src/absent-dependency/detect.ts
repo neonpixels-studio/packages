@@ -61,7 +61,7 @@ function specifierPatternFor(name: string): RegExp {
     return cached;
   }
   const pattern = new RegExp(
-    `(?<![.\\w$])(?:from|import|require)\\s*\\(?\\s*${SPECIFIER_QUOTES}${escapeForRegExp(name)}(?:/[^"'\`]*)?${SPECIFIER_QUOTES}`,
+    `(?<![.\\w$])(?:from|import|(?:__)?require)\\s*\\(?\\s*${SPECIFIER_QUOTES}${escapeForRegExp(name)}(?:/[^"'\`]*)?${SPECIFIER_QUOTES}`,
   );
   specifierPatterns.set(name, pattern);
   return pattern;
