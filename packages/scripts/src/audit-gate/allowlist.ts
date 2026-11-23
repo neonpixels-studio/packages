@@ -140,8 +140,10 @@ export function entryCovers(
 
 /** Package names of the entries marked build-time only, sorted, without duplicates. */
 export function buildTimeOnlyPackages(entries: AllowlistEntry[]): string[] {
-  const names = entries
-    .filter((entry) => entry.buildTimeOnly === true && entry.package)
-    .map((entry) => entry.package as string);
+  const names = entries.flatMap((entry) =>
+    entry.buildTimeOnly === true && entry.package !== undefined
+      ? [entry.package]
+      : [],
+  );
   return [...new Set(names)].sort();
 }

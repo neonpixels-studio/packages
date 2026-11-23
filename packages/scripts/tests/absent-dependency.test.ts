@@ -140,8 +140,12 @@ describe("runAbsentDependencyCheck", () => {
       join(externalDirectory, "chunk.mjs"),
       join(outputDirectory, "linked.mjs"),
     );
-    const exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
-    rmSync(externalDirectory, { recursive: true, force: true });
+    let exitCode: number;
+    try {
+      exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
+    } finally {
+      rmSync(externalDirectory, { recursive: true, force: true });
+    }
     expect(exitCode).toBe(1);
     expect(errors).toEqual([
       expect.stringContaining("vite found in linked.mjs"),
@@ -153,8 +157,12 @@ describe("runAbsentDependencyCheck", () => {
     writeFileSync(join(externalDirectory, "package.json"), '{"name":"vite"}');
     writeOutput({ "a.mjs": "" });
     symlinkSync(externalDirectory, join(outputDirectory, "vendor"));
-    const exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
-    rmSync(externalDirectory, { recursive: true, force: true });
+    let exitCode: number;
+    try {
+      exitCode = runAbsentDependencyCheck([outputDirectory, "vite"]);
+    } finally {
+      rmSync(externalDirectory, { recursive: true, force: true });
+    }
     expect(exitCode).toBe(1);
     expect(errors[0]).toContain("vite found in vendor");
   });
@@ -164,6 +172,35 @@ describe("runAbsentDependencyCheck", () => {
     symlinkSync(join(outputDirectory, "gone"), join(outputDirectory, "dead"));
     expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
     expect(errors[0]).toContain("ENOENT");
+  });
+
+  it("fails on an output that holds only empty directories", () => {
+    mkdirSync(join(outputDirectory, "server/chunks"), { recursive: true });
+    expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
+    expect(errors[0]).toContain("is empty");
+  });
+
+  it("fails when --from-allowlist finds no allowlist file", () => {
+    writeOutput({ "a.mjs": "" });
+    const exitCode = runAbsentDependencyCheck([
+      outputDirectory,
+      "--allowlist",
+      join(outputDirectory, "nope.json"),
+    ]);
+    expect(exitCode).toBe(1);
+    expect(errors[0]).toContain("allowlist file not found");
+  });
+
+  it("fails on a malformed allowlist", () => {
+    writeOutput({ "a.mjs": "", "bad.json": "{" });
+    expect(
+      runAbsentDependencyCheck([
+        outputDirectory,
+        "--allowlist",
+        join(outputDirectory, "bad.json"),
+      ]),
+    ).toBe(1);
+    expect(errors[0]).toContain("not valid JSON");
   });
 
   it("rejects an unknown flag", () => {

@@ -183,7 +183,7 @@ function check(argv: string[], environment: AbsentDependencyEnvironment) {
   }
   const names = resolveNames(environment, explicitNames, allowlistPath);
   const entries = environment.listOutput(directory);
-  if (entries.length === 0) {
+  if (!entries.some((entry) => entry.isFile)) {
     throw new Error(`output directory is empty: ${directory}`);
   }
   const findings = findDependencies(names, entries, (entry) =>
