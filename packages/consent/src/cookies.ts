@@ -37,6 +37,17 @@ function expire(document: { cookie: string }, name: string, domain?: string) {
   document.cookie = `${name}=; expires=${EXPIRED}; max-age=0; path=/${domainPart}`;
 }
 
+function expireEverywhere(
+  document: { cookie: string },
+  name: string,
+  domains: string[],
+) {
+  expire(document, name);
+  for (const domain of domains) {
+    expire(document, name, domain);
+  }
+}
+
 /** Expires the `_ga` and `_ga_*` cookies on the host and each parent domain. IP hosts get no parent domains. */
 export function clearGoogleAnalyticsCookies(browserWindow: BrowserWindow) {
   const { document, location } = browserWindow as CookieWindow;
@@ -47,9 +58,6 @@ export function clearGoogleAnalyticsCookies(browserWindow: BrowserWindow) {
   const domains =
     hostname === "" || isIpAddress(hostname) ? [] : candidateDomains(hostname);
   for (const name of cookieNames(document.cookie)) {
-    expire(document, name);
-    for (const domain of domains) {
-      expire(document, name, domain);
-    }
+    expireEverywhere(document, name, domains);
   }
 }

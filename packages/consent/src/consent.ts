@@ -87,9 +87,9 @@ export function createConsent(options: ConsentOptions): Consent {
     if (signalPresent()) {
       return "signal";
     }
-    const result = store("granted");
-    grantedThisSession = result === "granted";
-    return result;
+    // Set even if storage refused the write: the app may still load the tag.
+    grantedThisSession = true;
+    return store("granted");
   }
 
   return {

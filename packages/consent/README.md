@@ -36,7 +36,7 @@ consent.grant(); // then call loadGoogleAnalytics
 consent.deny();
 ```
 
-`status` and `shouldPrompt` read storage each time, so they are always current.
+If a privacy signal appears after an earlier grant, `status` becomes `signal`; call `deny()` to clear the old `_ga` cookies. `status` and `shouldPrompt` read storage each time, so they are always current.
 
 ### Status
 
@@ -56,7 +56,7 @@ Stores the denial and sets `ga-disable-<measurementId>` for the page. When an ea
 
 ### `loadGoogleAnalytics(measurementId, { document, window })`
 
-Injects gtag.js once per window however often it is called, with Google signals and ad personalization turned off. It sends no Consent Mode commands: call it only after a grant. Calling it again after `deny()` clears the disable flag without adding a second tag.
+Injects gtag.js once per window however often it is called, with Google signals and ad personalization turned off. It sends no Consent Mode commands: call it only after a grant. It defines no `window.gtag`: push to `window.dataLayer` yourself to send events. A second measurement id on the same window is configured without a second tag. Calling it again after `deny()` clears the disable flag without adding a second tag.
 
 ### `hasPrivacySignal({ navigator, window })`
 

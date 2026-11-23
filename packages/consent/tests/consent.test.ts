@@ -122,6 +122,7 @@ describe("stored record", () => {
     ["string expiry", JSON.stringify({ choice: "granted", expiresAt: "x" })],
     ["null", "null"],
     ["unknown bare word", "toString"],
+    ["prototype key in record", record("toString", NOW + 1000)],
   ])("rejects a malformed record (%s)", (_name, raw) => {
     const { consent } = setup({ [KEY]: raw });
     expect(consent.status).toBe("unset");
@@ -179,6 +180,79 @@ describe("stored record", () => {
     const { consent, storage } = setup({ [KEY]: raw });
     expect(consent.status).toBe("granted");
     expect(storage.entries.get(KEY)).toBe(raw);
+  });
+});
+
+describe("storage that refuses writes", () => {
+  const refusing = (initial: Record<string, string>) => {
+    const base = createMemoryStorage(initial);
+    return {
+      ...base,
+      setItem: () => {
+        throw new Error("quota");
+      },
+    };
+  };
+
+  it("treats a bare legacy value as unset so it cannot outlive 180 days", () => {
+    const { consent } = setup({}, { storage: refusing({ [KEY]: "accepted" }) });
+    expect(consent.status).toBe("unset");
+  });
+
+  it("keeps the legacy key when the rewrite fails", () => {
+    const storage = refusing({ "np-consent": "accepted" });
+    const { consent } = setup({}, { storage, legacyKey: "np-consent" });
+    expect(consent.status).toBe("unset");
+    expect(storage.getItem("np-consent")).toBe("accepted");
+  });
+
+  it("still clears cookies on deny() after a grant that could not be saved", () => {
+    const { consent, fakeWindow } = setup({}, { storage: refusing({}) });
+    consent.grant();
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+  });
+});
+
+describe("more edge cases", () => {
+  it("treats an expired record under the legacy key as unset and as a prior grant", () => {
+    const { consent, fakeWindow, storage } = setup(
+      { "np-consent": record("accepted", NOW - 1) },
+      { legacyKey: "np-consent" },
+    );
+    expect(consent.status).toBe("unset");
+    expect(storage.entries.has(KEY)).toBe(false);
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+  });
+
+  it("sets no disable flag when analytics is not configured", () => {
+    const { consent, fakeWindow } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { services: { sessionReplay: true } },
+    );
+    consent.deny();
+    expect(
+      Object.keys(fakeWindow).filter((name) => name.startsWith("ga-disable")),
+    ).toEqual([]);
+  });
+
+  it("writes host-only expirations when the hostname is empty", () => {
+    const fakeWindow = createFakeWindow({ hostname: "", cookies: "_ga=1" });
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: fakeWindow },
+    );
+    consent.deny();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([undefined]);
+  });
+
+  it("does not throw when the window has no document", () => {
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: {} },
+    );
+    expect(consent.deny()).toBe("denied");
   });
 });
 

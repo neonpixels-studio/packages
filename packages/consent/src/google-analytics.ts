@@ -22,7 +22,7 @@ interface DataLayerWindow {
   [flag: string]: unknown;
 }
 
-const injectedWindows = new WeakSet<object>();
+const configuredIds = new WeakMap<object, Set<string>>();
 
 export function disableFlagName(measurementId: string): string {
   return `ga-disable-${measurementId}`;
@@ -46,27 +46,41 @@ function queueCommand(dataLayer: unknown[], ...args: unknown[]) {
   gtag(...args);
 }
 
+function configuredIdsFor(window: object): Set<string> | undefined {
+  return configuredIds.get(window);
+}
+
 /**
  * Injects gtag.js once per window, however often it is called. Google signals
  * and ad personalization are off. No Consent Mode commands are sent: the
- * caller loads this only after a grant.
+ * caller loads this only after a grant. A second, different measurement id on
+ * the same window is configured without a second tag.
  */
 export function loadGoogleAnalytics(
   measurementId: string,
   { document, window }: AnalyticsBrowser,
 ) {
   setAnalyticsDisabled(window, measurementId, false);
-  if (injectedWindows.has(window)) {
+  const known = configuredIdsFor(window);
+  if (known?.has(measurementId)) {
     return;
   }
-  injectedWindows.add(window);
   const target = window as DataLayerWindow;
   const dataLayer = (target.dataLayer ??= []);
-  queueCommand(dataLayer, "js", new Date());
+  if (known === undefined) {
+    queueCommand(dataLayer, "js", new Date());
+  }
   queueCommand(dataLayer, "config", measurementId, {
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
   });
+  configuredIds.set(window, (known ?? new Set()).add(measurementId));
+  if (known === undefined) {
+    appendScript(document, measurementId);
+  }
+}
+
+function appendScript(document: AnalyticsDocument, measurementId: string) {
   const script = document.createElement("script");
   script.async = true;
   script.src = `${GTAG_SCRIPT_URL}?id=${encodeURIComponent(measurementId)}`;

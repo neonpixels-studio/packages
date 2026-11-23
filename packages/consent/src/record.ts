@@ -44,7 +44,10 @@ function parseObject(value: unknown): ParsedValue | null {
     return null;
   }
   const { choice, expiresAt } = value as Record<string, unknown>;
-  if (typeof choice !== "string" || !(choice in CHOICE_BY_STORED_VALUE)) {
+  if (
+    typeof choice !== "string" ||
+    !Object.hasOwn(CHOICE_BY_STORED_VALUE, choice)
+  ) {
     return null;
   }
   if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
@@ -110,7 +113,7 @@ function migrate(
   options: ReadConsentOptions,
   parsed: ParsedValue,
   fromLegacyKey: boolean,
-): StoredConsent {
+): StoredConsent | null {
   const { storage, key, legacyKey, now } = options;
   const record: StoredConsent = {
     choice: parsed.choice,
@@ -120,6 +123,10 @@ function migrate(
     return record;
   }
   const written = writeConsent(storage, key, record);
+  if (!written && parsed.expiresAt === null) {
+    // A value with no expiry that cannot be saved would restart its 180 days on every read.
+    return null;
+  }
   if (written && fromLegacyKey) {
     removeQuietly(storage, legacyKey as string);
   }

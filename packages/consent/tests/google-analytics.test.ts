@@ -54,6 +54,19 @@ describe("loadGoogleAnalytics", () => {
     expect(browser.window.dataLayer).toHaveLength(3);
   });
 
+  it("configures a second measurement id without a second tag", () => {
+    const browser = createFakeBrowser();
+    loadGoogleAnalytics("G-A", browser);
+    loadGoogleAnalytics("G-B", browser);
+    loadGoogleAnalytics("G-B", browser);
+    expect(browser.appended).toHaveLength(1);
+    const configs = (browser.window.dataLayer as ArrayLike<unknown>[])
+      .map((command) => Array.from(command))
+      .filter((command) => command[0] === "config")
+      .map((command) => command[1]);
+    expect(configs).toEqual(["G-A", "G-B"]);
+  });
+
   it("injects separately for separate windows", () => {
     const first = createFakeBrowser();
     const second = createFakeBrowser();
