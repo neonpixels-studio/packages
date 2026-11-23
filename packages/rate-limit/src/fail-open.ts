@@ -21,6 +21,8 @@ export interface FailOpenOptions {
   timeoutMs?: number;
   /** Called with the error when the store fails or times out. */
   onFailure?: (error: unknown) => void | Promise<void>;
+  /** Epoch milliseconds passed to the store. Defaults to `Date.now()`. */
+  now?: number;
 }
 
 function rejectAfter(timeoutMs: number): {
@@ -49,12 +51,12 @@ function assertValidTimeout(timeoutMs: number): void {
   }
 }
 
-function openResult(policy: RateLimitPolicy): RateLimitResult {
+function openResult(policy: RateLimitPolicy, now: number): RateLimitResult {
   return {
     allowed: true,
     limit: policy.limit,
     remaining: policy.limit,
-    resetAt: Date.now() + policy.windowMs,
+    resetAt: now + policy.windowMs,
   };
 }
 
@@ -81,18 +83,22 @@ export async function consumeFailOpen(
   policy: RateLimitPolicy,
   options: FailOpenOptions = {},
 ): Promise<RateLimitResult> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, onFailure } = options;
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    onFailure,
+    now = Date.now(),
+  } = options;
   assertValidPolicy(policy);
   assertValidTimeout(timeoutMs);
   const timeout = rejectAfter(timeoutMs);
   try {
     return await Promise.race([
-      Promise.resolve().then(() => store.consume(key, policy)),
+      Promise.resolve().then(() => store.consume(key, policy, now)),
       timeout.promise,
     ]);
   } catch (error) {
     reportFailure(onFailure, error);
-    return openResult(policy);
+    return openResult(policy, now);
   } finally {
     timeout.cancel();
   }

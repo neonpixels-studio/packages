@@ -5,6 +5,11 @@ const HASH_ALGORITHM = "sha256";
 const IPV6_GROUP_COUNT = 8;
 const IPV6_PREFIX_GROUPS = 4;
 const IPV4_MAPPED_MARKER = 0xffff;
+const IPV4_MAPPED_MARKER_INDEX = 5;
+const IPV4_EMBEDDED_HIGH_INDEX = 6;
+const IPV4_EMBEDDED_LOW_INDEX = 7;
+const BRACKETED_ADDRESS_PATTERN = /^\[(.+)\](?::\d+)?$/;
+const IPV4_WITH_PORT_PATTERN = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/;
 const BITS_PER_BYTE = 8;
 const BYTE_MASK = 0xff;
 
@@ -49,19 +54,28 @@ function ipv6ToGroups(address: string): number[] {
 
 function isIpv4Mapped(groups: number[]): boolean {
   return (
-    groups.slice(0, 5).every((group) => group === 0) &&
-    groups[5] === IPV4_MAPPED_MARKER
+    groups.slice(0, IPV4_MAPPED_MARKER_INDEX).every((group) => group === 0) &&
+    groups[IPV4_MAPPED_MARKER_INDEX] === IPV4_MAPPED_MARKER
   );
+}
+
+function stripPort(address: string): string {
+  const bracketed = BRACKETED_ADDRESS_PATTERN.exec(address);
+  if (bracketed) {
+    return bracketed[1] ?? address;
+  }
+  return IPV4_WITH_PORT_PATTERN.exec(address)?.[1] ?? address;
 }
 
 /**
  * The address a client is limited under: IPv4 as written (also when mapped
  * into IPv6, in any notation), IPv6 reduced to its /64 prefix so one customer
- * cannot mint new buckets by rotating the low 64 bits. Anything that is not an
+ * cannot mint new buckets by rotating the low 64 bits. A port (`1.2.3.4:80`,
+ * `[::1]:80`) is dropped. Anything that is not an
  * IP address is returned trimmed and lowercased.
  */
 export function normalizeAddress(address: string): string {
-  const trimmed = address.trim().toLowerCase();
+  const trimmed = stripPort(address.trim().toLowerCase());
   if (isIPv4(trimmed)) {
     return trimmed;
   }
@@ -71,7 +85,10 @@ export function normalizeAddress(address: string): string {
 
   const groups = ipv6ToGroups(trimmed);
   if (isIpv4Mapped(groups)) {
-    return groupsToIpv4(groups[6] ?? 0, groups[7] ?? 0);
+    return groupsToIpv4(
+      groups[IPV4_EMBEDDED_HIGH_INDEX] ?? 0,
+      groups[IPV4_EMBEDDED_LOW_INDEX] ?? 0,
+    );
   }
   return groups
     .slice(0, IPV6_PREFIX_GROUPS)

@@ -144,6 +144,23 @@ describe("postgres store", () => {
     ).rejects.toThrow(RangeError);
   });
 
+  it("rejects a window too long for a timestamp", async () => {
+    await expect(
+      store.consume(
+        "a",
+        { limit: 1, windowMs: Number.MAX_SAFE_INTEGER },
+        START,
+      ),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("rejects a non-finite now", async () => {
+    await expect(store.consume("a", POLICY, Number.NaN)).rejects.toThrow(
+      RangeError,
+    );
+    await expect(store.prune({ now: Number.NaN })).rejects.toThrow(RangeError);
+  });
+
   it("accepts a database created with a schema", async () => {
     const schemaDatabase = drizzle(client, {
       schema: { rateLimitCounters: table },
@@ -219,6 +236,12 @@ describe("memory store", () => {
     const store = createMemoryStore();
     await expect(
       store.consume("a", { limit: 1, windowMs }, START),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("rejects a non-finite now", async () => {
+    await expect(
+      createMemoryStore().consume("a", POLICY, Number.NaN),
     ).rejects.toThrow(RangeError);
   });
 
@@ -307,6 +330,18 @@ describe("consumeFailOpen", () => {
     },
   );
 
+  it("hands the injected clock to the store and the open result", async () => {
+    const consume = vi.fn().mockRejectedValue(new Error("down"));
+    const result = await consumeFailOpen(
+      { consume, refund: vi.fn() },
+      "a",
+      POLICY,
+      { now: START },
+    );
+    expect(result.resetAt).toBe(START + POLICY.windowMs);
+    expect(consume).toHaveBeenCalledWith("a", POLICY, START);
+  });
+
   it("rejects an invalid policy instead of allowing the request", async () => {
     await expect(
       consumeFailOpen(createMemoryStore(), "a", { limit: 0, windowMs: 1000 }),
@@ -366,6 +401,23 @@ describe("client keys", () => {
     expect(clientKeyForAddress("2001:0db8:0001:0002::", secret)).toBe(base);
     expect(clientKeyForAddress("2001:db8:1:3::1", secret)).not.toBe(base);
     expect(normalizeAddress("2001:db8::1")).toBe("2001:db8:0:0");
+  });
+
+  it.each(["203.0.113.10:51234", "[2001:db8:1:2::1]:443", "[203.0.113.10]"])(
+    "ignores the port in %s",
+    (withPort) => {
+      const bare = withPort.includes("[2001")
+        ? "2001:db8:1:2::1"
+        : "203.0.113.10";
+      expect(clientKeyForAddress(withPort, secret)).toBe(
+        clientKeyForAddress(bare, secret),
+      );
+    },
+  );
+
+  it("drops an IPv6 zone id and passes non-IP text through", () => {
+    expect(normalizeAddress("fe80::1%eth0")).toBe("fe80:0:0:0");
+    expect(normalizeAddress(" Unknown ")).toBe("unknown");
   });
 
   it("throws on an empty address", () => {

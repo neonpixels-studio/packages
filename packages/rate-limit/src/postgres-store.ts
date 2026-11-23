@@ -1,4 +1,4 @@
-import { assertValidPolicy } from "./policy.ts";
+import { assertValidNow, assertValidPolicy } from "./policy.ts";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { RateLimitCountersTable } from "./table.ts";
@@ -46,6 +46,7 @@ export function createPostgresStore(
     now: number = Date.now(),
   ): Promise<RateLimitResult> {
     assertValidPolicy(policy);
+    assertValidNow(now);
     const nowSql = timestampSql(now);
     const windowEndSql = timestampSql(now + policy.windowMs);
     const expired = sql`${table.expiresAt} <= ${nowSql}`;
@@ -86,6 +87,7 @@ export function createPostgresStore(
       throw new RangeError("batchSize must be a positive integer");
     }
 
+    assertValidNow(now);
     const expiredBefore = new Date(now);
     const expiredKeys = database
       .select({ key: table.key })

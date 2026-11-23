@@ -1,4 +1,4 @@
-import { assertValidPolicy } from "./policy.ts";
+import { assertValidNow, assertValidPolicy } from "./policy.ts";
 import type {
   RateLimitPolicy,
   RateLimitResult,
@@ -79,6 +79,7 @@ export function createMemoryStore(
     now: number = Date.now(),
   ): Promise<RateLimitResult> {
     assertValidPolicy(policy);
+    assertValidNow(now);
     const state = openWindow(key, policy, now);
     state.count += 1;
 

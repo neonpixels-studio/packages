@@ -73,14 +73,20 @@ const removed = await store.prune({ batchSize: 1000 });
 ### Client keys
 
 ```ts
-const key = `sign-in:${clientKeyForAddress(address, process.env.RATE_LIMIT_SECRET ?? "")}`;
+// Read the secret once at startup so a missing value fails at boot, not per request.
+const rateLimitSecret = process.env.RATE_LIMIT_SECRET;
+if (!rateLimitSecret) {
+  throw new Error("RATE_LIMIT_SECRET is not set");
+}
+
+const key = `sign-in:${clientKeyForAddress(address, rateLimitSecret)}`;
 ```
 
-`clientKeyForAddress(address, secret)` unwraps IPv4-mapped IPv6 addresses (`::ffff:203.0.113.10`, in any notation), groups IPv6 addresses by their /64 prefix, and returns the hex HMAC-SHA256 of the result. It throws when `secret` is empty, so a bare address or unkeyed hash is never stored. Keep the secret out of source control; changing it starts every client on a fresh bucket.
+`clientKeyForAddress(address, secret)` unwraps IPv4-mapped IPv6 addresses (`::ffff:203.0.113.10`, in any notation), drops a port, groups IPv6 addresses by their /64 prefix, and returns the hex HMAC-SHA256 of the result. It throws when `secret` is empty, so a bare address or unkeyed hash is never stored. Keep the secret out of source control; changing it starts every client on a fresh bucket.
 
 ### Headers
 
-`rateLimitHeaders(result, now?)` returns `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` (whole seconds until the window ends), following the IETF `RateLimit` fields rather than the older `X-RateLimit-*` names. A denied result also gets `Retry-After`.
+`rateLimitHeaders(result, now?)` returns `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` (whole seconds until the window ends), following the IETF `RateLimit-*` field names (draft-06 style, one header per value) rather than the older `X-RateLimit-*` names. A denied result also gets `Retry-After`.
 
 ### Failed sign-in attempts: reserve, then refund
 
