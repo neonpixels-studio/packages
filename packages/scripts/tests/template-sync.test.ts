@@ -298,6 +298,9 @@ describe("repo-specific sections", () => {
         "f",
       ),
     ).toThrow("appears twice");
+    expect(() =>
+      preserveSections("x\n", `${begin("custom")}${end("custom")}`, "f"),
+    ).toThrow("not in the template");
     expect(() => preserveSections("x\n", end("a"), "f")).toThrow(
       "unmatched end marker",
     );
@@ -344,6 +347,19 @@ describe("what it touches", () => {
     expect(sync(["--stack", "node"])).toBe(1);
 
     expect(errors.join("\n")).toContain("resolves outside the repository");
+    expect(listFiles(outside)).toEqual([]);
+  });
+});
+
+describe("symlinks", () => {
+  it("refuses a dangling symlink that points outside the repository", () => {
+    const outside = join(sandbox, "outside");
+    mkdirSync(outside);
+    symlinkSync(join(outside, "nvmrc"), join(repository, ".nvmrc"));
+
+    expect(sync(["--stack", "node"])).toBe(1);
+
+    expect(errors.join("\n")).toContain("symbolic link");
     expect(listFiles(outside)).toEqual([]);
   });
 });

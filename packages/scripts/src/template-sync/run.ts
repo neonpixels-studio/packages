@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { describeError, prefixedConsole } from "../workflow-command.ts";
 import { describeDifference } from "./diff.ts";
@@ -13,12 +12,6 @@ export interface SyncEnvironment {
   root: string;
   templatesRoot: string;
 }
-
-/** Works from both `dist/` and `src/`, which sit beside `templates/`. */
-export const systemEnvironment: SyncEnvironment = {
-  root: process.cwd(),
-  templatesRoot: fileURLToPath(new URL("../templates", import.meta.url)),
-};
 
 function readStack(value: string | undefined): Stack {
   if (value === undefined || !isStack(value)) {
@@ -56,7 +49,7 @@ function writeChanges(root: string, changes: PlannedChange[]): void {
 /** Copies the stack's templates into the repository, or with `--check` only reports drift. Returns the exit code. */
 export function runSyncTemplates(
   argv: string[],
-  environment: SyncEnvironment = systemEnvironment,
+  environment: SyncEnvironment,
 ): number {
   try {
     const { values } = parseArgs({

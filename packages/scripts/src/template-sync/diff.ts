@@ -1,3 +1,17 @@
+function fillRow(
+  table: number[][],
+  before: string[],
+  after: string[],
+  row: number,
+): void {
+  for (let column = after.length - 1; column >= 0; column--) {
+    table[row]![column] =
+      before[row] === after[column]
+        ? table[row + 1]![column + 1]! + 1
+        : Math.max(table[row + 1]![column]!, table[row]![column + 1]!);
+  }
+}
+
 function longestCommonSubsequence(
   before: string[],
   after: string[],
@@ -6,12 +20,7 @@ function longestCommonSubsequence(
     new Array<number>(after.length + 1).fill(0),
   );
   for (let row = before.length - 1; row >= 0; row--) {
-    for (let column = after.length - 1; column >= 0; column--) {
-      table[row]![column] =
-        before[row] === after[column]
-          ? table[row + 1]![column + 1]! + 1
-          : Math.max(table[row + 1]![column]!, table[row]![column + 1]!);
-    }
+    fillRow(table, before, after, row);
   }
   return table;
 }

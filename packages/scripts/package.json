@@ -1,7 +1,7 @@
 {
   "name": "@neon-pixels/scripts",
   "version": "0.2.0",
-  "description": "CI and deploy scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, migration bookkeeping checks, Lighthouse failure reporting, and Netlify production deploy checks, and a sync of hooks, Dependabot, gitleaks, and Node version templates.",
+  "description": "CI and deploy scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, migration bookkeeping checks, Lighthouse failure reporting, Netlify production deploy checks, and a sync of hooks, Dependabot, gitleaks, and Node version templates.",
   "license": "MIT",
   "type": "module",
   "repository": {

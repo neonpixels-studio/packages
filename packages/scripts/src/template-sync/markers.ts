@@ -59,6 +59,21 @@ function readSections(text: string, label: string): Map<string, string[]> {
   );
 }
 
+function assertNoUnknownSections(
+  kept: Map<string, string[]>,
+  templateSections: Section[],
+  label: string,
+): void {
+  const known = new Set(templateSections.map((section) => section.name));
+  for (const name of kept.keys()) {
+    if (!known.has(name)) {
+      throw new Error(
+        `${label}: section "${name}" is not in the template, so its lines would be dropped.`,
+      );
+    }
+  }
+}
+
 /**
  * Renders a template for a repository. A section between
  * `# np-sync:begin <name>` and `# np-sync:end <name>` keeps the repository's
@@ -78,6 +93,7 @@ export function preserveSections(
     return template;
   }
   const kept = readSections(existing, label);
+  assertNoUnknownSections(kept, sections, label);
   const output: string[] = [];
   let cursor = 0;
   for (const section of sections) {

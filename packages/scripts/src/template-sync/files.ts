@@ -1,5 +1,6 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   realpathSync,
@@ -14,7 +15,7 @@ function isInside(root: string, target: string): boolean {
 
 function deepestExistingAncestor(path: string): string {
   let current = path;
-  while (!existsSync(current)) {
+  while (lstatSync(current, { throwIfNoEntry: false }) === undefined) {
     current = dirname(current);
   }
   return current;
@@ -30,9 +31,13 @@ export function resolveInsideRoot(root: string, path: string): string {
   if (!isInside(resolve(root), target)) {
     throw new Error(`Refusing to touch ${path}: it is outside the repository.`);
   }
+  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    throw new Error(`Refusing to touch ${path}: it is a symbolic link.`);
+  }
+  const existingAncestor = deepestExistingAncestor(target);
   const realTarget = join(
-    realpathSync(deepestExistingAncestor(target)),
-    relative(deepestExistingAncestor(target), target),
+    realpathSync(existingAncestor),
+    relative(existingAncestor, target),
   );
   if (!isInside(realpathSync(root), realTarget)) {
     throw new Error(
