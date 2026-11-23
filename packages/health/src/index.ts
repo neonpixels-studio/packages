@@ -7,8 +7,11 @@ export const HEALTH_RESPONSE_HEADERS: Readonly<Record<string, string>> =
 export type HealthProbe = () => Promise<unknown>;
 
 export type HealthResult =
-  | { statusCode: 200; body: { status: "ok" } }
-  | { statusCode: 503; body: { status: "unavailable" } };
+  | { readonly statusCode: 200; readonly body: { readonly status: "ok" } }
+  | {
+      readonly statusCode: 503;
+      readonly body: { readonly status: "unavailable" };
+    };
 
 export type HealthCheckOptions = {
   /** Any function returning a promise; a rejection or timeout is unhealthy. */
@@ -18,7 +21,7 @@ export type HealthCheckOptions = {
   /** How long a result is reused in milliseconds. Defaults to 5000. */
   cacheTtlMs?: number;
   /** Called with the failure reason when the result goes from healthy to unhealthy. */
-  onFailure?: (reason: unknown) => void;
+  onFailure?: (reason: unknown) => void | Promise<void>;
 };
 
 export type HealthCheck = {
@@ -31,11 +34,14 @@ type ProbeOutcome = { healthy: true } | { healthy: false; reason: unknown };
 
 type CachedOutcome = { result: HealthResult; checkedAt: number };
 
-const OK_RESULT: HealthResult = { statusCode: 200, body: { status: "ok" } };
-const UNAVAILABLE_RESULT: HealthResult = {
+const OK_RESULT: HealthResult = Object.freeze({
+  statusCode: 200,
+  body: Object.freeze({ status: "ok" }),
+});
+const UNAVAILABLE_RESULT: HealthResult = Object.freeze({
   statusCode: 503,
-  body: { status: "unavailable" },
-};
+  body: Object.freeze({ status: "unavailable" }),
+});
 
 export class HealthProbeTimeoutError extends Error {
   constructor(timeoutMs: number) {
@@ -76,12 +82,14 @@ async function runProbe(
   }
 }
 
+function ignoreRejection(): void {}
+
 function notifyFailure(
   onFailure: HealthCheckOptions["onFailure"],
   reason: unknown,
 ): void {
   try {
-    onFailure?.(reason);
+    void Promise.resolve(onFailure?.(reason)).catch(ignoreRejection);
   } catch {
     // A broken callback must never break the health endpoint.
   }
@@ -104,9 +112,9 @@ export function createHealthCheck(options: HealthCheckOptions): HealthCheck {
   function record(outcome: ProbeOutcome): HealthResult {
     const result = outcome.healthy ? OK_RESULT : UNAVAILABLE_RESULT;
     cached = { result, checkedAt: Date.now() };
-    const becameUnhealthy = wasHealthy && !outcome.healthy;
+    const wasHealthyBefore = wasHealthy;
     wasHealthy = outcome.healthy;
-    if (becameUnhealthy && !outcome.healthy) {
+    if (!outcome.healthy && wasHealthyBefore) {
       notifyFailure(onFailure, outcome.reason);
     }
     return result;

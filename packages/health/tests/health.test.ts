@@ -36,6 +36,14 @@ describe("check results", () => {
   it("is ok when the probe resolves", async () => {
     const { check } = createHealthCheck({ probe: async () => 1 });
     expect(await check()).toEqual(OK);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("returns frozen results so callers cannot mutate shared state", async () => {
+    const { check } = createHealthCheck({ probe: async () => 1 });
+    const result = await check();
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.body)).toBe(true);
   });
 
   it("is unavailable when the probe rejects", async () => {
@@ -161,6 +169,33 @@ describe("onFailure", () => {
     });
     expect(await check()).toEqual(UNAVAILABLE);
     expect(onFailure).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("onFailure async and reset", () => {
+  it("swallows a rejection from an async callback", async () => {
+    const onFailure = vi.fn(async () => {
+      throw new Error("async broke");
+    });
+    const { check } = createHealthCheck({
+      probe: () => Promise.reject(new Error("down")),
+      onFailure,
+    });
+    expect(await check()).toEqual(UNAVAILABLE);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats the first failure after a reset as a new outage", async () => {
+    const onFailure = vi.fn();
+    const { check, reset } = createHealthCheck({
+      probe: () => Promise.reject(new Error("down")),
+      onFailure,
+    });
+    await check();
+    reset();
+    await check();
+    expect(onFailure).toHaveBeenCalledTimes(2);
   });
 });
 
