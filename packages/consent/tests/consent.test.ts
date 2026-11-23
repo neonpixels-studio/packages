@@ -1,0 +1,296 @@
+import { describe, expect, it } from "vitest";
+import { CONSENT_LIFETIME_MS, createConsent } from "../src/index.ts";
+import { createMemoryStorage, stubPrivacySignal } from "../src/testing.ts";
+import { createFakeWindow } from "./fakes.ts";
+
+const NOW = 1_800_000_000_000;
+const KEY = "demo:analytics-consent";
+const SERVICES = { analytics: { measurementId: "G-TEST" } };
+
+function setup(
+  stored: Record<string, string> = {},
+  overrides: Partial<Parameters<typeof createConsent>[0]> = {},
+) {
+  const storage = createMemoryStorage(stored);
+  const fakeWindow = createFakeWindow({ cookies: "_ga=1; _ga_ABC=2; other=3" });
+  const consent = createConsent({
+    app: "demo",
+    services: SERVICES,
+    storage,
+    navigator: stubPrivacySignal(),
+    window: fakeWindow,
+    now: () => NOW,
+    ...overrides,
+  });
+  return { storage, fakeWindow, consent };
+}
+
+function record(choice: string, expiresAt: number) {
+  return JSON.stringify({ choice, expiresAt });
+}
+
+describe("status", () => {
+  it("is unset with nothing stored and prompts", () => {
+    const { consent } = setup();
+    expect(consent.status).toBe("unset");
+    expect(consent.shouldPrompt).toBe(true);
+  });
+
+  it("is granted after grant() and stores a 180 day record", () => {
+    const { consent, storage } = setup();
+    expect(consent.grant()).toBe("granted");
+    expect(consent.status).toBe("granted");
+    expect(consent.shouldPrompt).toBe(false);
+    expect(JSON.parse(storage.entries.get(KEY)!)).toEqual({
+      choice: "granted",
+      expiresAt: NOW + CONSENT_LIFETIME_MS,
+    });
+    expect(CONSENT_LIFETIME_MS).toBe(180 * 24 * 60 * 60 * 1000);
+  });
+
+  it("is denied after deny() and does not prompt", () => {
+    const { consent } = setup();
+    expect(consent.deny()).toBe("denied");
+    expect(consent.status).toBe("denied");
+    expect(consent.shouldPrompt).toBe(false);
+  });
+
+  it("is signal with a privacy signal: no prompt, grant() does nothing", () => {
+    const { consent, storage } = setup(
+      {},
+      { navigator: stubPrivacySignal({ globalPrivacyControl: true }) },
+    );
+    expect(consent.status).toBe("signal");
+    expect(consent.shouldPrompt).toBe(false);
+    expect(consent.grant()).toBe("signal");
+    expect(storage.entries.has(KEY)).toBe(false);
+  });
+
+  it("reports signal even when a grant is stored", () => {
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { navigator: stubPrivacySignal({ doNotTrack: "1" }) },
+    );
+    expect(consent.status).toBe("signal");
+  });
+
+  it("still survives storage that throws", () => {
+    const throwing = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => {},
+    };
+    const { consent } = setup({}, { storage: throwing });
+    expect(consent.status).toBe("unset");
+    expect(consent.grant()).toBe("unset");
+  });
+});
+
+describe("stored record", () => {
+  it("accepts a record one millisecond before expiry", () => {
+    const { consent } = setup({ [KEY]: record("granted", NOW + 1) });
+    expect(consent.status).toBe("granted");
+  });
+
+  it("rejects a record expiring exactly now", () => {
+    const { consent } = setup({ [KEY]: record("granted", NOW) });
+    expect(consent.status).toBe("unset");
+    expect(consent.shouldPrompt).toBe(true);
+  });
+
+  it("accepts a record dated exactly 180 days ahead", () => {
+    const { consent } = setup({
+      [KEY]: record("denied", NOW + CONSENT_LIFETIME_MS),
+    });
+    expect(consent.status).toBe("denied");
+  });
+
+  it("rejects a future-dated record", () => {
+    const { consent } = setup({
+      [KEY]: record("granted", NOW + CONSENT_LIFETIME_MS + 1),
+    });
+    expect(consent.status).toBe("unset");
+  });
+
+  it.each([
+    ["not json", "{nope"],
+    ["wrong choice", record("maybe", NOW + 1000)],
+    ["string expiry", JSON.stringify({ choice: "granted", expiresAt: "x" })],
+    ["null", "null"],
+    ["unknown bare word", "toString"],
+  ])("rejects a malformed record (%s)", (_name, raw) => {
+    const { consent } = setup({ [KEY]: raw });
+    expect(consent.status).toBe("unset");
+  });
+
+  it("rewrites legacy choice names inside a record, keeping the expiry", () => {
+    const expiresAt = NOW + 5000;
+    const { consent, storage } = setup({
+      [KEY]: record("accepted", expiresAt),
+    });
+    expect(consent.status).toBe("granted");
+    expect(JSON.parse(storage.entries.get(KEY)!)).toEqual({
+      choice: "granted",
+      expiresAt,
+    });
+  });
+
+  it.each([
+    ["accepted", "granted"],
+    ["declined", "denied"],
+  ])("rewrites a bare %s value with a fresh 180 days", (legacy, choice) => {
+    const { consent, storage } = setup({ [KEY]: legacy });
+    expect(consent.status).toBe(choice);
+    expect(JSON.parse(storage.entries.get(KEY)!)).toEqual({
+      choice,
+      expiresAt: NOW + CONSENT_LIFETIME_MS,
+    });
+  });
+
+  it("migrates a legacy key to the current key and removes it", () => {
+    const { consent, storage } = setup(
+      { "np-consent": "accepted" },
+      { legacyKey: "np-consent" },
+    );
+    expect(consent.status).toBe("granted");
+    expect(storage.entries.has("np-consent")).toBe(false);
+    expect(JSON.parse(storage.entries.get(KEY)!).choice).toBe("granted");
+  });
+
+  it("ignores a legacy key when none is configured", () => {
+    const { consent } = setup({ "np-consent": "accepted" });
+    expect(consent.status).toBe("unset");
+  });
+
+  it("prefers the current key over the legacy key", () => {
+    const { consent } = setup(
+      { [KEY]: record("denied", NOW + 1000), "np-consent": "accepted" },
+      { legacyKey: "np-consent" },
+    );
+    expect(consent.status).toBe("denied");
+  });
+
+  it("leaves a current record untouched when it is read", () => {
+    const raw = record("granted", NOW + 1000);
+    const { consent, storage } = setup({ [KEY]: raw });
+    expect(consent.status).toBe("granted");
+    expect(storage.entries.get(KEY)).toBe(raw);
+  });
+});
+
+describe("configured services", () => {
+  it("lists analytics and session replay from what the app passes", () => {
+    const { consent } = setup(
+      {},
+      {
+        services: { analytics: { measurementId: "G-1" }, sessionReplay: true },
+      },
+    );
+    expect(consent.services).toEqual(["analytics", "sessionReplay"]);
+  });
+
+  it("lists only analytics when replay is off", () => {
+    expect(setup().consent.services).toEqual(["analytics"]);
+  });
+
+  it("lists only session replay", () => {
+    const { consent } = setup({}, { services: { sessionReplay: true } });
+    expect(consent.services).toEqual(["sessionReplay"]);
+    expect(consent.shouldPrompt).toBe(true);
+  });
+
+  it("never prompts with no service configured", () => {
+    const { consent } = setup({}, { services: {} });
+    expect(consent.services).toEqual([]);
+    expect(consent.status).toBe("unset");
+    expect(consent.shouldPrompt).toBe(false);
+  });
+});
+
+describe("deny() cookie clearing", () => {
+  it("clears _ga cookies after a current grant and disables the tag", () => {
+    const { consent, fakeWindow } = setup({
+      [KEY]: record("granted", NOW + 1000),
+    });
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+    expect((fakeWindow as Record<string, unknown>)["ga-disable-G-TEST"]).toBe(
+      true,
+    );
+  });
+
+  it("clears _ga cookies after an expired grant", () => {
+    const { consent, fakeWindow } = setup({
+      [KEY]: record("granted", NOW - 1),
+    });
+    expect(consent.status).toBe("unset");
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+  });
+
+  it("clears cookies after a grant made in this session", () => {
+    const { consent, fakeWindow } = setup();
+    consent.grant();
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+  });
+
+  it("clears on the host and each parent domain", () => {
+    const fakeWindow = createFakeWindow({
+      hostname: "app.example.com",
+      cookies: "_ga=1",
+    });
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: fakeWindow },
+    );
+    consent.deny();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([
+      undefined,
+      "app.example.com",
+      "example.com",
+    ]);
+    expect(fakeWindow.cookieNames()).toEqual([]);
+  });
+
+  it("skips parent domains for an IP address", () => {
+    const fakeWindow = createFakeWindow({
+      hostname: "192.168.0.10",
+      cookies: "_ga=1",
+    });
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: fakeWindow },
+    );
+    consent.deny();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([undefined]);
+  });
+
+  it("skips parent domains for an IPv6 address", () => {
+    const fakeWindow = createFakeWindow({ hostname: "::1", cookies: "_ga=1" });
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: fakeWindow },
+    );
+    consent.deny();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([undefined]);
+  });
+
+  it("leaves cookies alone when nothing was ever granted", () => {
+    const { consent, fakeWindow } = setup();
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["_ga", "_ga_ABC", "other"]);
+  });
+
+  it("leaves cookies alone after an earlier denial", () => {
+    const { consent, fakeWindow } = setup({
+      [KEY]: record("denied", NOW + 1000),
+    });
+    consent.deny();
+    expect(fakeWindow.cookieNames()).toEqual(["_ga", "_ga_ABC", "other"]);
+  });
+});
