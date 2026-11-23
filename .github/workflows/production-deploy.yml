@@ -164,7 +164,7 @@ jobs:
           set -euo pipefail
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           body="The production deploy finished as ${DEPLOY_RESULT} on ${GITHUB_SHA}. A cancelled run may only have been replaced by a newer queued run. Run: ${run_url}"
-          gh label create "${DEPLOY_FAILURE_LABEL}" --color B60205 --description "A scheduled production deploy failed" 2>/dev/null || true
+          gh label create "${DEPLOY_FAILURE_LABEL}" --color B60205 --description "A scheduled production deploy failed" --force
           existing=$(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[0].number // empty')
           if [ -n "${existing}" ]; then
             gh issue comment "${existing}" --body "${body}"
@@ -176,7 +176,7 @@ jobs:
   # skipped run (the commit was already live) must not close an open issue.
   close-resolved-failure:
     needs: deploy
-    if: needs.deploy.result == 'success' && needs.deploy.outputs.skipped == 'false'
+    if: needs.deploy.result == 'success' && needs.deploy.outputs.skipped != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

@@ -63,6 +63,34 @@ interface ScriptRun {
   calls: Record<string, string[]>;
 }
 
+function writeFakeCommands(
+  directory: string,
+  fakes: Record<string, string>,
+): void {
+  for (const [name, body] of Object.entries(fakes)) {
+    const fake = join(directory, name);
+    writeFileSync(
+      fake,
+      `#!/bin/bash\necho "$*" >> "${join(directory, `${name}.log`)}"\n${body}\n`,
+    );
+    chmodSync(fake, 0o755);
+  }
+}
+
+function readFakeCalls(
+  directory: string,
+  names: string[],
+): Record<string, string[]> {
+  const calls: Record<string, string[]> = {};
+  for (const name of names) {
+    const log = join(directory, `${name}.log`);
+    calls[name] = existsSync(log)
+      ? readFileSync(log, "utf-8").split("\n").filter(Boolean)
+      : [];
+  }
+  return calls;
+}
+
 // Runs a step's script with fake commands first on PATH. Each fake records its
 // arguments and runs the given shell body (which may print or exit non-zero).
 function runScript(
@@ -72,14 +100,7 @@ function runScript(
 ): ScriptRun {
   const directory = mkdtempSync(join(tmpdir(), "np-fake-bin-"));
   try {
-    for (const [name, body] of Object.entries(fakes)) {
-      const fake = join(directory, name);
-      writeFileSync(
-        fake,
-        `#!/bin/bash\necho "$*" >> "${join(directory, `${name}.log`)}"\n${body}\n`,
-      );
-      chmodSync(fake, 0o755);
-    }
+    writeFakeCommands(directory, fakes);
     const result = spawnSync("bash", ["-c", script], {
       env: {
         PATH: `${directory}:${process.env.PATH}`,
@@ -93,14 +114,10 @@ function runScript(
         ...environment,
       },
     });
-    const calls: Record<string, string[]> = {};
-    for (const name of Object.keys(fakes)) {
-      const log = join(directory, `${name}.log`);
-      calls[name] = existsSync(log)
-        ? readFileSync(log, "utf-8").split("\n").filter(Boolean)
-        : [];
-    }
-    return { status: result.status ?? -1, calls };
+    return {
+      status: result.status ?? -1,
+      calls: readFakeCalls(directory, Object.keys(fakes)),
+    };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -208,7 +225,7 @@ describe("reusable production-deploy workflow", () => {
 
   it("closes the failure issue only after a deploy was triggered and verified", () => {
     expect(jobBlock(DEPLOY, "close-resolved-failure")).toContain(
-      "needs.deploy.outputs.skipped == 'false'",
+      "needs.deploy.outputs.skipped != 'true'",
     );
   });
 
@@ -271,6 +288,14 @@ describe("reusable production-deploy workflow", () => {
       ).toBe(true);
     });
 
+    it("fails without opening an issue when the issue lookup fails", () => {
+      const result = runGh(script, { DEPLOY_RESULT: "failure" }, "", 1);
+      expect(result.status).not.toBe(0);
+      expect(result.gh.some((call) => call.startsWith("issue create"))).toBe(
+        false,
+      );
+    });
+
     it("says when the run was cancelled, which may only mean superseded", () => {
       const result = runGh(script, { DEPLOY_RESULT: "cancelled" }, "");
       expect(result.gh.join("\n")).toContain("finished as cancelled");
@@ -315,6 +340,10 @@ describe("reusable production-deploy workflow", () => {
 
     it("passes when main is still the commit this run started on", () => {
       expect(runWithRemoteSha("abc123")).toBe(0);
+    });
+
+    it("refuses to deploy when the main lookup fails", () => {
+      expect(runScript(script, {}, { gh: "exit 1" }).status).not.toBe(0);
     });
 
     it("refuses to deploy when main moved", () => {
