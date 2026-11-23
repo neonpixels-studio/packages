@@ -31,21 +31,15 @@ describe("ci workflow", () => {
     );
   });
 
-  it("audits production dependencies with the shared audit gate", () => {
-    expect(CI_WORKFLOW).toContain("pnpm exec np-audit-gate");
-  });
+  it.each(["gitleaks", "dependency-audit"])(
+    "calls the reusable %s workflow",
+    (name) => {
+      expect(CI_WORKFLOW).toContain(`uses: ./.github/workflows/${name}.yml`);
+    },
+  );
 
-  it("builds the gate after a script-free install and before running it", () => {
-    const auditJob = CI_WORKFLOW.slice(
-      CI_WORKFLOW.indexOf("  dependency-audit:"),
-    );
-    const steps = [
-      "pnpm install --frozen-lockfile --ignore-scripts",
-      "run: pnpm --filter @neon-pixels/scripts build",
-      "pnpm exec np-audit-gate",
-    ].map((step) => auditJob.indexOf(step));
-    expect(steps).not.toContain(-1);
-    expect(steps).toEqual([...steps].sort((first, second) => first - second));
+  it("pins the audit gate version for the reusable audit", () => {
+    expect(CI_WORKFLOW).toMatch(/^ {6}scripts-version: \d+\.\d+\.\d+$/m);
   });
 
   it("checks action pinning with the shared check", () => {

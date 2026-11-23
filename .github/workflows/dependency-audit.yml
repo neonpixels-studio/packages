@@ -1,0 +1,82 @@
+# Reusable production dependency audit. Call it from a job with `uses:` (see
+# README.md).
+#
+# Runs `np-audit-gate` from the published @neon-pixels/scripts package, at the
+# version the caller pins. The gate reads the caller's lockfile, so the
+# project's own dependencies are never installed and none of their install
+# scripts run. Needs no secrets.
+name: Dependency audit
+
+on:
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Package manager the project uses: npm or pnpm."
+        type: string
+        required: true
+      node-version-file:
+        description: "File that names the Node version (for example .nvmrc), relative to the repository root."
+        type: string
+        default: .nvmrc
+      scripts-version:
+        description: "Exact @neon-pixels/scripts version to run np-audit-gate from, such as 0.2.0."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      PACKAGE_MANAGER: ${{ inputs.package-manager }}
+      SCRIPTS_VERSION: ${{ inputs.scripts-version }}
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          case "${PACKAGE_MANAGER}" in
+            npm | pnpm) ;;
+            *)
+              echo "::error::package-manager must be npm or pnpm"
+              exit 1
+              ;;
+          esac
+          if ! [[ "${SCRIPTS_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::scripts-version must be an exact version such as 0.2.0"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The gate picks the package manager from the lockfile, so the input must
+      # agree with it or the gate fails with a misleading "could not run pnpm".
+      - name: Check the lockfile matches package-manager
+        run: |
+          set -euo pipefail
+          if [ "${PACKAGE_MANAGER}" = "pnpm" ] && [ ! -f pnpm-lock.yaml ]; then
+            echo "::error::package-manager is pnpm but pnpm-lock.yaml is missing"
+            exit 1
+          fi
+          if [ "${PACKAGE_MANAGER}" = "npm" ] && [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+            echo "::error::package-manager is npm but package-lock.json is missing"
+            exit 1
+          fi
+      # pnpm/action-setup installs the exact pnpm pinned in `packageManager`.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: inputs.package-manager == 'pnpm'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+      - name: Audit production dependencies (fail on high/critical)
+        run: |
+          set -euo pipefail
+          if [ "${PACKAGE_MANAGER}" = "pnpm" ]; then
+            pnpm --package="@neon-pixels/scripts@${SCRIPTS_VERSION}" dlx np-audit-gate
+          else
+            npm exec --yes --ignore-scripts --package "@neon-pixels/scripts@${SCRIPTS_VERSION}" -- np-audit-gate
+          fi
