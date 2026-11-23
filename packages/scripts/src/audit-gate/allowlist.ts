@@ -7,6 +7,11 @@ export interface AllowlistEntry {
   expires: string;
   /** When set, the entry only covers the advisory in this package. */
   package?: string;
+  /**
+   * Marks the package as build-time only, so np-check-absent-dependency can
+   * verify the claim against the build output. Needs `package`.
+   */
+  buildTimeOnly?: boolean;
 }
 
 const ENTRY_FIELDS: ReadonlySet<string> = new Set([
@@ -14,6 +19,7 @@ const ENTRY_FIELDS: ReadonlySet<string> = new Set([
   "reason",
   "expires",
   "package",
+  "buildTimeOnly",
 ]);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -62,6 +68,26 @@ function assertKnownFields(entry: JsonObject, position: number): void {
   }
 }
 
+function readBuildTimeOnly(
+  entry: JsonObject,
+  position: number,
+): { buildTimeOnly: boolean } | Record<string, never> {
+  if (!("buildTimeOnly" in entry)) {
+    return {};
+  }
+  if (typeof entry["buildTimeOnly"] !== "boolean") {
+    throw new Error(
+      `allowlist entry ${position} needs a boolean "buildTimeOnly"`,
+    );
+  }
+  if (!("package" in entry)) {
+    throw new Error(
+      `allowlist entry ${position} sets "buildTimeOnly" without a "package" to check for`,
+    );
+  }
+  return { buildTimeOnly: entry["buildTimeOnly"] };
+}
+
 function parseEntry(entry: unknown, index: number): AllowlistEntry {
   const position = index + 1;
   if (!isObject(entry)) {
@@ -77,6 +103,7 @@ function parseEntry(entry: unknown, index: number): AllowlistEntry {
     ...("package" in entry
       ? { package: readRequiredText(entry, "package", position) }
       : {}),
+    ...readBuildTimeOnly(entry, position),
   };
 }
 
@@ -109,4 +136,14 @@ export function entryCovers(
   const samePackage =
     entry.package === undefined || entry.package === advisory.packageName;
   return sameId && samePackage;
+}
+
+/** Package names of the entries marked build-time only, sorted, without duplicates. */
+export function buildTimeOnlyPackages(entries: AllowlistEntry[]): string[] {
+  const names = entries.flatMap((entry) =>
+    entry.buildTimeOnly === true && entry.package !== undefined
+      ? [entry.package]
+      : [],
+  );
+  return [...new Set(names)].sort();
 }

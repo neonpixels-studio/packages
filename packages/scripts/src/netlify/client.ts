@@ -37,6 +37,16 @@ export interface NetlifySiteLookup {
 /** What np-verify-netlify-deploy needs: deploy reads plus the site lookup. */
 export type NetlifyVerifyClient = NetlifyClient & NetlifySiteLookup;
 
+/** Reads which deploy the site is serving, separate so other commands' fakes need not implement it. */
+export interface NetlifyPublishedDeployClient {
+  /**
+   * The commit of the deploy the site is serving right now, or null when the
+   * site has no published deploy or it recorded no commit. Unlike the newest
+   * ready deploy, this follows a manual rollback and locked auto-publishing.
+   */
+  getPublishedCommitRef(): Promise<string | null>;
+}
+
 /** An error retrying cannot fix: bad token, wrong site id, unexpected payload. */
 export class NetlifyFatalError extends Error {}
 
@@ -75,6 +85,19 @@ export function parseSite(value: unknown): string {
     );
   }
   return id;
+}
+
+export function parsePublishedCommitRef(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new NetlifyFatalError(
+      "Netlify returned an unexpected payload (expected a site object).",
+    );
+  }
+  const published = (value as Record<string, unknown>)["published_deploy"];
+  if (typeof published !== "object" || published === null) {
+    return null;
+  }
+  return textOrNull((published as Record<string, unknown>)["commit_ref"]);
 }
 
 export function parseDeployList(value: unknown): NetlifyDeploy[] {
@@ -119,7 +142,7 @@ export interface NetlifyClientOptions {
 // Error messages never include the request headers, so the token cannot leak.
 export function createNetlifyClient(
   options: NetlifyClientOptions,
-): NetlifyVerifyClient {
+): NetlifyVerifyClient & NetlifyPublishedDeployClient {
   const { siteId, token, fetchImpl = fetch } = options;
 
   async function getJson(path: string): Promise<unknown> {
@@ -151,6 +174,11 @@ export function createNetlifyClient(
       const query = `production=true&per_page=${DEPLOYS_PAGE_SIZE}`;
       return parseDeployList(
         await getJson(`/sites/${encodeURIComponent(siteId)}/deploys?${query}`),
+      );
+    },
+    async getPublishedCommitRef() {
+      return parsePublishedCommitRef(
+        await getJson(`/sites/${encodeURIComponent(siteId)}`),
       );
     },
     async getDeploy(deployId) {
