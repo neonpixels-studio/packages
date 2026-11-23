@@ -60,7 +60,7 @@ async function fetchTargetDeploy(
 async function resolveSiteId(
   request: VerifyRequest,
   deploy: NetlifyDeploy,
-  client: NetlifySiteLookup,
+  client: NetlifyVerifyClient,
 ): Promise<string> {
   return deploy.siteId === request.siteId ? request.siteId : client.getSiteId();
 }
@@ -68,7 +68,7 @@ async function resolveSiteId(
 async function describeOwnership(
   request: VerifyRequest,
   deploy: NetlifyDeploy,
-  client: NetlifySiteLookup,
+  client: NetlifyVerifyClient,
 ): Promise<string | null> {
   if (request.target.kind !== "deploy-id") {
     return null;

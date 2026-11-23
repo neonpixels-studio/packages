@@ -63,6 +63,15 @@ describe("createNetlifyClient", () => {
     expect(String(url)).toMatch(/\/sites\/my-site\.netlify\.app$/);
   });
 
+  it("treats a missing site as fatal", async () => {
+    const client = createNetlifyClient({
+      siteId: "typo",
+      token: "t",
+      fetchImpl: respond(404, {}),
+    });
+    await expect(client.getSiteId()).rejects.toBeInstanceOf(NetlifyFatalError);
+  });
+
   it("fails fatally when the site payload has no id", async () => {
     const client = createNetlifyClient({
       siteId: "s",

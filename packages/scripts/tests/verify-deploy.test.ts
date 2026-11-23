@@ -248,6 +248,20 @@ describe("verifyDeploy", () => {
     expect(list).toHaveBeenCalledTimes(11);
   });
 
+  it("never looks the site up when searching by title", async () => {
+    const getSiteId = vi.fn(async () => "site-uuid");
+    const { environment } = harness({
+      listProductionDeploys: async () => [deploy({ siteId: "site-uuid" })],
+      getSiteId,
+    });
+    const result = await verifyDeploy(
+      { ...request, siteId: "my-site" },
+      environment,
+    );
+    expect(result).toMatchObject({ ok: true });
+    expect(getSiteId).not.toHaveBeenCalled();
+  });
+
   describe("verify-only mode", () => {
     const byId: VerifyRequest = {
       ...request,
