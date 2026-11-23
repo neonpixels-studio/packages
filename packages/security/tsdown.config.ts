@@ -1,0 +1,11 @@
+import { defineConfig } from "tsdown";
+
+export default defineConfig({
+  entry: ["src/index.ts", "src/netlify.ts"],
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  fixedExtension: false,
+  clean: true,
+  dts: true,
+});

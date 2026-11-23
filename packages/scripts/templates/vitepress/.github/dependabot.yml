@@ -1,0 +1,50 @@
+version: 2
+# No target-branch override: updates go to the default branch, which also keeps
+# Dependabot security update PRs enabled.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    assignees:
+      - grimicorn
+    schedule:
+      interval: weekly
+    groups:
+      # Listed first so minor and patch bumps, vite and vitepress included, land
+      # in one weekly PR. Dependabot assigns an update to the first group that
+      # matches it.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # vite, vitepress, and the tools that peer on vite move together. A major
+      # bump to any of them falls through the group above into this one, so it
+      # ships in one PR instead of splitting across stale peer ranges.
+      vite-vitepress:
+        patterns:
+          - vite
+          - vitepress
+          - "@tailwindcss/vite"
+          - "@vitejs/plugin-vue"
+          - vitest
+      # A group's patterns only apply to scheduled updates unless
+      # `applies-to: security-updates` is set, so security bumps need their own.
+      vite-vitepress-security:
+        applies-to: security-updates
+        patterns:
+          - vite
+          - vitepress
+          - "@tailwindcss/vite"
+          - "@vitejs/plugin-vue"
+          - vitest
+  - package-ecosystem: github-actions
+    directory: "/"
+    assignees:
+      - grimicorn
+    schedule:
+      interval: weekly
+    groups:
+      # Keep the SHA-pinned workflow actions current in a single PR.
+      actions:
+        update-types:
+          - minor
+          - patch

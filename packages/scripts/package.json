@@ -1,7 +1,7 @@
 {
   "name": "@neon-pixels/scripts",
   "version": "0.2.0",
-  "description": "CI and deploy scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, migration bookkeeping checks, Lighthouse failure reporting, and Netlify production deploy checks.",
+  "description": "CI and deploy scripts for Neon Pixels projects: dependency audit gate, GitHub Actions pinning check, migration bookkeeping checks, Lighthouse failure reporting, Netlify production deploy checks, and a sync of hooks, Dependabot, gitleaks, and Node version templates.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -16,13 +16,15 @@
     "np-check-migration-snapshots": "./dist/check-migration-snapshots.js",
     "np-report-lighthouse-failure": "./dist/report-lighthouse-failure.js",
     "np-should-deploy": "./dist/should-deploy.js",
+    "np-sync-templates": "./dist/sync-templates.js",
     "np-verify-netlify-deploy": "./dist/verify-netlify-deploy.js"
   },
   "exports": {
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "templates"
   ],
   "publishConfig": {
     "access": "public"

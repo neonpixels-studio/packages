@@ -146,3 +146,37 @@ Environment variables, all passed by the workflow:
 | `--site`     | the repository name                    | Site named when the run failed before any assertion was recorded |
 
 A run that failed before assertions were recorded (a failed build) still files one issue, under the `--site` name. The issue links the commit range since the last successful scheduled run of the workflow.
+
+## `np-sync-templates`
+
+Copies the files a package cannot export (husky hooks, Dependabot config, the base gitleaks config, and the pinned Node version) into the current repository, so they stop drifting between apps.
+
+```sh
+pnpm exec np-sync-templates --stack nuxt
+pnpm exec np-sync-templates --stack nuxt --check
+```
+
+Run it from the repository root. `--stack` is required and is `nuxt`, `vitepress`, or `node`. With `--check` nothing is written: it prints a diff for every file that differs (`-` is the repository's line, `+` the template's) and exits 1, so CI can fail on drift.
+
+It touches only these files, and refuses any path that is a symlink or resolves outside the current directory:
+
+| File                     | Variants                                                     |
+| ------------------------ | ------------------------------------------------------------ |
+| `.nvmrc`                 | none                                                         |
+| `.gitleaks.toml`         | none                                                         |
+| `.github/dependabot.yml` | `vitepress` adds the vite and vitepress groups               |
+| `.husky/pre-commit`      | none                                                         |
+| `.husky/pre-push`        | `nuxt` runs `nuxt prepare` and `lint:ci`                     |
+| `.husky/post-merge`      | none                                                         |
+| `package.json` `engines` | none; sets `engines.node` and leaves every other field alone |
+
+`engines.node` is a range that accepts the version pinned in `.nvmrc`, so tooling that checks `engines` can reject an unsupported Node version (npm and pnpm only warn unless `engine-strict=true` is set in `.npmrc`, which this sync does not manage). The hooks assume npm; the pre-push hooks run `lint`, `typecheck`, and `test:ci` scripts.
+
+### Repo-specific sections
+
+Lines between `# np-sync:begin <name>` and `# np-sync:end <name>` are kept when the file is synced, and everything else is overwritten. A file that has no markers yet is overwritten whole, so run `--check` and move any lines you want to keep into a section before the first sync. A section the repository does not have yet starts empty from the template. The synced files offer:
+
+- `.gitleaks.toml`: `extra-rules` (more `[[rules]]`) and `allowlist` (more keys for the `[allowlist]` table, such as `commits` or `regexes`; do not repeat `paths`).
+- `.husky/pre-commit` and `.husky/pre-push`: `repo-specific`, for extra steps before the shared ones.
+
+Broken markers (unclosed, nested, duplicated, or unmatched) and sections with content that the template does not know stop the sync with an error before anything is written, so lines inside a section are never dropped.
