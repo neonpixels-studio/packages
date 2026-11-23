@@ -80,7 +80,7 @@ function readBuildTimeOnly(
       `allowlist entry ${position} needs a boolean "buildTimeOnly"`,
     );
   }
-  if (entry["buildTimeOnly"] && !("package" in entry)) {
+  if (!("package" in entry)) {
     throw new Error(
       `allowlist entry ${position} sets "buildTimeOnly" without a "package" to check for`,
     );

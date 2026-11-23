@@ -1,6 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   contentSignal,
@@ -111,6 +117,47 @@ describe("runAbsentDependencyCheck", () => {
     expect(errors).toHaveLength(2);
   });
 
+  it("finds a package when the directory is written as ./dir or dir/", () => {
+    writeOutput({ "node_modules/vite/index.js": "export {};" });
+    const relativeDirectory = relative(process.cwd(), outputDirectory);
+    expect(runAbsentDependencyCheck([`./${relativeDirectory}`, "vite"])).toBe(
+      1,
+    );
+    expect(runAbsentDependencyCheck([`${outputDirectory}/`, "vite"])).toBe(1);
+    expect(errors.every((line) => line.includes(" node_modules/vite"))).toBe(
+      true,
+    );
+  });
+
+  it("reads through a symlinked file", () => {
+    writeOutput({ "real/chunk.mjs": "//#region node_modules/vite/a.js" });
+    symlinkSync(
+      join(outputDirectory, "real/chunk.mjs"),
+      join(outputDirectory, "linked.mjs"),
+    );
+    expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
+    expect(errors).toEqual([expect.stringContaining("vite found in")]);
+  });
+
+  it("fails closed on a dangling symlink", () => {
+    writeOutput({ "a.mjs": "" });
+    symlinkSync(join(outputDirectory, "gone"), join(outputDirectory, "dead"));
+    expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(1);
+    expect(errors[0]).toContain("ENOENT");
+  });
+
+  it("rejects an unknown flag", () => {
+    writeOutput({ "a.mjs": "" });
+    expect(runAbsentDependencyCheck([outputDirectory, "--oops", "vite"])).toBe(
+      1,
+    );
+  });
+
+  it("accepts legacy package names with capitals", () => {
+    writeOutput({ "a/node_modules/JSONStream/index.js": "" });
+    expect(runAbsentDependencyCheck([outputDirectory, "JSONStream"])).toBe(1);
+  });
+
   it("ignores binary files", () => {
     writeOutput({ "server/blob.bin": "node_modules/vite/\0" });
     expect(runAbsentDependencyCheck([outputDirectory, "vite"])).toBe(0);
@@ -200,6 +247,8 @@ describe("detection helpers", () => {
       "import specifier",
     );
     expect(contentSignal('from "vite-plugin"', "vite")).toBeNull();
+    expect(contentSignal('Buffer.from("vite")', "vite")).toBeNull();
+    expect(contentSignal('loader.import("vite")', "vite")).toBeNull();
     expect(contentSignal('const name = "vite";', "vite")).toBeNull();
   });
 
@@ -246,6 +295,9 @@ describe("buildTimeOnly allowlist field", () => {
     ).toThrow('boolean "buildTimeOnly"');
     expect(() =>
       parseAllowlist(JSON.stringify([{ ...ENTRY, buildTimeOnly: true }])),
+    ).toThrow('without a "package"');
+    expect(() =>
+      parseAllowlist(JSON.stringify([{ ...ENTRY, buildTimeOnly: false }])),
     ).toThrow('without a "package"');
   });
 });

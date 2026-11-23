@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import {
   buildTimeOnlyPackages,
@@ -15,6 +15,7 @@ import {
 
 const DEFAULT_ALLOWLIST_PATH = "audit-allowlist.json";
 const NUL_BYTE = "\0";
+const LOG_PREFIX = "np-check-absent-dependency:";
 
 export interface OutputEntry {
   /** Path relative to the output directory, with the platform separator. */
@@ -32,15 +33,25 @@ export interface AbsentDependencyEnvironment {
   readTextFile(path: string): string | null;
 }
 
+// A symlink counts as a file when it points at one, so linked chunks are read.
+// A dangling link throws, which fails the check instead of skipping it.
+function listOutputOnDisk(directory: string): OutputEntry[] {
+  return readdirSync(directory, { recursive: true, withFileTypes: true })
+    .map((entry) => {
+      const absolute = join(entry.parentPath, entry.name);
+      return {
+        path: relative(directory, absolute),
+        isFile: entry.isSymbolicLink()
+          ? statSync(absolute).isFile()
+          : entry.isFile(),
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path));
+}
+
 export const systemEnvironment: AbsentDependencyEnvironment = {
   isDirectory: (path) => existsSync(path) && statSync(path).isDirectory(),
-  listOutput: (directory) =>
-    readdirSync(directory, { recursive: true, withFileTypes: true })
-      .map((entry) => ({
-        path: join(entry.parentPath, entry.name).slice(directory.length + 1),
-        isFile: entry.isFile(),
-      }))
-      .sort((left, right) => left.path.localeCompare(right.path)),
+  listOutput: listOutputOnDisk,
   readOutputFile: (directory, path) =>
     readFileSync(join(directory, path), "utf-8"),
   readTextFile: (path) =>
@@ -134,6 +145,17 @@ function readTextContent(
   return isBinary(content) ? null : content;
 }
 
+function findingsForEntry(
+  names: string[],
+  entry: OutputEntry,
+  content: string | null,
+): Finding[] {
+  return names.flatMap((name) => {
+    const signal = signalFor(name, entry, content);
+    return signal === null ? [] : [{ name, path: entry.path, signal }];
+  });
+}
+
 // Each file is read once, and a name stops being searched after its first hit.
 function findDependencies(
   names: string[],
@@ -147,11 +169,8 @@ function findDependencies(
       break;
     }
     const content = readTextContent(entry, readContent);
-    for (const name of remaining) {
-      const signal = signalFor(name, entry, content);
-      if (signal !== null) {
-        found.set(name, { name, path: entry.path, signal });
-      }
+    for (const finding of findingsForEntry(remaining, entry, content)) {
+      found.set(finding.name, finding);
     }
   }
   return [...found.values()];
@@ -182,18 +201,18 @@ export function runAbsentDependencyCheck(
     const { names, findings } = check(argv, environment);
     for (const finding of findings) {
       console.error(
-        `np-check-absent-dependency: ${finding.name} found in ${finding.path} (${finding.signal})`,
+        `${LOG_PREFIX} ${finding.name} found in ${finding.path} (${finding.signal})`,
       );
     }
     if (findings.length === 0) {
       console.log(
-        `np-check-absent-dependency: ${names.length} packages checked, none in the output`,
+        `${LOG_PREFIX} ${names.length} packages checked, none in the output`,
       );
     }
     return findings.length > 0 ? 1 : 0;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    console.error(`np-check-absent-dependency: ${reason}`);
+    console.error(`${LOG_PREFIX} ${reason}`);
     return 1;
   }
 }

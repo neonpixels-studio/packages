@@ -1,5 +1,5 @@
 const PACKAGE_NAME_PATTERN =
-  /^(@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/;
+  /^(@[A-Za-z0-9~-][A-Za-z0-9._~-]*\/)?[A-Za-z0-9~-][A-Za-z0-9._~-]*$/;
 const SPECIFIER_QUOTES = "[\"'`]";
 
 export type Signal =
@@ -52,6 +52,21 @@ export function isPackageManifestFor(
   }
 }
 
+const specifierPatterns = new Map<string, RegExp>();
+
+// The lookbehind keeps `Buffer.from("name")` and `obj.import("name")` out.
+function specifierPatternFor(name: string): RegExp {
+  const cached = specifierPatterns.get(name);
+  if (cached) {
+    return cached;
+  }
+  const pattern = new RegExp(
+    `(?<![.\\w$])(?:from|import|require)\\s*\\(?\\s*${SPECIFIER_QUOTES}${escapeForRegExp(name)}(?:/[^"'\`]*)?${SPECIFIER_QUOTES}`,
+  );
+  specifierPatterns.set(name, pattern);
+  return pattern;
+}
+
 /**
  * Finds a bundled or external copy by what bundlers leave in text: the
  * `node_modules/<name>/` path in region comments and source maps, or an
@@ -61,8 +76,5 @@ export function contentSignal(content: string, name: string): Signal | null {
   if (content.includes(nodeModulesMarker(name))) {
     return "node_modules reference";
   }
-  const specifier = new RegExp(
-    `(?:\\bfrom|\\bimport|\\brequire)\\s*\\(?\\s*${SPECIFIER_QUOTES}${escapeForRegExp(name)}(?:/[^"'\`]*)?${SPECIFIER_QUOTES}`,
-  );
-  return specifier.test(content) ? "import specifier" : null;
+  return specifierPatternFor(name).test(content) ? "import specifier" : null;
 }
