@@ -77,6 +77,20 @@ describe("scrubText patterns", () => {
     expect(scrubText(input)).toBe(expected);
   });
 
+  it("leaves SQL placeholders alone", () => {
+    const sql = "SELECT * FROM t WHERE id IN (?, ?) AND (a = ?)";
+
+    expect(scrubText(sql)).toBe(sql);
+  });
+
+  it("scans a long delimiter-free value in linear time", () => {
+    const started = performance.now();
+
+    scrubText(`${"a.".repeat(6000)}"x":1`);
+
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it("leaves ordinary text alone", () => {
     const text = "Failed to load /dashboard for user 42: timeout after 30s";
 

@@ -1,10 +1,11 @@
 import { REDACTED } from "./constants.ts";
 
-const ABSOLUTE_URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+const ABSOLUTE_URL_PATTERN = /\b[a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'<>]+/gi;
 // Path-relative URLs that carry a query or fragment ("Page not found: /cb?code=1").
 const RELATIVE_URL_PATTERN = /(^|[\s"'(<=])(\/[^\s"'<>?#]*[?#][^\s"'<>]*)/g;
-// A bare query string, such as the tail of a split-out URL.
-const BARE_QUERY_PATTERN = /(^|[\s"'(<])(\?[^\s"'<>]+)/g;
+// A bare query string, such as the tail of a split-out URL. It needs a
+// name=value pair so SQL placeholders ("IN (?, ?)") are left alone.
+const BARE_QUERY_PATTERN = /(^|[\s"'(<])(\?[\w.%-]+=[^\s"'<>]*)/g;
 
 function redactQueryParameter(parameter: string): string {
   const separatorIndex = parameter.indexOf("=");

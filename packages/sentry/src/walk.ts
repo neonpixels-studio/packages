@@ -109,13 +109,20 @@ function isEmptyValue(value: unknown): boolean {
 
 const WRAPPER_FIELDS = new Set(["value", "type", "unit"]);
 
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
 // Streamed span attributes arrive wrapped as { value, type }; the key's rules
-// apply to the value inside, and the wrapper stays intact.
+// apply to the value inside, and the wrapper stays intact. Anything else under
+// those names is an ordinary object.
 function isWrappedAttribute(entry: unknown): entry is PlainRecord {
   return (
     isRecord(entry) &&
     "value" in entry &&
-    Object.keys(entry).every((name) => WRAPPER_FIELDS.has(name))
+    Object.keys(entry).every((name) => WRAPPER_FIELDS.has(name)) &&
+    isOptionalString(entry.type) &&
+    isOptionalString(entry.unit)
   );
 }
 
@@ -125,11 +132,33 @@ function scrubWrappedAttribute(
   context: ScrubContext,
   depth: number,
   ancestors: WeakSet<object>,
-): PlainRecord {
-  const value = scrubEntry(key, wrapper.value, context, depth, ancestors);
-  const retyped =
-    typeof value === "string" && typeof wrapper.value !== "string";
-  return { ...wrapper, value, ...(retyped ? { type: "string" } : {}) };
+): unknown {
+  if (ancestors.has(wrapper)) {
+    return CIRCULAR;
+  }
+  if (depth >= MAX_SCRUB_DEPTH) {
+    return TRUNCATED;
+  }
+  ancestors.add(wrapper);
+  try {
+    const value = scrubEntry(key, wrapper.value, context, depth + 1, ancestors);
+    const retyped =
+      typeof value === "string" && typeof wrapper.value !== "string";
+    return {
+      ...scrubOptionalStrings(wrapper, context),
+      value,
+      ...(retyped ? { type: "string" } : {}),
+    };
+  } finally {
+    ancestors.delete(wrapper);
+  }
+}
+
+function scrubOptionalStrings(wrapper: PlainRecord, context: ScrubContext) {
+  const fields = ["type", "unit"].filter((name) => name in wrapper);
+  return Object.fromEntries(
+    fields.map((name) => [name, context.text(wrapper[name] as string)]),
+  );
 }
 
 function scrubEntry(

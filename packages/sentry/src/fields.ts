@@ -88,16 +88,16 @@ export function scrubFields(
   source: object,
   context: ScrubContext,
 ): FieldsResult {
-  const entries: Array<[string, unknown]> = [];
-  const dropped: string[] = [];
-  for (const name of Object.keys(source)) {
-    const result = scrubFieldSafely(source as PlainRecord, name, context);
-    if (result.ok) {
-      entries.push([name, result.value]);
-      continue;
-    }
-    dropped.push(name);
-  }
+  const results = Object.keys(source).map(
+    (name) =>
+      [name, scrubFieldSafely(source as PlainRecord, name, context)] as const,
+  );
+  const entries = results.flatMap(([name, result]) =>
+    result.ok ? [[name, result.value] as [string, unknown]] : [],
+  );
+  const dropped = results
+    .filter(([, result]) => !result.ok)
+    .map(([name]) => name);
   return { scrubbed: Object.fromEntries(entries), dropped };
 }
 

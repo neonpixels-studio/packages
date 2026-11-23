@@ -8,7 +8,17 @@ import { redactEmbeddedUrls, redactUrlParts } from "./urls.ts";
 
 export type TextScrubber = (text: string) => string;
 
-const TRAILING_TOKEN_PATTERN = /[^\s,;&"'}\])]*$/;
+const TOKEN_DELIMITER_PATTERN = /[\s,;&"'}\])]/;
+
+// Scans backward rather than with a regex: a trailing-run pattern is
+// quadratic on a long value with no delimiter near its end.
+function startOfTrailingToken(head: string): number {
+  let index = head.length;
+  while (index > 0 && !TOKEN_DELIMITER_PATTERN.test(head.charAt(index - 1))) {
+    index -= 1;
+  }
+  return index;
+}
 
 // Cutting mid-token would leave half a secret the patterns cannot match, so
 // the trailing partial token is dropped when the text is over the cap.
@@ -17,8 +27,7 @@ function capForScrubbing(text: string): string {
     return text;
   }
   const head = text.slice(0, MAX_SCRUB_LENGTH);
-  const trailingToken = TRAILING_TOKEN_PATTERN.exec(head);
-  return `${head.slice(0, trailingToken?.index ?? head.length)}${TRUNCATED}`;
+  return `${head.slice(0, startOfTrailingToken(head))}${TRUNCATED}`;
 }
 
 function applyPatterns(text: string, patterns: readonly ScrubPattern[]) {

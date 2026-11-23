@@ -42,12 +42,13 @@ function scrubObject(
   source: unknown,
   context: ScrubContext,
   markDropped: DropMarker,
+  unreadable: PlainRecord,
 ): PlainRecord {
   try {
     const { scrubbed, dropped } = scrubFields(source as object, context);
     return markDropped(scrubbed, dropped);
   } catch {
-    return unreadableResult();
+    return unreadable;
   }
 }
 
@@ -90,14 +91,21 @@ export function createScrubber(options: ScrubberOptions = {}): Scrubber {
     if (!isObject(subject)) {
       return subject;
     }
-    return scrubObject(subject, context, withDroppedTag) as T;
+    return scrubObject(
+      subject,
+      context,
+      withDroppedTag,
+      unreadableResult(),
+    ) as T;
   };
 
   const scrubSpan = <T extends object>(span: T): T => {
     if (!isObject(span)) {
       return span;
     }
-    return scrubObject(span, context, markDroppedOnSpan) as T;
+    return scrubObject(span, context, markDroppedOnSpan, {
+      data: { [SCRUB_DROPPED_TAG]: "span" },
+    }) as T;
   };
 
   // A frame that is only partly scrubbed would corrupt the recording, so the
@@ -127,7 +135,7 @@ export function createScrubber(options: ScrubberOptions = {}): Scrubber {
       return event;
     }
     return stripReplayUrls(
-      scrubObject(event, context, withDroppedTag),
+      scrubObject(event, context, withDroppedTag, unreadableResult()),
       text,
     ) as T;
   };

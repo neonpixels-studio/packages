@@ -31,8 +31,8 @@ export const SECRET_PATTERNS: readonly ScrubPattern[] = [
   [/-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----/g, REDACTED],
   [/-----BEGIN [A-Z0-9 ]+-----[\s\S]*/g, REDACTED],
   // scheme://user:password@host and scheme://token@host
-  [/\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]*:[^\s@]+@[^\s"'<]+/gi, REDACTED_URL],
-  [/\b[a-z][a-z0-9+.-]*:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi, REDACTED_URL],
+  [/\b[a-z][a-z0-9+.-]{0,31}:\/\/[^\s/:@]*:[^\s@]+@[^\s"'<]+/gi, REDACTED_URL],
+  [/\b[a-z][a-z0-9+.-]{0,31}:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi, REDACTED_URL],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, REDACTED],
   [/\b(?:(?:sk|pk|rk)_(?:live|test)|whsec)_[A-Za-z0-9_-]+/g, REDACTED],
   [/\b(Basic|Bearer)\s+[^\s"'<>,;]+/gi, `$1 ${REDACTED}`],

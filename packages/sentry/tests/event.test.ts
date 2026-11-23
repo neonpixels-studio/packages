@@ -239,6 +239,28 @@ describe("scrubEvent", () => {
     });
   });
 
+  it("scrubs secrets hidden in the type or unit of a wrapper-shaped object", () => {
+    const scrubbed = scrubEvent({
+      extra: {
+        a: { value: 1, type: STRIPE_KEY },
+        b: { value: 1, type: { token: "FAKEnested" } },
+        c: { value: 1, unit: WEBHOOK_SECRET },
+      },
+    });
+
+    expectNoSecrets(scrubbed);
+    expect(JSON.stringify(scrubbed)).not.toContain("FAKEnested");
+  });
+
+  it("survives a wrapper that contains itself", () => {
+    const wrapper: Record<string, unknown> = { type: "string" };
+    wrapper.value = wrapper;
+
+    const scrubbed = scrubEvent({ extra: { loop: wrapper } });
+
+    expect(scrubbed.extra.loop.value).toBe(CIRCULAR);
+  });
+
   it("redacts keys named auth, sig, or with a dotted api key", () => {
     const scrubbed = scrubEvent({
       extra: {

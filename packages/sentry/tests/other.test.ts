@@ -54,6 +54,19 @@ describe("scrubSpan failure", () => {
     },
   };
 
+  it("keeps the span usable when its fields cannot be read", () => {
+    const proxy = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("no keys");
+        },
+      },
+    );
+
+    expect(scrubSpan(proxy)).toEqual({ data: { [SCRUB_DROPPED_TAG]: "span" } });
+  });
+
   it("records a dropped section in the data of a static span", () => {
     const scrubbed = scrubSpan({
       description: "x",

@@ -119,9 +119,8 @@ export function seededText(): string {
 
 export function expectNoSecrets(output: unknown): void {
   const serialized = JSON.stringify(output);
-  for (const marker of allMarkers()) {
-    if (serialized.includes(marker)) {
-      throw new Error(`secret marker survived scrubbing: ${marker}`);
-    }
+  const survivor = allMarkers().find((marker) => serialized.includes(marker));
+  if (survivor !== undefined) {
+    throw new Error(`secret marker survived scrubbing: ${survivor}`);
   }
 }
