@@ -4,6 +4,9 @@ export default defineConfig({
   entry: [
     "src/audit-gate.ts",
     "src/check-action-pinning.ts",
+    "src/check-migration-drift.ts",
+    "src/check-migration-snapshots.ts",
+    "src/report-lighthouse-failure.ts",
     "src/should-deploy.ts",
     "src/verify-netlify-deploy.ts",
   ],

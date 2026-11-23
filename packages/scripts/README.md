@@ -95,3 +95,54 @@ Environment variables, all passed by the workflow:
 | `--interval-seconds` | `15`    | Wait between polls      |
 
 `error`, `cancelled`, `rejected`, and `skipped` deploys fail immediately. Transient API errors (5xx, network) are retried until the timeout, and one last poll always runs at the deadline. Both flags take whole seconds from 1 to 21600. A rejected token or an unknown site id fails immediately.
+
+## `np-check-migration-drift`
+
+Run before `drizzle-kit migrate`. Compares the migrations recorded in the database (`drizzle.__drizzle_migrations`) with the journal and refuses to migrate when drizzle would re-run applied DDL or skip a migration forever. drizzle chooses what to run by a timestamp watermark and never compares hashes, so an edited journal `when` or an out-of-order migration is invisible until a deploy fails.
+
+```sh
+pnpm exec np-check-migration-drift
+pnpm exec np-check-migration-drift --migrations-dir server/db/migrations --database-url-variable DATABASE_URL_UNPOOLED
+```
+
+- Reports `unknown-hash` (a recorded migration is not in the journal), `timestamp-drift` (a journal timestamp was raised above the watermark after the migration ran), and `silently-skipped` (an unapplied migration sits at or below the watermark). A journal timestamp lowered below the watermark is harmless and not reported.
+- A database with no `drizzle.__drizzle_migrations` table yet is not drift; it passes.
+- The migrations directory comes from `--migrations-dir`, then the `MIGRATIONS_DIR` variable, then `server/db/migrations`.
+- The database URL is read from an environment variable only (`DATABASE_URL` unless `--database-url-variable` names another), never from an argument, and is never printed, not even in errors.
+- It queries over Neon's SQL-over-HTTP endpoint, so it needs a Neon connection string and no database driver. Migration hashes are computed the way drizzle computes them (sha256 of each `.sql` file).
+
+## `np-check-migration-snapshots`
+
+Fails when a drizzle journal entry has no `<NNNN>_snapshot.json` in `meta/`, a snapshot has no journal entry, or a snapshot's `prevId` does not match the id of the snapshot before it (the first must use drizzle's all-zero root id). Any of these makes the next `drizzle-kit generate` diff against a stale base schema.
+
+```sh
+pnpm exec np-check-migration-snapshots
+pnpm exec np-check-migration-snapshots --migrations-dir server/db/migrations
+```
+
+The migrations directory is resolved as for `np-check-migration-drift`. A journal whose `idx` does not match its tag prefix, with duplicate `idx` values, or with no entries also fails.
+
+## `np-report-lighthouse-failure`
+
+Files a GitHub issue for a failed scheduled Lighthouse run, from a report job that runs after the audit. It reads Lighthouse CI's `.lighthouseci/assertion-results.json` and opens one issue per failing site (grouped by page host), titled `Lighthouse regression on <host>`, labeled `lighthouse-regression` and `p1` (created if missing). If the site already has an open issue it comments on it instead. After a passing run, `--passed` closes every open regression issue.
+
+```sh
+pnpm exec np-report-lighthouse-failure
+pnpm exec np-report-lighthouse-failure --passed
+```
+
+Environment variables, all passed by the workflow:
+
+- `GH_TOKEN`: a token that can manage issues and labels (the `gh` CLI reads it). `gh` must be on the PATH, as it is on GitHub-hosted runners.
+- `GITHUB_REPOSITORY`: set by GitHub Actions.
+- `RUN_URL` and `HEAD_SHA`: the failed run's URL and commit (required unless `--passed`).
+- `BUILD_OUTCOME` (optional): the build step's outcome (`success`, `failure`, `cancelled`, `skipped`), used to say which step failed.
+
+| Flag         | Default                                | Meaning                                                          |
+| ------------ | -------------------------------------- | ---------------------------------------------------------------- |
+| `--passed`   |                                        | Close open regression issues instead of filing one               |
+| `--results`  | `.lighthouseci/assertion-results.json` | Lighthouse CI assertion results                                  |
+| `--workflow` | `lighthouse.yml`                       | Workflow file, to link the commits since its last passing run    |
+| `--site`     | the repository name                    | Site named when the run failed before any assertion was recorded |
+
+A run that failed before assertions were recorded (a failed build) still files one issue, under the `--site` name. The issue links the commit range since the last successful scheduled run of the workflow.
