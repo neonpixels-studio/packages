@@ -3,17 +3,28 @@ import { REDACTED, REDACTED_URL } from "./constants.ts";
 export type ScrubPattern = readonly [pattern: RegExp, replacement: string];
 
 const CREDENTIAL_WORDS =
-  "authorization|cookie|password|passwd|pwd|api[_-]?key|secret|token|private[_-]?key|access[_-]?key|credential|signature";
+  "authorization|cookie|password|passwd|pwd|api[._-]?key|secret|token|private[._-]?key|access[._-]?key|credential|signature";
 
 // Object keys whose values are credentials whatever their content.
-export const SENSITIVE_KEY_PATTERN = new RegExp(CREDENTIAL_WORDS, "i");
+// A bare "auth" or "sig" name counts too ("x-sig", "auth"), but not a word that
+// merely ends in them ("design", "author").
+export const SENSITIVE_KEY_PATTERN = new RegExp(
+  `${CREDENTIAL_WORDS}|(?:^|[._-])(?:auth|sig)$`,
+  "i",
+);
 
 const NAME_AFFIX = "[A-Za-z0-9_-]{0,40}";
 const QUOTE = String.raw`(?:\\?["'])`;
-const VALUE = String.raw`(?:\\?"[^"\\]*\\?"|\\?'[^'\\]*\\?'|[^&\s"'<,}\\]+)`;
+// A quoted value ends at a closing quote followed by a delimiter, so an
+// escaped quote or a backslash inside it does not end the match early. A
+// quote that never closes (text cut by a length cap) runs to the end of line.
+const quoted = (quote: string) =>
+  String.raw`\\?${quote}[^\r\n]*?\\?${quote}(?=\s*(?:[,;&}\]\r\n]|$))`;
+const UNTERMINATED = String.raw`\\?["'][^\r\n]*`;
+const VALUE = `(?:${quoted('"')}|${quoted("'")}|${UNTERMINATED}|[^&\\s"'<,}\\\\]+)`;
 // The value of these headers can hold a scheme word and several tokens
-// ("Token abc", "a=1; b=2"), so it runs to the end of the line or quote.
-const LINE_VALUE = String.raw`(?:\\?"[^"\\]*\\?"|\\?'[^'\\]*\\?'|[^\r\n"'\\]+)`;
+// ("Token abc", "a=1; b=2"), so an unquoted one runs to the end of the line.
+const LINE_VALUE = `(?:${quoted('"')}|${quoted("'")}|${UNTERMINATED}|[^\\r\\n]+)`;
 
 export const SECRET_PATTERNS: readonly ScrubPattern[] = [
   // PEM blocks, and one cut off by a length cap before its END marker.

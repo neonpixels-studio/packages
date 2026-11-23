@@ -194,7 +194,7 @@ describe("scrubEvent", () => {
   it("redacts a credential key whose value is an object or a number", () => {
     const scrubbed = scrubEvent({
       extra: {
-        token: { value: STRIPE_KEY },
+        token: { nested: STRIPE_KEY },
         pin_secret: 1234,
         hasToken: false,
       },
@@ -217,6 +217,54 @@ describe("scrubEvent", () => {
       maxTokens: 4096,
       token: REDACTED,
     });
+  });
+
+  it("keeps the wrapper of streamed span attributes", () => {
+    const scrubbed = scrubEvent({
+      extra: {
+        "gen_ai.usage.input_tokens": { value: 512, type: "integer" },
+        "http.request.header.authorization": {
+          value: "Bearer FAKEbearertoken0123",
+        },
+        "http.query": { value: "code=1", type: "string" },
+        pin_secret: { value: 1234, type: "integer" },
+      },
+    });
+
+    expect(scrubbed.extra).toEqual({
+      "gen_ai.usage.input_tokens": { value: 512, type: "integer" },
+      "http.request.header.authorization": { value: REDACTED },
+      "http.query": { value: `code=${REDACTED}`, type: "string" },
+      pin_secret: { value: REDACTED, type: "string" },
+    });
+  });
+
+  it("redacts keys named auth, sig, or with a dotted api key", () => {
+    const scrubbed = scrubEvent({
+      extra: {
+        auth: "user:pass",
+        "x-sig": "abc",
+        "api.key": "k",
+        design: "dark",
+        author: "me",
+      },
+    });
+
+    expect(scrubbed.extra).toEqual({
+      auth: REDACTED,
+      "x-sig": REDACTED,
+      "api.key": REDACTED,
+      design: "dark",
+      author: "me",
+    });
+  });
+
+  it("scrubs the entries of a Map by key", () => {
+    const scrubbed = scrubEvent({
+      extra: { map: new Map([["password", "FAKEmappass"]]) },
+    });
+
+    expect(scrubbed.extra.map).toEqual({ password: REDACTED });
   });
 
   it("handles a __proto__ key as plain data", () => {
@@ -289,6 +337,17 @@ describe("scrubEvent resilience", () => {
     );
     expect(scrubbed.message.endsWith(TRUNCATED)).toBe(true);
     expectNoSecrets(scrubbed);
+  });
+
+  it("keeps the readable head of a long minified body", () => {
+    const body = JSON.stringify({
+      items: Array.from({ length: 3000 }, (_, index) => index),
+    });
+
+    const scrubbed = scrubEvent({ extra: { body } });
+
+    expect(scrubbed.extra.body.startsWith('{"items":[0,1,2')).toBe(true);
+    expect(scrubbed.extra.body.endsWith(TRUNCATED)).toBe(true);
   });
 
   it("redacts a secret that straddles the length cap", () => {

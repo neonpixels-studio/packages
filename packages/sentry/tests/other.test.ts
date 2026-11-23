@@ -47,6 +47,43 @@ describe("scrubSpan", () => {
   });
 });
 
+describe("scrubSpan failure", () => {
+  const hostile = {
+    get value(): never {
+      throw new Error("hostile");
+    },
+  };
+
+  it("records a dropped section in the data of a static span", () => {
+    const scrubbed = scrubSpan({
+      description: "x",
+      data: { a: 1 },
+      extra: hostile,
+    });
+
+    expect(scrubbed).toEqual({
+      description: "x",
+      data: { a: 1, [SCRUB_DROPPED_TAG]: "extra" },
+    });
+  });
+
+  it("records a dropped section in the attributes of a streamed span", () => {
+    const scrubbed = scrubSpan({
+      name: "x",
+      attributes: { a: { value: 1 } },
+      other: hostile,
+    });
+
+    expect(scrubbed).toEqual({
+      name: "x",
+      attributes: {
+        a: { value: 1 },
+        [SCRUB_DROPPED_TAG]: { value: "other", type: "string" },
+      },
+    });
+  });
+});
+
 describe("scrubRecordingEvent", () => {
   it("scrubs a Replay custom frame", () => {
     const frame = {
@@ -70,8 +107,8 @@ describe("scrubRecordingEvent", () => {
     const scrubbed = scrubRecordingEvent(frame);
 
     expectNoSecrets(scrubbed);
-    expect(scrubbed.type).toBe(5);
-    expect(scrubbed.data.tag).toBe("breadcrumb");
+    expect(scrubbed?.type).toBe(5);
+    expect(scrubbed?.data.tag).toBe("breadcrumb");
   });
 
   it("scrubs the page URL on an rrweb meta event", () => {
@@ -83,7 +120,7 @@ describe("scrubRecordingEvent", () => {
     expectNoSecrets(scrubRecordingEvent(meta));
   });
 
-  it("removes a section it cannot scrub without adding a tag", () => {
+  it("drops a frame it cannot fully scrub", () => {
     const frame = {
       type: 5,
       get data(): never {
@@ -91,7 +128,7 @@ describe("scrubRecordingEvent", () => {
       },
     };
 
-    expect(scrubRecordingEvent(frame)).toEqual({ type: 5 });
+    expect(scrubRecordingEvent(frame)).toBeNull();
   });
 });
 

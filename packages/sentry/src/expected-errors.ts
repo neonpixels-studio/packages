@@ -1,10 +1,11 @@
 import type { Event, EventHint } from "@sentry/core";
+import { isObject } from "./types.ts";
 
 const MIN_EXPECTED_STATUS = 300;
 const MAX_EXPECTED_STATUS = 499;
 
 function readStatusCode(error: unknown): number | undefined {
-  if (typeof error !== "object" || error === null) {
+  if (!isObject(error)) {
     return undefined;
   }
   const { statusCode } = error as { statusCode?: unknown };

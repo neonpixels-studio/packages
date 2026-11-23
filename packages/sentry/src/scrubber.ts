@@ -1,6 +1,6 @@
-import { REDACTED } from "./constants.ts";
+import { REDACTED, SCRUB_DROPPED_TAG } from "./constants.ts";
 import { scrubFields, unreadableResult, withDroppedTag } from "./fields.ts";
-import type { PlainRecord } from "./types.ts";
+import { isObject, isRecord, type PlainRecord } from "./types.ts";
 import { stripReplayUrls } from "./replay.ts";
 import {
   createTextScrubber,
@@ -30,19 +30,48 @@ export interface Scrubber {
   scrubEvent: <T extends object>(event: T) => T;
   /** Use as `beforeSendSpan`. Never throws. */
   scrubSpan: <T extends object>(span: T) => T;
-  /** Use as Replay's `beforeAddRecordingEvent`. Never throws. */
-  scrubRecordingEvent: <T extends object>(event: T) => T;
+  /** Use as Replay's `beforeAddRecordingEvent`. Returns null to drop a frame it cannot fully scrub. Never throws. */
+  scrubRecordingEvent: <T extends object>(event: T) => T | null;
   /** Use on replay events (`postprocessEvent`). Never throws. */
   scrubReplayEvent: <T extends object>(event: T) => T;
 }
 
-function scrubObject(source: unknown, context: ScrubContext): PlainRecord {
+type DropMarker = (scrubbed: PlainRecord, dropped: string[]) => PlainRecord;
+
+function scrubObject(
+  source: unknown,
+  context: ScrubContext,
+  markDropped: DropMarker,
+): PlainRecord {
   try {
     const { scrubbed, dropped } = scrubFields(source as object, context);
-    return withDroppedTag(scrubbed, dropped);
+    return markDropped(scrubbed, dropped);
   } catch {
     return unreadableResult();
   }
+}
+
+// Span JSON has no tags: the marker goes where the span keeps its attributes.
+function markDroppedOnSpan(
+  scrubbed: PlainRecord,
+  dropped: string[],
+): PlainRecord {
+  if (dropped.length === 0) {
+    return scrubbed;
+  }
+  const names = dropped.join(",");
+  if (dropped.includes("attributes") || isRecord(scrubbed.attributes)) {
+    const attributes = isRecord(scrubbed.attributes) ? scrubbed.attributes : {};
+    return {
+      ...scrubbed,
+      attributes: {
+        ...attributes,
+        [SCRUB_DROPPED_TAG]: { value: names, type: "string" },
+      },
+    };
+  }
+  const data = isRecord(scrubbed.data) ? scrubbed.data : {};
+  return { ...scrubbed, data: { ...data, [SCRUB_DROPPED_TAG]: names } };
 }
 
 function isReplayEvent(event: unknown): boolean {
@@ -57,23 +86,31 @@ export function createScrubber(options: ScrubberOptions = {}): Scrubber {
   const text = createTextScrubber(options.extraPatterns ?? []);
   const context: ScrubContext = { text, url: createUrlScrubber(text) };
 
-  const scrubObjectOrValue = <T extends object>(subject: T): T => {
-    if (typeof subject !== "object" || subject === null) {
+  const scrubEvent = <T extends object>(subject: T): T => {
+    if (!isObject(subject)) {
       return subject;
     }
-    return scrubObject(subject, context) as T;
+    return scrubObject(subject, context, withDroppedTag) as T;
   };
 
-  // A recording event is Replay's own payload, so no tag is added to it: a
-  // section that cannot be scrubbed is only removed.
-  const scrubRecordingEvent = <T extends object>(event: T): T => {
-    if (typeof event !== "object" || event === null) {
+  const scrubSpan = <T extends object>(span: T): T => {
+    if (!isObject(span)) {
+      return span;
+    }
+    return scrubObject(span, context, markDroppedOnSpan) as T;
+  };
+
+  // A frame that is only partly scrubbed would corrupt the recording, so the
+  // hook gets null (drop the frame) when any section fails.
+  const scrubRecordingEvent = <T extends object>(event: T): T | null => {
+    if (!isObject(event)) {
       return event;
     }
     try {
-      return scrubFields(event, context).scrubbed as T;
+      const { scrubbed, dropped } = scrubFields(event, context);
+      return dropped.length === 0 ? (scrubbed as T) : null;
     } catch {
-      return {} as T;
+      return null;
     }
   };
 
@@ -89,15 +126,18 @@ export function createScrubber(options: ScrubberOptions = {}): Scrubber {
     if (!isReplayEvent(event)) {
       return event;
     }
-    return stripReplayUrls(scrubObject(event, context), text) as T;
+    return stripReplayUrls(
+      scrubObject(event, context, withDroppedTag),
+      text,
+    ) as T;
   };
 
   return {
     scrubText: text,
     scrubUrl: context.url,
     scrubValue: scrubAnyValue,
-    scrubEvent: scrubObjectOrValue,
-    scrubSpan: scrubObjectOrValue,
+    scrubEvent,
+    scrubSpan,
     scrubRecordingEvent,
     scrubReplayEvent,
   };

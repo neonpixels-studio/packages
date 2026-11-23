@@ -44,6 +44,18 @@ describe("scrubText patterns", () => {
       String.raw`{\"token\":\"FAKEescaped\"}`,
       String.raw`{\"token\":${REDACTED}}`,
     ],
+    [
+      "escaped quote",
+      String.raw`{"password":"pa\"ss"}`,
+      `{"password":${REDACTED}}`,
+    ],
+    ["backslash", String.raw`{"password":"a\\b"}`, `{"password":${REDACTED}}`],
+    [
+      "unterminated quote",
+      'password: "my long pass phrase',
+      `password: ${REDACTED}`,
+    ],
+    ["quoted cookie value", 'Cookie: a=1; b="x"', `Cookie: ${REDACTED}`],
     ["private key name", "private_key=FAKEprivate", `private_key=${REDACTED}`],
     [
       "access key name",

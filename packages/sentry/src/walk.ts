@@ -75,16 +75,6 @@ function mapUrlEntry(
     ancestors.delete(entry);
     return mapped;
   }
-  if (isRecord(entry) && "value" in entry) {
-    // Streamed span attributes arrive wrapped as { value, type }.
-    const scrubbed = scrubValue(entry, context, depth + 1, ancestors);
-    return isRecord(scrubbed)
-      ? {
-          ...scrubbed,
-          value: mapUrlEntry(entry.value, context, depth + 1, ancestors),
-        }
-      : scrubbed;
-  }
   return scrubValue(entry, context, depth + 1, ancestors);
 }
 
@@ -117,6 +107,31 @@ function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined || value === "";
 }
 
+const WRAPPER_FIELDS = new Set(["value", "type", "unit"]);
+
+// Streamed span attributes arrive wrapped as { value, type }; the key's rules
+// apply to the value inside, and the wrapper stays intact.
+function isWrappedAttribute(entry: unknown): entry is PlainRecord {
+  return (
+    isRecord(entry) &&
+    "value" in entry &&
+    Object.keys(entry).every((name) => WRAPPER_FIELDS.has(name))
+  );
+}
+
+function scrubWrappedAttribute(
+  key: string,
+  wrapper: PlainRecord,
+  context: ScrubContext,
+  depth: number,
+  ancestors: WeakSet<object>,
+): PlainRecord {
+  const value = scrubEntry(key, wrapper.value, context, depth, ancestors);
+  const retyped =
+    typeof value === "string" && typeof wrapper.value !== "string";
+  return { ...wrapper, value, ...(retyped ? { type: "string" } : {}) };
+}
+
 function scrubEntry(
   key: string,
   entry: unknown,
@@ -124,6 +139,9 @@ function scrubEntry(
   depth: number,
   ancestors: WeakSet<object>,
 ): unknown {
+  if (isWrappedAttribute(entry)) {
+    return scrubWrappedAttribute(key, entry, context, depth, ancestors);
+  }
   const lowerKey = key.toLowerCase();
   if (isCredentialEntry(key, entry)) {
     return REDACTED;
@@ -182,7 +200,11 @@ function scrubContainer(
     return BINARY;
   }
   if (value instanceof Map) {
-    return scrubContainer([...value.entries()], context, depth, ancestors);
+    const entries = [...value.entries()].map(([key, entry]) => [
+      String(key),
+      entry,
+    ]);
+    return scrubEntries(Object.fromEntries(entries), context, depth, ancestors);
   }
   if (value instanceof Set) {
     return scrubContainer([...value.values()], context, depth, ancestors);

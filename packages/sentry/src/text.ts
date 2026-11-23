@@ -8,6 +8,8 @@ import { redactEmbeddedUrls, redactUrlParts } from "./urls.ts";
 
 export type TextScrubber = (text: string) => string;
 
+const TRAILING_TOKEN_PATTERN = /[^\s,;&"'}\])]*$/;
+
 // Cutting mid-token would leave half a secret the patterns cannot match, so
 // the trailing partial token is dropped when the text is over the cap.
 function capForScrubbing(text: string): string {
@@ -15,13 +17,8 @@ function capForScrubbing(text: string): string {
     return text;
   }
   const head = text.slice(0, MAX_SCRUB_LENGTH);
-  const lastBreak = Math.max(
-    head.lastIndexOf(" "),
-    head.lastIndexOf("\n"),
-    head.lastIndexOf("\t"),
-    head.lastIndexOf("\r"),
-  );
-  return `${head.slice(0, lastBreak + 1)}${TRUNCATED}`;
+  const trailingToken = TRAILING_TOKEN_PATTERN.exec(head);
+  return `${head.slice(0, trailingToken?.index ?? head.length)}${TRUNCATED}`;
 }
 
 function applyPatterns(text: string, patterns: readonly ScrubPattern[]) {
