@@ -6,7 +6,9 @@
 # build hook, then waits for that exact deploy to reach `ready`
 # (np-verify-netlify-deploy). A failed or cancelled deploy files one tracking
 # issue; a later verified deploy closes it. Runs of the same repository never
-# overlap: a second run queues behind the first instead of cancelling it.
+# overlap: a second run waits for the first instead of cancelling it. GitHub
+# keeps one waiting run per group, so a third run replaces the waiting one,
+# which then ends as cancelled.
 name: Production deploy
 
 on:
@@ -56,11 +58,12 @@ jobs:
       skipped: ${{ steps.decide.outputs.skip }}
     env:
       SCRIPTS_VERSION: ${{ inputs.scripts-version }}
-      NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
     steps:
       - name: Require secrets and inputs
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         run: |
           set -euo pipefail
           for name in NETLIFY_BUILD_HOOK_URL NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID; do
@@ -93,6 +96,8 @@ jobs:
         id: decide
         env:
           CURRENT_SHA: ${{ github.sha }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         run: np-should-deploy
       # A build hook cannot pin a commit, so refuse to fire it when main has
       # moved past the commit this run was started for.
@@ -104,7 +109,7 @@ jobs:
           set -euo pipefail
           remote_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
           if [ "${remote_sha}" != "${GITHUB_SHA}" ]; then
-            echo "::error::main moved to ${remote_sha} after this run started on ${GITHUB_SHA}. Nothing was deployed; re-run the workflow."
+            echo "::error::main moved to ${remote_sha} after this run started on ${GITHUB_SHA}. Nothing was deployed. Start a new run (Run workflow): a re-run keeps the old commit."
             exit 1
           fi
       # The hook answers with an empty body, so the verify step finds the deploy
@@ -113,6 +118,8 @@ jobs:
       - name: Trigger the Netlify production deploy
         id: trigger
         if: steps.decide.outputs.skip != 'true'
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
         run: |
           set -euo pipefail
           trigger_title="Production deploy run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
@@ -126,6 +133,8 @@ jobs:
       - name: Verify the Netlify production deploy
         if: steps.decide.outputs.skip != 'true'
         env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_TRIGGER_TITLE: ${{ steps.trigger.outputs.trigger_title }}
           NETLIFY_TRIGGERED_AT: ${{ steps.trigger.outputs.triggered_at }}
           EXPECTED_COMMIT_SHA: ${{ github.sha }}
@@ -154,7 +163,7 @@ jobs:
         run: |
           set -euo pipefail
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          body="The production deploy ${DEPLOY_RESULT} on ${GITHUB_SHA}. Run: ${run_url}"
+          body="The production deploy finished as ${DEPLOY_RESULT} on ${GITHUB_SHA}. A cancelled run may only have been replaced by a newer queued run. Run: ${run_url}"
           gh label create "${DEPLOY_FAILURE_LABEL}" --color B60205 --description "A scheduled production deploy failed" 2>/dev/null || true
           existing=$(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[0].number // empty')
           if [ -n "${existing}" ]; then
@@ -181,6 +190,8 @@ jobs:
         run: |
           set -euo pipefail
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          for number in $(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[].number'); do
+          # Assigned first so a failed lookup fails the step instead of looping zero times.
+          open_issues=$(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[].number')
+          for number in ${open_issues}; do
             gh issue close "${number}" --comment "A later production deploy was verified live: ${run_url}"
           done

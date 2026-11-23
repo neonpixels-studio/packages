@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -49,7 +50,7 @@ function stepScript(text: string, stepName: string): string {
     throw new Error(`Step not found: ${stepName}`);
   }
   const block = text.slice(start + 1);
-  const step = block.split(/\n(?: {0,5}\S| {6}- )/)[0] ?? block;
+  const step = block.split(/\n(?: {0,5}\S| {6}[-#])/)[0] ?? block;
   return step
     .slice(step.indexOf("run: |\n") + "run: |\n".length)
     .split("\n")
@@ -59,48 +60,66 @@ function stepScript(text: string, stepName: string): string {
 
 interface ScriptRun {
   status: number;
-  ghCalls: string[];
+  calls: Record<string, string[]>;
 }
 
-// Runs a step's script with a fake `gh` first on PATH that records its calls
-// and answers `issue list` with `existingIssue`.
-function runWithFakeGh(
+// Runs a step's script with fake commands first on PATH. Each fake records its
+// arguments and runs the given shell body (which may print or exit non-zero).
+function runScript(
   script: string,
   environment: Record<string, string>,
-  existingIssue: string,
+  fakes: Record<string, string> = {},
 ): ScriptRun {
-  const directory = mkdtempSync(join(tmpdir(), "np-fake-gh-"));
+  const directory = mkdtempSync(join(tmpdir(), "np-fake-bin-"));
   try {
-    const log = join(directory, "calls.log");
-    const fake = join(directory, "gh");
-    writeFileSync(
-      fake,
-      [
-        "#!/bin/bash",
-        `echo "$*" >> "${log}"`,
-        `if [ "$1 $2" = "issue list" ]; then echo "${existingIssue}"; fi`,
-        "",
-      ].join("\n"),
-    );
-    chmodSync(fake, 0o755);
-    writeFileSync(log, "");
+    for (const [name, body] of Object.entries(fakes)) {
+      const fake = join(directory, name);
+      writeFileSync(
+        fake,
+        `#!/bin/bash\necho "$*" >> "${join(directory, `${name}.log`)}"\n${body}\n`,
+      );
+      chmodSync(fake, 0o755);
+    }
     const result = spawnSync("bash", ["-c", script], {
       env: {
         PATH: `${directory}:${process.env.PATH}`,
         GITHUB_SERVER_URL: "https://github.example",
         GITHUB_REPOSITORY: "owner/repo",
         GITHUB_RUN_ID: "42",
+        GITHUB_RUN_ATTEMPT: "1",
         GITHUB_SHA: "abc123",
         DEPLOY_FAILURE_LABEL: "deploy-failure",
         DEPLOY_FAILURE_TITLE: "Production deploy failed",
         ...environment,
       },
     });
-    const calls = readFileSync(log, "utf-8").split("\n").filter(Boolean);
-    return { status: result.status ?? -1, ghCalls: calls };
+    const calls: Record<string, string[]> = {};
+    for (const name of Object.keys(fakes)) {
+      const log = join(directory, `${name}.log`);
+      calls[name] = existsSync(log)
+        ? readFileSync(log, "utf-8").split("\n").filter(Boolean)
+        : [];
+    }
+    return { status: result.status ?? -1, calls };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function runGh(
+  script: string,
+  environment: Record<string, string>,
+  listOutput: string,
+  listStatus = 0,
+): { status: number; gh: string[] } {
+  const result = runScript(script, environment, {
+    gh: `if [ "$1 $2" = "issue list" ]; then echo "${listOutput}"; exit ${listStatus}; fi`,
+  });
+  return { status: result.status, gh: result.calls.gh ?? [] };
+}
+
+function statusOf(script: string, environment: Record<string, string>) {
+  return runScript(script, environment).status;
 }
 
 describe.each([
@@ -203,11 +222,7 @@ describe("reusable production-deploy workflow", () => {
     };
 
     function run(environment: Record<string, string>): number {
-      return (
-        spawnSync("bash", ["-c", script], {
-          env: { PATH: process.env.PATH, ...environment },
-        }).status ?? -1
-      );
+      return statusOf(script, environment);
     }
 
     it("accepts a complete set", () => {
@@ -235,26 +250,30 @@ describe("reusable production-deploy workflow", () => {
       DEPLOY,
       "Open or update the deploy failure issue",
     );
-    const environment = { DEPLOY_RESULT: "failure" };
 
     it("opens an issue when none is open", () => {
-      const result = runWithFakeGh(script, environment, "");
+      const result = runGh(script, { DEPLOY_RESULT: "failure" }, "");
       expect(result.status).toBe(0);
       expect(
-        result.ghCalls.filter((call) => call.startsWith("issue create")),
+        result.gh.filter((call) => call.startsWith("issue create")),
       ).toHaveLength(1);
-      expect(result.ghCalls.join("\n")).toContain("--label deploy-failure");
+      expect(result.gh.join("\n")).toContain("--label deploy-failure");
     });
 
     it("comments on the open issue instead of opening a second one", () => {
-      const result = runWithFakeGh(script, environment, "17");
+      const result = runGh(script, { DEPLOY_RESULT: "failure" }, "17");
       expect(result.status).toBe(0);
+      expect(result.gh.some((call) => call.startsWith("issue create"))).toBe(
+        false,
+      );
       expect(
-        result.ghCalls.some((call) => call.startsWith("issue create")),
-      ).toBe(false);
-      expect(
-        result.ghCalls.some((call) => call.startsWith("issue comment 17")),
+        result.gh.some((call) => call.startsWith("issue comment 17")),
       ).toBe(true);
+    });
+
+    it("says when the run was cancelled, which may only mean superseded", () => {
+      const result = runGh(script, { DEPLOY_RESULT: "cancelled" }, "");
+      expect(result.gh.join("\n")).toContain("finished as cancelled");
     });
   });
 
@@ -265,18 +284,83 @@ describe("reusable production-deploy workflow", () => {
     );
 
     it("closes every open failure issue", () => {
-      const result = runWithFakeGh(script, {}, "5\n9");
+      const result = runGh(script, {}, "5\n9");
       expect(result.status).toBe(0);
       expect(
-        result.ghCalls.filter((call) => call.startsWith("issue close")),
+        result.gh.filter((call) => call.startsWith("issue close")),
       ).toHaveLength(2);
     });
 
     it("does nothing when no issue is open", () => {
-      const result = runWithFakeGh(script, {}, "");
-      expect(
-        result.ghCalls.some((call) => call.startsWith("issue close")),
-      ).toBe(false);
+      const result = runGh(script, {}, "");
+      expect(result.gh.some((call) => call.startsWith("issue close"))).toBe(
+        false,
+      );
+    });
+
+    it("fails the step when the issue lookup fails", () => {
+      expect(runGh(script, {}, "", 1).status).not.toBe(0);
+    });
+  });
+
+  describe("main-unchanged step", () => {
+    const script = stepScript(
+      DEPLOY,
+      "Require main unchanged since this run started",
+    );
+
+    function runWithRemoteSha(remoteSha: string): number {
+      return runScript(script, {}, { gh: `echo "${remoteSha}"` }).status;
+    }
+
+    it("passes when main is still the commit this run started on", () => {
+      expect(runWithRemoteSha("abc123")).toBe(0);
+    });
+
+    it("refuses to deploy when main moved", () => {
+      expect(runWithRemoteSha("def456")).toBe(1);
+    });
+  });
+
+  describe("trigger step", () => {
+    const script = stepScript(DEPLOY, "Trigger the Netlify production deploy");
+
+    it("posts to the hook with a title unique to the run and attempt", () => {
+      const outputDirectory = mkdtempSync(join(tmpdir(), "np-output-"));
+      try {
+        const outputFile = join(outputDirectory, "output");
+        const result = runScript(
+          script,
+          {
+            NETLIFY_BUILD_HOOK_URL: "https://hook.example/build_hooks/id",
+            GITHUB_OUTPUT: outputFile,
+          },
+          { curl: "" },
+        );
+        expect(result.status).toBe(0);
+        expect(result.calls.curl?.join("\n")).toContain(
+          "https://hook.example/build_hooks/id?trigger_title=Production+deploy+run+42+attempt+1",
+        );
+        const output = readFileSync(outputFile, "utf-8");
+        expect(output).toContain(
+          "trigger_title=Production deploy run 42 attempt 1",
+        );
+        expect(output).toMatch(/triggered_at=\d{4}-\d{2}-\d{2}T/);
+      } finally {
+        rmSync(outputDirectory, { recursive: true, force: true });
+      }
+    });
+
+    it("fails when the hook call fails", () => {
+      const result = runScript(
+        script,
+        {
+          NETLIFY_BUILD_HOOK_URL: "https://hook.example",
+          GITHUB_OUTPUT: "/dev/null",
+        },
+        { curl: "exit 22" },
+      );
+      expect(result.status).not.toBe(0);
     });
   });
 });
@@ -312,6 +396,7 @@ describe("reusable lighthouse workflow", () => {
     const report = jobBlock(LIGHTHOUSE, "report");
     expect(report).toContain("github.event_name != 'pull_request'");
     expect(report).toContain("github.event.repository.default_branch");
+    expect(report).toContain("github.event_name == 'schedule'");
   });
 
   describe("input validation step", () => {
@@ -322,16 +407,11 @@ describe("reusable lighthouse workflow", () => {
       buildScript: string,
       version: string,
     ): number {
-      return (
-        spawnSync("bash", ["-c", script], {
-          env: {
-            PATH: process.env.PATH,
-            PACKAGE_MANAGER: packageManager,
-            BUILD_SCRIPT: buildScript,
-            SCRIPTS_VERSION: version,
-          },
-        }).status ?? -1
-      );
+      return statusOf(script, {
+        PACKAGE_MANAGER: packageManager,
+        BUILD_SCRIPT: buildScript,
+        SCRIPTS_VERSION: version,
+      });
     }
 
     it.each([
@@ -357,34 +437,13 @@ describe("reusable lighthouse workflow", () => {
       "Close or file the Lighthouse regression issue",
     );
 
-    function runReport(
-      auditResult: string,
-      workflowRef: string,
-    ): { status: number; calls: string[] } {
-      const directory = mkdtempSync(join(tmpdir(), "np-fake-report-"));
-      try {
-        const log = join(directory, "calls.log");
-        const fake = join(directory, "np-report-lighthouse-failure");
-        writeFileSync(fake, `#!/bin/bash\necho "$*" >> "${log}"\n`);
-        chmodSync(fake, 0o755);
-        writeFileSync(log, "");
-        const result = spawnSync("bash", ["-c", script], {
-          env: {
-            PATH: `${directory}:${process.env.PATH}`,
-            GITHUB_SERVER_URL: "https://github.example",
-            GITHUB_REPOSITORY: "owner/repo",
-            GITHUB_RUN_ID: "42",
-            GITHUB_WORKFLOW_REF: workflowRef,
-            AUDIT_RESULT: auditResult,
-          },
-        });
-        return {
-          status: result.status ?? -1,
-          calls: readFileSync(log, "utf-8").split("\n").filter(Boolean),
-        };
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
+    function runReport(auditResult: string, workflowRef: string): string[] {
+      const result = runScript(
+        script,
+        { GITHUB_WORKFLOW_REF: workflowRef, AUDIT_RESULT: auditResult },
+        { "np-report-lighthouse-failure": "" },
+      );
+      return result.calls["np-report-lighthouse-failure"] ?? [];
     }
 
     it("closes open issues after a passing audit", () => {
@@ -392,7 +451,7 @@ describe("reusable lighthouse workflow", () => {
         "success",
         "owner/repo/.github/workflows/audit.yml@refs/heads/main",
       );
-      expect(result.calls).toEqual(["--passed"]);
+      expect(result).toEqual(["--passed"]);
     });
 
     it("reports a failure against the calling workflow's own filename", () => {
@@ -400,7 +459,7 @@ describe("reusable lighthouse workflow", () => {
         "failure",
         "owner/repo/.github/workflows/site-audit.yml@refs/heads/main",
       );
-      expect(result.calls).toEqual(["--workflow site-audit.yml"]);
+      expect(result).toEqual(["--workflow site-audit.yml"]);
     });
   });
 });
