@@ -35,11 +35,16 @@ export function isExpired(
   if (!expiresAt) {
     return false;
   }
-  return expiresAt.getTime() <= now.getTime();
+  const expiresAtMs = expiresAt.getTime();
+  // An unreadable date fails closed.
+  if (Number.isNaN(expiresAtMs)) {
+    return true;
+  }
+  return expiresAtMs <= now.getTime();
 }
 
 /**
- * True when the last-used timestamp is missing or older than `intervalMs`, so
+ * True when the last-used timestamp is missing, unreadable, in the future, or older than `intervalMs`, so
  * the app only writes it at most once per interval.
  */
 export function isLastUsedStale(
@@ -50,5 +55,10 @@ export function isLastUsedStale(
   if (!lastUsedAt) {
     return true;
   }
-  return now.getTime() - lastUsedAt.getTime() >= intervalMs;
+  const elapsedMs = now.getTime() - lastUsedAt.getTime();
+  // An unreadable or future timestamp (clock skew) is treated as stale.
+  if (Number.isNaN(elapsedMs) || elapsedMs < 0) {
+    return true;
+  }
+  return elapsedMs >= intervalMs;
 }

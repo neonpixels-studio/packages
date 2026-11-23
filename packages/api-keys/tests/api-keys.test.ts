@@ -94,6 +94,10 @@ describe("computeExpiresAt", () => {
 });
 
 describe("isExpired", () => {
+  it("fails closed on an Invalid Date", () => {
+    expect(isExpired(new Date("garbage"), NOW)).toBe(true);
+  });
+
   it("treats no expiry as never expired", () => {
     expect(isExpired(null, NOW)).toBe(false);
     expect(isExpired(undefined, NOW)).toBe(false);
@@ -191,6 +195,56 @@ describe("verifyApiKey", () => {
     expect(result).toEqual({ valid: false, reason: "revoked" });
   });
 
+  it("fails closed on an unreadable expiry", async () => {
+    const result = await verifyApiKey({
+      token: generated.key,
+      marker: MARKER,
+      findByHash: findIn({ revokedAt: null, expiresAt: new Date("garbage") }),
+      now: NOW,
+    });
+    expect(result).toEqual({ valid: false, reason: "expired" });
+  });
+
+  it("reports unknown without a lookup for a non-string token", async () => {
+    let lookups = 0;
+    const result = await verifyApiKey({
+      token: undefined as unknown as string,
+      marker: MARKER,
+      findByHash: () => {
+        lookups += 1;
+        return null;
+      },
+    });
+    expect(result).toEqual({ valid: false, reason: "unknown" });
+    expect(lookups).toBe(0);
+  });
+
+  it("throws on a misconfigured marker instead of rejecting every key", async () => {
+    const findByHash = findIn(null);
+    await expect(
+      verifyApiKey({ token: generated.key, marker: "", findByHash }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      verifyApiKey({
+        token: generated.key,
+        marker: undefined as unknown as string,
+        findByHash,
+      }),
+    ).rejects.toThrow(TypeError);
+  });
+
+  it("propagates errors from the lookup", async () => {
+    await expect(
+      verifyApiKey({
+        token: generated.key,
+        marker: MARKER,
+        findByHash: async () => {
+          throw new Error("db down");
+        },
+      }),
+    ).rejects.toThrow("db down");
+  });
+
   it("accepts a synchronous lookup", async () => {
     const record = { revokedAt: null };
     const result = await verifyApiKey({
@@ -216,6 +270,11 @@ describe("isLastUsedStale", () => {
     expect(isLastUsedStale(new Date(NOW.getTime() - fiveMinutes), NOW)).toBe(
       true,
     );
+  });
+
+  it("is stale for an Invalid Date or a future timestamp", () => {
+    expect(isLastUsedStale(new Date("garbage"), NOW)).toBe(true);
+    expect(isLastUsedStale(new Date(NOW.getTime() + 1000), NOW)).toBe(true);
   });
 
   it("honors a custom interval", () => {

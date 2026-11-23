@@ -21,7 +21,7 @@ export function hasMarker(token: string, marker: string): boolean {
   return marker.length > 0 && token.startsWith(marker);
 }
 
-function assertValidMarker(marker: string): void {
+export function assertValidMarker(marker: string): void {
   if (typeof marker !== "string" || marker.length === 0) {
     throw new TypeError("marker must be a non-empty string");
   }

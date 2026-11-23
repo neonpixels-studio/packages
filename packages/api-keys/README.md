@@ -45,7 +45,7 @@ if (!result.valid) {
 
 ### Verifying
 
-`verifyApiKey({ token, marker, findByHash, now? })` returns a promise of `{ valid: true, record }` or `{ valid: false, reason }`. Reasons are checked in this order: `unknown` (no marker, or no record), `revoked`, `expired`. `findByHash` receives the hash, never the raw token, and may be sync or async. The record may carry `revokedAt` and `expiresAt` dates. An invalid key never throws, and the token is never logged or returned. Errors thrown by `findByHash` (for example a database outage) propagate.
+`verifyApiKey({ token, marker, findByHash, now? })` returns a promise of `{ valid: true, record }` or `{ valid: false, reason }`. Reasons are checked in this order: `unknown` (no marker, or no record), `revoked`, `expired`. `findByHash` receives the hash, never the raw token, and may be sync or async. The record may carry `revokedAt` and `expiresAt` dates. An invalid key never throws (a missing or invalid `marker` does, so a misconfiguration is loud rather than rejecting every key), and the token is never logged or returned. Errors thrown by `findByHash` (for example a database outage) propagate.
 
 ### Expiry and last-used
 
@@ -55,7 +55,7 @@ if (!result.valid) {
 
 ### Scopes
 
-Scopes are part of every key. Your app passes its own scope list; a key always has an explicit, non-empty scope array, and no value means full access.
+Scopes are part of every key. Your app passes its own scope list; a key always has an explicit, non-empty scope array; there is no value that means full access.
 
 - `normalizeScopes(input, knownScopes)` returns the scopes de-duplicated in first-seen order, or throws `InvalidScopesError` for a missing, empty, non-array, or unknown-scope input.
 - `hasScope(granted, required)` checks one required scope.

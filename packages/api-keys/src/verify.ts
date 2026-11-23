@@ -1,5 +1,5 @@
 import { isExpired } from "./expiry.ts";
-import { hasMarker, hashApiKey } from "./keys.ts";
+import { assertValidMarker, hasMarker, hashApiKey } from "./keys.ts";
 
 export type ApiKeyRecord = {
   revokedAt?: Date | null;
@@ -21,7 +21,7 @@ export type VerifyApiKeyOptions<TRecord extends ApiKeyRecord> = {
 
 /**
  * Hashes the token, calls the app's lookup, and classifies the result. Invalid
- * keys never throw; errors thrown by `findByHash` itself propagate. The raw
+ * keys never throw (a misconfigured marker does, so an outage is loud); errors thrown by `findByHash` itself propagate. The raw
  * token is never logged or returned.
  */
 export async function verifyApiKey<TRecord extends ApiKeyRecord>({
@@ -30,6 +30,7 @@ export async function verifyApiKey<TRecord extends ApiKeyRecord>({
   findByHash,
   now = new Date(),
 }: VerifyApiKeyOptions<TRecord>): Promise<VerifyResult<TRecord>> {
+  assertValidMarker(marker);
   if (typeof token !== "string" || !hasMarker(token, marker)) {
     return { valid: false, reason: "unknown" };
   }
