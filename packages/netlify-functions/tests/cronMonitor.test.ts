@@ -35,10 +35,7 @@ describe("withCronMonitor", () => {
     );
     expect(sentry.captureCheckIn.mock.calls).toEqual([
       [{ monitorSlug: "nightly", status: "in_progress" }, MONITOR_CONFIG],
-      [
-        { monitorSlug: "nightly", status: "ok", checkInId: "check-in-1" },
-        undefined,
-      ],
+      [{ monitorSlug: "nightly", status: "ok", checkInId: "check-in-1" }],
     ]);
   });
 

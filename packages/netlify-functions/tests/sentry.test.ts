@@ -4,6 +4,7 @@ const sentry = vi.hoisted(() => ({
   init: vi.fn(),
   flush: vi.fn(),
   captureException: vi.fn(),
+  getClient: vi.fn(),
 }));
 vi.mock("@sentry/node", () => sentry);
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   sentry.init.mockReset();
   sentry.flush.mockReset();
   sentry.captureException.mockReset();
+  sentry.getClient.mockReset().mockReturnValue({});
 });
 
 describe("initFunctionSentry", () => {
@@ -44,6 +46,17 @@ describe("initFunctionSentry", () => {
     initFunctionSentry({ dsn: undefined, environment: "dev" });
     expect(sentry.init).not.toHaveBeenCalled();
     expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries init on the next call after the SDK throws", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    sentry.init.mockImplementationOnce(() => {
+      throw new Error("bad dsn");
+    });
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({ dsn: FAKE_DSN, environment: "dev" });
+    initFunctionSentry({ dsn: FAKE_DSN, environment: "dev" });
+    expect(sentry.init).toHaveBeenCalledTimes(2);
   });
 
   it("never throws when the SDK throws", async () => {
@@ -86,6 +99,17 @@ describe("flushFunctionSentry", () => {
     const { flushFunctionSentry } = await import("../src/index.ts");
     await expect(flushFunctionSentry()).resolves.toBeUndefined();
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("timed out"));
+  });
+
+  it("does nothing, and logs nothing, when there is no client", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    sentry.getClient.mockReturnValue(undefined);
+    const { flushFunctionSentry } = await import("../src/index.ts");
+    await flushFunctionSentry();
+    expect(sentry.flush).not.toHaveBeenCalled();
+    expect(logged).not.toHaveBeenCalled();
   });
 
   it("never throws when the flush rejects", async () => {

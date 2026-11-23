@@ -30,11 +30,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "@dotenvx/dotenvx": "^1.0.0",
+    "@dotenvx/dotenvx": "^1.25.0",
     "@sentry/node": "^10.0.0"
   },
   "devDependencies": {
-    "@dotenvx/dotenvx": "^1.0.0",
+    "@dotenvx/dotenvx": "^1.25.0",
     "@sentry/node": "^10.0.0"
   }
 }

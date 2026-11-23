@@ -16,8 +16,8 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
   if (initialized) {
     return;
   }
-  initialized = true;
   if (!options.dsn) {
+    initialized = true;
     console.error(
       "Sentry DSN is not set; error reporting is disabled for this instance.",
     );
@@ -30,6 +30,7 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
       beforeSend: options.beforeSend,
       tracesSampleRate: options.tracesSampleRate,
     });
+    initialized = true;
   } catch (initError) {
     console.error("Failed to initialize Sentry", initError);
   }
@@ -41,6 +42,10 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
 export async function flushFunctionSentry(
   timeoutMs: number = DEFAULT_FLUSH_TIMEOUT_MS,
 ): Promise<void> {
+  // With no client flush() resolves false, which is not a timeout.
+  if (!Sentry.getClient()) {
+    return;
+  }
   try {
     const flushed = await Sentry.flush(timeoutMs);
     if (!flushed) {

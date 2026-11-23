@@ -10,8 +10,6 @@ export type CronMonitorOptions = {
   maxRuntime: number;
 };
 
-type CheckInStatus = "in_progress" | "ok" | "error";
-
 function monitorConfig(options: CronMonitorOptions) {
   return {
     schedule: { type: "crontab", value: options.schedule },
@@ -27,32 +25,42 @@ function hasDsn(): boolean {
 // A finishing check-in closes the in_progress one by id. Without an id (the
 // first call failed) it is sent as a heartbeat with the monitor config, which
 // still records the outcome instead of leaving the run to read as missed.
-type SentryCheckIn = Parameters<typeof Sentry.captureCheckIn>[0];
-
-function buildCheckIn(
-  options: CronMonitorOptions,
-  status: CheckInStatus,
-  checkInId?: string,
-): SentryCheckIn {
-  if (status === "in_progress" || !checkInId) {
-    // Without an id the SDK types reject a finished status, but it accepts the
-    // heartbeat at runtime.
-    return { monitorSlug: options.slug, status } as SentryCheckIn;
-  }
-  return { monitorSlug: options.slug, status, checkInId };
+function startCheckIn(options: CronMonitorOptions): string | undefined {
+  return capture(() =>
+    Sentry.captureCheckIn(
+      { monitorSlug: options.slug, status: "in_progress" },
+      monitorConfig(options),
+    ),
+  );
 }
 
-function sendCheckIn(
+// A finishing check-in closes the in_progress one by id. Without an id (the
+// first call failed) it is sent as a heartbeat with the monitor config, which
+// still records the outcome instead of leaving the run to read as missed.
+function finishCheckIn(
   options: CronMonitorOptions,
-  status: CheckInStatus,
-  checkInId?: string,
-): string | undefined {
-  try {
-    const withId = status !== "in_progress" && Boolean(checkInId);
+  status: "ok" | "error",
+  checkInId: string | undefined,
+): void {
+  capture(() => {
+    if (checkInId) {
+      return Sentry.captureCheckIn({
+        monitorSlug: options.slug,
+        status,
+        checkInId,
+      });
+    }
     return Sentry.captureCheckIn(
-      buildCheckIn(options, status, checkInId),
-      withId ? undefined : monitorConfig(options),
+      { monitorSlug: options.slug, status },
+      monitorConfig(options),
     );
+  });
+}
+
+// Monitoring must never break the job.
+function capture(send: () => string): string | undefined {
+  try {
+    return send();
   } catch (checkInError) {
     console.error("Failed to send Sentry cron check-in", checkInError);
     return undefined;
@@ -69,14 +77,14 @@ export async function withCronMonitor(
   if (!hasDsn()) {
     return job();
   }
-  const checkInId = sendCheckIn(options, "in_progress");
+  const checkInId = startCheckIn(options);
   let response: Response;
   try {
     response = await job();
   } catch (jobError) {
-    sendCheckIn(options, "error", checkInId);
+    finishCheckIn(options, "error", checkInId);
     throw jobError;
   }
-  sendCheckIn(options, response.ok ? "ok" : "error", checkInId);
+  finishCheckIn(options, response.ok ? "ok" : "error", checkInId);
   return response;
 }

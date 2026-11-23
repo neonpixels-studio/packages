@@ -91,4 +91,15 @@ describe("runInBatches", () => {
       }),
     ).rejects.toThrow(RangeError);
   });
+
+  it("rejects an invalid time budget", async () => {
+    await expect(
+      runInBatches({
+        loadBatch: async () => [],
+        handle: async () => undefined,
+        batchSize: 1,
+        timeBudgetMs: Number.NaN,
+      }),
+    ).rejects.toThrow(RangeError);
+  });
 });

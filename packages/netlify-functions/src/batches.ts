@@ -13,16 +13,27 @@ export type RunInBatchesOptions<Item> = {
   timeBudgetMs: number;
 };
 
+async function handleItem<Item>(
+  item: Item,
+  handle: (item: Item) => Promise<void>,
+): Promise<BatchFailure<Item> | undefined> {
+  try {
+    await handle(item);
+    return undefined;
+  } catch (error) {
+    return { item, error };
+  }
+}
+
 async function handleBatch<Item>(
   batch: Item[],
   handle: (item: Item) => Promise<void>,
 ): Promise<BatchFailure<Item>[]> {
   const failures: BatchFailure<Item>[] = [];
   for (const item of batch) {
-    try {
-      await handle(item);
-    } catch (error) {
-      failures.push({ item, error });
+    const failure = await handleItem(item, handle);
+    if (failure) {
+      failures.push(failure);
     }
   }
   return failures;
@@ -38,6 +49,11 @@ export async function runInBatches<Item>(
 ): Promise<BatchResult<Item>> {
   if (!Number.isInteger(options.batchSize) || options.batchSize < 1) {
     throw new RangeError("runInBatches: batchSize must be a positive integer.");
+  }
+  if (!Number.isFinite(options.timeBudgetMs) || options.timeBudgetMs < 0) {
+    throw new RangeError(
+      "runInBatches: timeBudgetMs must be a non-negative number.",
+    );
   }
   const deadline = Date.now() + options.timeBudgetMs;
   const result: BatchResult<Item> = {
