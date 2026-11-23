@@ -53,7 +53,7 @@ describe("runShouldDeploy", () => {
     GITHUB_OUTPUT: "/tmp/output",
   };
 
-  it("writes skip=true when the published deploy is already the current commit, even if publishing is locked", async () => {
+  it("writes skip=true when the published deploy is already the current commit", async () => {
     const testEnvironment = environment(full, async () => "abc");
     expect(await runShouldDeploy([], testEnvironment)).toBe(0);
     expect(testEnvironment.output).toEqual(["skip=true\n"]);

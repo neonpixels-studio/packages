@@ -46,6 +46,8 @@ describe("parsePublishedCommitRef", () => {
   it("is null without a published deploy or commit", () => {
     expect(parsePublishedCommitRef({})).toBeNull();
     expect(parsePublishedCommitRef({ published_deploy: null })).toBeNull();
+    expect(parsePublishedCommitRef({ published_deploy: [] })).toBeNull();
+    expect(parsePublishedCommitRef({ published_deploy: "x" })).toBeNull();
     expect(parsePublishedCommitRef({ published_deploy: {} })).toBeNull();
     expect(
       parsePublishedCommitRef({ published_deploy: { commit_ref: "" } }),
