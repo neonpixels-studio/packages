@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { describeError } from "../workflow-command.ts";
 import type { MigrationFiles } from "./filesystem.ts";
 
 const TAG_PREFIX_PATTERN = /^(\d{4})_/;
@@ -50,8 +51,17 @@ function idxMatchesTagPrefix(entry: JournalEntry): boolean {
   return prefix !== undefined && Number(prefix) === entry.idx;
 }
 
+/** JSON.parse that names the file when it is malformed. */
+export function parseJsonFile(raw: string, source: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`${source} is not valid JSON (${describeError(error)})`);
+  }
+}
+
 export function parseJournal(raw: string, source: string): JournalEntry[] {
-  const journal = JSON.parse(raw) as { entries?: unknown };
+  const journal = parseJsonFile(raw, source) as { entries?: unknown };
   if (!Array.isArray(journal?.entries)) {
     throw new Error(`${source} has no "entries" array`);
   }

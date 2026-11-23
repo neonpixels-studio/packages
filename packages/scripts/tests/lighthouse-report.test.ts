@@ -133,6 +133,22 @@ describe("report building", () => {
     );
   });
 
+  it("does not count warn-level assertions as failures", () => {
+    const results: AssertionResult[] = [
+      { url: "https://warn.example.com/", level: "warn", passed: false },
+      { url: "https://bad.example.com/", level: "error", passed: false },
+    ];
+    expect(failingSites(results, "site")).toEqual(["bad.example.com"]);
+  });
+
+  it("drops fields of the wrong type instead of crashing the table", () => {
+    const [result] = parseAssertionResults(
+      '[{"url":5,"operator":{},"actual":"0.5","level":"error","passed":false}]',
+    );
+    expect(result).toEqual({ level: "error", passed: false });
+    expect(() => formatAssertionRows([result!])).not.toThrow();
+  });
+
   it("ignores a results file that is not a list of objects", () => {
     expect(parseAssertionResults('{"a":1}')).toEqual([]);
     expect(parseAssertionResults('[1,"x",null,{"passed":false}]')).toEqual([
@@ -305,6 +321,22 @@ describe("runReportLighthouseFailure", () => {
       );
       expect(created[0]?.title).toBe("Lighthouse regression on mysite");
     }
+  });
+
+  it("still files the issue when the last passing run cannot be looked up", async () => {
+    const { client, created } = fakeClient();
+    client.findLastPassSha = async () => {
+      throw new Error("workflow not found");
+    };
+    const { env, lines } = environment(
+      FAILURE_VARIABLES,
+      JSON.stringify(FAILING_RESULTS),
+      client,
+    );
+    expect(await runReportLighthouseFailure([], env)).toBe(0);
+    expect(created).toHaveLength(2);
+    expect(lines.join("\n")).toContain("workflow not found");
+    expect(created[0]?.body).toContain("No earlier successful scheduled run");
   });
 
   it("closes open issues with --passed", async () => {

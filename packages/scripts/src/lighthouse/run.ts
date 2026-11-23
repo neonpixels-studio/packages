@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { describeError } from "../workflow-command.ts";
+import { describeError, prefixedConsole } from "../workflow-command.ts";
 import { closePassedIssues, fileFailureIssues } from "./file-issues.ts";
+import type { Variables } from "../migrations/options.ts";
 import { createGhIssueClient, type IssueClient } from "./github.ts";
 import {
   DEFAULT_RESULTS_PATH,
@@ -10,8 +11,6 @@ import {
   type AssertionResult,
   type FailureContext,
 } from "./report.ts";
-
-type Variables = Record<string, string | undefined>;
 
 /** Everything the command needs from the machine, so tests can replace it. */
 export interface ReportEnvironment {
@@ -27,9 +26,7 @@ export const systemEnvironment: ReportEnvironment = {
   variables: process.env,
   createClient: (repository) => createGhIssueClient(repository),
   readResults: (path) => (existsSync(path) ? readFileSync(path, "utf8") : null),
-  log: (message) => console.log(`np-report-lighthouse-failure: ${message}`),
-  warn: (message) => console.warn(`np-report-lighthouse-failure: ${message}`),
-  error: (message) => console.error(`np-report-lighthouse-failure: ${message}`),
+  ...prefixedConsole("np-report-lighthouse-failure"),
 };
 
 function requireVariable(variables: Variables, name: string): string {
@@ -58,6 +55,74 @@ function readAssertionResults(
   }
 }
 
+// The commit range is extra context: failing to look it up must not stop the issue being filed.
+async function findLastPassShaOrNull(
+  client: IssueClient,
+  workflowFile: string,
+  environment: ReportEnvironment,
+): Promise<string | null> {
+  try {
+    return await client.findLastPassSha(workflowFile);
+  } catch (error) {
+    environment.warn(
+      `Could not find the last passing run of ${workflowFile} (${describeError(error)}); reporting without a commit range`,
+    );
+    return null;
+  }
+}
+
+interface ReportFlags {
+  passed?: boolean;
+  results?: string;
+  workflow?: string;
+  site?: string;
+}
+
+async function reportPassed(
+  client: IssueClient,
+  environment: ReportEnvironment,
+): Promise<void> {
+  const closed = await closePassedIssues(
+    client,
+    environment.variables["RUN_URL"] || null,
+  );
+  environment.log(`Closed ${closed.length} Lighthouse regression issue(s).`);
+}
+
+async function reportFailure(
+  client: IssueClient,
+  repository: string,
+  flags: ReportFlags,
+  environment: ReportEnvironment,
+): Promise<void> {
+  const { variables } = environment;
+  const workflowFile = flags.workflow || DEFAULT_WORKFLOW_FILE;
+  const context: FailureContext = {
+    repository,
+    workflowFile,
+    runUrl: requireVariable(variables, "RUN_URL"),
+    headSha: requireVariable(variables, "HEAD_SHA"),
+    buildOutcome: variables["BUILD_OUTCOME"] ?? "",
+    lastPassSha: await findLastPassShaOrNull(client, workflowFile, environment),
+  };
+  const results = readAssertionResults(
+    environment,
+    flags.results || DEFAULT_RESULTS_PATH,
+  );
+  const fallbackSite = flags.site || repository.split("/").pop() || repository;
+  const filings = await fileFailureIssues(
+    client,
+    context,
+    results,
+    fallbackSite,
+  );
+  for (const filing of filings) {
+    environment.log(
+      `Issue ${filing.action} for ${filing.site}: ${filing.output}`,
+    );
+  }
+}
+
 /**
  * Files or updates one issue per failing site, or with `--passed` closes the
  * open ones; returns the exit code.
@@ -76,45 +141,16 @@ export async function runReportLighthouseFailure(
         site: { type: "string" },
       },
     });
-    const { variables } = environment;
-    const repository = requireVariable(variables, "GITHUB_REPOSITORY");
+    const repository = requireVariable(
+      environment.variables,
+      "GITHUB_REPOSITORY",
+    );
     const client = environment.createClient(repository);
     if (values.passed) {
-      const closed = await closePassedIssues(
-        client,
-        variables["RUN_URL"] || null,
-      );
-      environment.log(
-        `Closed ${closed.length} Lighthouse regression issue(s).`,
-      );
+      await reportPassed(client, environment);
       return 0;
     }
-    const workflowFile = values.workflow || DEFAULT_WORKFLOW_FILE;
-    const context: FailureContext = {
-      repository,
-      workflowFile,
-      runUrl: requireVariable(variables, "RUN_URL"),
-      headSha: requireVariable(variables, "HEAD_SHA"),
-      buildOutcome: variables["BUILD_OUTCOME"] ?? "",
-      lastPassSha: await client.findLastPassSha(workflowFile),
-    };
-    const results = readAssertionResults(
-      environment,
-      values.results || DEFAULT_RESULTS_PATH,
-    );
-    const fallbackSite =
-      values.site || repository.split("/").pop() || repository;
-    const filings = await fileFailureIssues(
-      client,
-      context,
-      results,
-      fallbackSite,
-    );
-    for (const filing of filings) {
-      environment.log(
-        `Issue ${filing.action} for ${filing.site}: ${filing.output}`,
-      );
-    }
+    await reportFailure(client, repository, values, environment);
     return 0;
   } catch (error) {
     environment.error(describeError(error));

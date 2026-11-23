@@ -1,4 +1,4 @@
-import { describeError } from "../workflow-command.ts";
+import { describeError, prefixedConsole } from "../workflow-command.ts";
 import { findMigrationDrift, type RecordedMigration } from "./drift.ts";
 import { systemFiles, type MigrationFiles } from "./filesystem.ts";
 import { readJournal, readJournalMigrations } from "./journal.ts";
@@ -26,16 +26,19 @@ export const systemEnvironment: CheckDriftEnvironment = {
   files: systemFiles,
   createSqlClient: (connectionString) =>
     createNeonSqlClient({ connectionString }),
-  log: (message) => console.log(`np-check-migration-drift: ${message}`),
-  error: (message) => console.error(`np-check-migration-drift: ${message}`),
+  ...prefixedConsole("np-check-migration-drift"),
 };
 
 // A fresh database has no bookkeeping table yet; that is not drift.
 async function fetchRecordedMigrations(
   sql: SqlClient,
 ): Promise<RecordedMigration[] | null> {
-  const [row] = await sql.query<{ exists: boolean }>(TABLE_EXISTS_QUERY);
-  if (!row?.exists) {
+  const [row] = await sql.query<{ exists: boolean | string }>(
+    TABLE_EXISTS_QUERY,
+  );
+  // Accept Postgres' text form of a boolean in case the endpoint returns it.
+  const tableExists = row?.exists === true || String(row?.exists) === "t";
+  if (!tableExists) {
     return null;
   }
   return sql.query<RecordedMigration>(RECORDED_QUERY);

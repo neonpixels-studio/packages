@@ -148,3 +148,11 @@ describe("runCheckMigrationSnapshots", () => {
     expect(noIds.errors.join("\n")).toContain('missing a string "id"');
   });
 });
+
+describe("malformed files", () => {
+  it("names the journal file when it is not JSON", async () => {
+    const { env, errors } = run({ [`${META}/_journal.json`]: "{ nope" });
+    expect(await runCheckMigrationSnapshots([], env)).toBe(1);
+    expect(errors.join("\n")).toContain("_journal.json is not valid JSON");
+  });
+});

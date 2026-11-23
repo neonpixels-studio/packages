@@ -34,13 +34,47 @@ export function parseAssertionResults(raw: string): AssertionResult[] {
   if (!Array.isArray(parsed)) {
     return [];
   }
-  return parsed.filter(
-    (item) => item !== null && typeof item === "object" && !Array.isArray(item),
-  );
+  return parsed.filter(isPlainObject).map(keepKnownFields);
+}
+
+function isPlainObject(item: unknown): item is Record<string, unknown> {
+  return item !== null && typeof item === "object" && !Array.isArray(item);
+}
+
+const TEXT_FIELDS = [
+  "url",
+  "auditId",
+  "auditProperty",
+  "operator",
+  "level",
+] as const;
+const NUMBER_FIELDS = ["expected", "actual"] as const;
+
+// A field of the wrong type is dropped, so one odd entry cannot crash the report.
+function keepKnownFields(item: Record<string, unknown>): AssertionResult {
+  const result: Record<string, unknown> = {};
+  for (const field of TEXT_FIELDS.filter(
+    (name) => typeof item[name] === "string",
+  )) {
+    result[field] = item[field];
+  }
+  for (const field of NUMBER_FIELDS.filter(
+    (name) => typeof item[name] === "number",
+  )) {
+    result[field] = item[field];
+  }
+  if (typeof item["passed"] === "boolean") {
+    result["passed"] = item["passed"];
+  }
+  return result as AssertionResult;
 }
 
 export function failingResults(results: AssertionResult[]): AssertionResult[] {
-  return results.filter((result) => result.passed === false);
+  // Lighthouse CI records warn-level assertions with passed: false too, but
+  // they do not fail the run.
+  return results.filter(
+    (result) => result.passed === false && result.level !== "warn",
+  );
 }
 
 /** The host of a page URL, or null when the result has no usable URL. */

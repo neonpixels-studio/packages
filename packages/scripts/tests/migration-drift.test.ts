@@ -146,6 +146,9 @@ describe("createNeonSqlClient", () => {
     expect(fetchImpl.mock.calls[0]?.[0]).toBe(
       "https://ep-test-pooler.neon.tech/sql",
     );
+    expect(fetchImpl.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "Neon-Connection-String": SECRET_URL,
+    });
   });
 
   it("never puts the connection string in an error", async () => {
@@ -258,10 +261,11 @@ describe("runCheckMigrationDrift", () => {
       MIGRATIONS_DIR: DIRECTORY,
       DATABASE_URL_UNPOOLED: SECRET_URL,
     };
-    await runCheckMigrationDrift(
+    const exitCode = await runCheckMigrationDrift(
       ["--database-url-variable", "DATABASE_URL_UNPOOLED"],
       env,
     );
+    expect(exitCode).toBe(0);
     expect(createSqlClient).toHaveBeenCalledWith(SECRET_URL);
   });
 });

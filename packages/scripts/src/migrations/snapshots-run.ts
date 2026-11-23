@@ -1,7 +1,12 @@
 import { join } from "node:path";
-import { describeError } from "../workflow-command.ts";
+import { describeError, prefixedConsole } from "../workflow-command.ts";
 import { systemFiles, type MigrationFiles } from "./filesystem.ts";
-import { journalPath, metaDirectory, readJournal } from "./journal.ts";
+import {
+  journalPath,
+  metaDirectory,
+  parseJsonFile,
+  readJournal,
+} from "./journal.ts";
 import { readMigrationsOptions, type Variables } from "./options.ts";
 import {
   findBrokenChainLinks,
@@ -22,8 +27,7 @@ export interface CheckSnapshotsEnvironment {
 export const systemEnvironment: CheckSnapshotsEnvironment = {
   variables: process.env,
   files: systemFiles,
-  log: (message) => console.log(`np-check-migration-snapshots: ${message}`),
-  error: (message) => console.error(`np-check-migration-snapshots: ${message}`),
+  ...prefixedConsole("np-check-migration-snapshots"),
 };
 
 function describeExpectedSnapshot(tag: string): string {
@@ -39,7 +43,7 @@ function loadSnapshotChain(
   return journalTags.map((tag) => {
     const filename = snapshotFilenameForTag(tag) ?? "";
     const path = join(metaFolder, filename);
-    const snapshot = JSON.parse(files.readText(path)) as {
+    const snapshot = parseJsonFile(files.readText(path), path) as {
       id?: unknown;
       prevId?: unknown;
     };

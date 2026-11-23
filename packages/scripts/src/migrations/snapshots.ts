@@ -29,14 +29,11 @@ function prefixesOf<Item>(
   items: Item[],
   prefixOf: (item: Item) => string | undefined,
 ): Set<string> {
-  const prefixes = new Set<string>();
-  for (const item of items) {
-    const prefix = prefixOf(item);
-    if (prefix) {
-      prefixes.add(prefix);
-    }
-  }
-  return prefixes;
+  return new Set(
+    items
+      .map(prefixOf)
+      .filter((prefix): prefix is string => prefix !== undefined),
+  );
 }
 
 export function findMissingSnapshotTags(
