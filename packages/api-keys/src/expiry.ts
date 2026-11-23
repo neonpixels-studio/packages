@@ -3,6 +3,12 @@ export const MAX_EXPIRY_DAYS = 3650;
 export const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 export const DEFAULT_LAST_USED_INTERVAL_MS = 5 * 60 * 1000;
 
+function assertValidNow(now: Date): void {
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
+    throw new RangeError("now must be a valid Date");
+  }
+}
+
 /**
  * Returns the expiry date for a key valid for `days` days, or `null` for a key
  * that never expires (`days` is `undefined` or `null`). Throws a `RangeError`
@@ -12,6 +18,7 @@ export function computeExpiresAt(
   days: number | null | undefined,
   now: Date = new Date(),
 ): Date | null {
+  assertValidNow(now);
   if (days === undefined || days === null) {
     return null;
   }
@@ -32,6 +39,7 @@ export function isExpired(
   expiresAt: Date | null | undefined,
   now: Date = new Date(),
 ): boolean {
+  assertValidNow(now);
   if (expiresAt === null || expiresAt === undefined) {
     return false;
   }
@@ -56,6 +64,7 @@ export function isLastUsedStale(
   now: Date = new Date(),
   intervalMs: number = DEFAULT_LAST_USED_INTERVAL_MS,
 ): boolean {
+  assertValidNow(now);
   if (!(intervalMs >= 0)) {
     throw new RangeError("intervalMs must be a number of 0 or more");
   }

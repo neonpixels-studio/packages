@@ -20,13 +20,14 @@ export function normalizeScopes(
     throw new InvalidScopesError("scopes must be a non-empty array");
   }
   const requested: unknown[] = Array.from(input);
-  const unknownScopes = requested.filter(
-    (scope) => typeof scope !== "string" || !knownScopes.includes(scope),
+  if (requested.some((scope) => typeof scope !== "string")) {
+    throw new InvalidScopesError("scopes must be strings");
+  }
+  const unknownScopes = (requested as string[]).filter(
+    (scope) => !knownScopes.includes(scope),
   );
   if (unknownScopes.length > 0) {
-    throw new InvalidScopesError(
-      `unknown scopes: ${unknownScopes.filter((scope) => typeof scope === "string").join(", ")}`,
-    );
+    throw new InvalidScopesError(`unknown scopes: ${unknownScopes.join(", ")}`);
   }
   return Array.from(new Set(requested as string[]));
 }

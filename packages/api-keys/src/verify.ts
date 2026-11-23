@@ -32,14 +32,14 @@ export async function verifyApiKey<TRecord extends ApiKeyRecord>({
   now = new Date(),
 }: VerifyApiKeyOptions<TRecord>): Promise<VerifyResult<TRecord>> {
   assertValidMarker(marker);
-  if (typeof token !== "string" || !hasMarker(token, marker)) {
+  if (!hasMarker(token, marker)) {
     return { valid: false, reason: "unknown" };
   }
   const record = await findByHash(hashApiKey(token));
   if (!record) {
     return { valid: false, reason: "unknown" };
   }
-  if (record.revokedAt) {
+  if (record.revokedAt !== null && record.revokedAt !== undefined) {
     return { valid: false, reason: "revoked" };
   }
   if (isExpired(record.expiresAt, now)) {

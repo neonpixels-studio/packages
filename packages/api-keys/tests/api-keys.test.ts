@@ -99,6 +99,13 @@ describe("computeExpiresAt", () => {
 });
 
 describe("isExpired", () => {
+  it("rejects an invalid now", () => {
+    const invalidNow = new Date("garbage");
+    expect(() => isExpired(NOW, invalidNow)).toThrow(RangeError);
+    expect(() => computeExpiresAt(90, invalidNow)).toThrow(RangeError);
+    expect(() => isLastUsedStale(NOW, invalidNow)).toThrow(RangeError);
+  });
+
   it("fails closed on an Invalid Date", () => {
     expect(isExpired(new Date("garbage"), NOW)).toBe(true);
   });
@@ -202,6 +209,27 @@ describe("verifyApiKey", () => {
       now: NOW,
     });
     expect(result).toEqual({ valid: false, reason: "revoked" });
+  });
+
+  it("treats a falsy non-null revokedAt as revoked", async () => {
+    const result = await verifyApiKey({
+      token: generated.key,
+      marker: MARKER,
+      findByHash: findIn({ revokedAt: 0 }),
+      now: NOW,
+    });
+    expect(result).toEqual({ valid: false, reason: "revoked" });
+  });
+
+  it("throws on an invalid now instead of accepting an expired key", async () => {
+    await expect(
+      verifyApiKey({
+        token: generated.key,
+        marker: MARKER,
+        findByHash: findIn({ expiresAt: NOW }),
+        now: new Date("garbage"),
+      }),
+    ).rejects.toThrow(RangeError);
   });
 
   it("fails closed on an unreadable expiry", async () => {
