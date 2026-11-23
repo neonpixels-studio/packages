@@ -1,3 +1,4 @@
+import { assertValidPolicy } from "./policy.ts";
 import type {
   RateLimitPolicy,
   RateLimitResult,
@@ -5,6 +6,8 @@ import type {
 } from "./types.ts";
 
 export const DEFAULT_TIMEOUT_MS = 1500;
+// Node clamps longer timer delays to 1 ms.
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export class RateLimitTimeoutError extends Error {
   constructor(timeoutMs: number) {
@@ -17,7 +20,7 @@ export interface FailOpenOptions {
   /** Longest to wait for the store. Defaults to 1500 ms. */
   timeoutMs?: number;
   /** Called with the error when the store fails or times out. */
-  onFailure?: (error: unknown) => void;
+  onFailure?: (error: unknown) => void | Promise<void>;
 }
 
 function rejectAfter(timeoutMs: number): {
@@ -34,6 +37,18 @@ function rejectAfter(timeoutMs: number): {
   return { promise, cancel: () => clearTimeout(timer) };
 }
 
+function assertValidTimeout(timeoutMs: number): void {
+  if (
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > MAX_TIMEOUT_MS
+  ) {
+    throw new RangeError(
+      `timeoutMs must be between 1 and ${MAX_TIMEOUT_MS} milliseconds`,
+    );
+  }
+}
+
 function openResult(policy: RateLimitPolicy): RateLimitResult {
   return {
     allowed: true,
@@ -48,7 +63,8 @@ function reportFailure(
   error: unknown,
 ): void {
   try {
-    onFailure?.(error);
+    const outcome = onFailure?.(error);
+    outcome?.catch(() => {});
   } catch {
     // A broken reporter must not turn an allowed request into an error.
   }
@@ -66,6 +82,8 @@ export async function consumeFailOpen(
   options: FailOpenOptions = {},
 ): Promise<RateLimitResult> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, onFailure } = options;
+  assertValidPolicy(policy);
+  assertValidTimeout(timeoutMs);
   const timeout = rejectAfter(timeoutMs);
   try {
     return await Promise.race([

@@ -1,4 +1,5 @@
-import { eq, inArray, lte, sql } from "drizzle-orm";
+import { assertValidPolicy } from "./policy.ts";
+import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { RateLimitCountersTable } from "./table.ts";
 import type {
@@ -34,7 +35,9 @@ function timestampSql(epochMs: number) {
  * each get a distinct count. It never prunes; call `prune` from a scheduled job.
  */
 export function createPostgresStore(
-  database: PgDatabase<PgQueryResultHKT>,
+  // The schema generics stay open so a database created with `drizzle(client, { schema })` fits.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  database: PgDatabase<PgQueryResultHKT, any, any>,
   table: RateLimitCountersTable,
 ): PostgresRateLimitStore {
   async function consume(
@@ -42,6 +45,7 @@ export function createPostgresStore(
     policy: RateLimitPolicy,
     now: number = Date.now(),
   ): Promise<RateLimitResult> {
+    assertValidPolicy(policy);
     const nowSql = timestampSql(now);
     const windowEndSql = timestampSql(now + policy.windowMs);
     const expired = sql`${table.expiresAt} <= ${nowSql}`;
@@ -82,14 +86,20 @@ export function createPostgresStore(
       throw new RangeError("batchSize must be a positive integer");
     }
 
+    const expiredBefore = new Date(now);
     const expiredKeys = database
       .select({ key: table.key })
       .from(table)
-      .where(lte(table.expiresAt, new Date(now)))
+      .where(lte(table.expiresAt, expiredBefore))
       .limit(batchSize);
     const deleted = await database
       .delete(table)
-      .where(inArray(table.key, expiredKeys))
+      .where(
+        and(
+          inArray(table.key, expiredKeys),
+          lte(table.expiresAt, expiredBefore),
+        ),
+      )
       .returning({ key: table.key });
 
     return deleted.length;

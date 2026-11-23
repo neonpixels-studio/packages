@@ -1,3 +1,4 @@
+import { assertValidPolicy } from "./policy.ts";
 import type {
   RateLimitPolicy,
   RateLimitResult,
@@ -37,9 +38,10 @@ export function createMemoryStore(
 
   function dropExpired(now: number): void {
     for (const [key, state] of windows) {
-      if (state.expiresAt <= now) {
-        windows.delete(key);
+      if (state.expiresAt > now) {
+        continue;
       }
+      windows.delete(key);
     }
   }
 
@@ -76,6 +78,7 @@ export function createMemoryStore(
     policy: RateLimitPolicy,
     now: number = Date.now(),
   ): Promise<RateLimitResult> {
+    assertValidPolicy(policy);
     const state = openWindow(key, policy, now);
     state.count += 1;
 
@@ -89,9 +92,10 @@ export function createMemoryStore(
 
   async function refund(key: string): Promise<void> {
     const state = windows.get(key);
-    if (state) {
-      state.count = Math.max(state.count - 1, 0);
+    if (!state) {
+      return;
     }
+    state.count = Math.max(state.count - 1, 0);
   }
 
   return {

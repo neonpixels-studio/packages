@@ -44,7 +44,9 @@ describe("rateLimitCountersTable", () => {
       "key",
     ]);
     expect(
-      config.indexes[0]?.config.columns.map((c) => "name" in c && c.name),
+      config.indexes[0]?.config.columns.map(
+        (column) => "name" in column && column.name,
+      ),
     ).toEqual(["expires_at"]);
   });
 });
@@ -136,6 +138,20 @@ describe("postgres store", () => {
     expect(remaining.rows.map((row) => row.key)).toEqual(["live"]);
   });
 
+  it.each([0, -1, Number.NaN])("rejects windowMs %s", async (windowMs) => {
+    await expect(
+      store.consume("a", { limit: 1, windowMs }, START),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("accepts a database created with a schema", async () => {
+    const schemaDatabase = drizzle(client, {
+      schema: { rateLimitCounters: table },
+    });
+    const schemaStore = createPostgresStore(schemaDatabase, table);
+    expect((await schemaStore.consume("a", POLICY, START)).allowed).toBe(true);
+  });
+
   it("rejects an invalid batch size", async () => {
     await expect(store.prune({ batchSize: 0 })).rejects.toThrow(RangeError);
   });
@@ -188,13 +204,22 @@ describe("memory store", () => {
 
   it("drops expired windows before live ones when full", async () => {
     const store = createMemoryStore({ maxKeys: 2 });
+    const longPolicy = { limit: 3, windowMs: 10 * POLICY.windowMs };
+    await store.consume("live", longPolicy, START);
     await store.consume("old", POLICY, START);
-    await store.consume("live", POLICY, START + POLICY.windowMs);
     await store.consume("new", POLICY, START + POLICY.windowMs);
     expect(store.size).toBe(2);
     expect(
-      (await store.consume("live", POLICY, START + POLICY.windowMs)).remaining,
+      (await store.consume("live", longPolicy, START + POLICY.windowMs))
+        .remaining,
     ).toBe(1);
+  });
+
+  it.each([0, -1, Number.NaN])("rejects windowMs %s", async (windowMs) => {
+    const store = createMemoryStore();
+    await expect(
+      store.consume("a", { limit: 1, windowMs }, START),
+    ).rejects.toThrow(RangeError);
   });
 
   it("rejects an invalid key cap", () => {
@@ -256,6 +281,38 @@ describe("consumeFailOpen", () => {
     expect(result.allowed).toBe(true);
   });
 
+  it("survives an async failure callback that rejects", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const result = await consumeFailOpen(failingStore, "a", POLICY, {
+        onFailure: async () => {
+          throw new Error("reporter down");
+        },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(result.allowed).toBe(true);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it.each([0, -5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects timeoutMs %s instead of failing every request open",
+    async (timeoutMs) => {
+      await expect(
+        consumeFailOpen(createMemoryStore(), "a", POLICY, { timeoutMs }),
+      ).rejects.toThrow(RangeError);
+    },
+  );
+
+  it("rejects an invalid policy instead of allowing the request", async () => {
+    await expect(
+      consumeFailOpen(createMemoryStore(), "a", { limit: 0, windowMs: 1000 }),
+    ).rejects.toThrow(RangeError);
+  });
+
   it("uses a 1500 ms default timeout", async () => {
     vi.useFakeTimers();
     try {
@@ -309,6 +366,10 @@ describe("client keys", () => {
     expect(clientKeyForAddress("2001:0db8:0001:0002::", secret)).toBe(base);
     expect(clientKeyForAddress("2001:db8:1:3::1", secret)).not.toBe(base);
     expect(normalizeAddress("2001:db8::1")).toBe("2001:db8:0:0");
+  });
+
+  it("throws on an empty address", () => {
+    expect(() => clientKeyForAddress("  ", secret)).toThrow(/address/);
   });
 
   it("keeps different IPv4 addresses apart", () => {

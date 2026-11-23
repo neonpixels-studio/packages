@@ -58,7 +58,7 @@ function isIpv4Mapped(groups: number[]): boolean {
  * The address a client is limited under: IPv4 as written (also when mapped
  * into IPv6, in any notation), IPv6 reduced to its /64 prefix so one customer
  * cannot mint new buckets by rotating the low 64 bits. Anything that is not an
- * IP address is returned unchanged.
+ * IP address is returned trimmed and lowercased.
  */
 export function normalizeAddress(address: string): string {
   const trimmed = address.trim().toLowerCase();
@@ -88,7 +88,9 @@ export function clientKeyForAddress(address: string, secret: string): string {
   if (!secret) {
     throw new Error("clientKeyForAddress requires a non-empty secret");
   }
-  return createHmac(HASH_ALGORITHM, secret)
-    .update(normalizeAddress(address))
-    .digest("hex");
+  const normalized = normalizeAddress(address);
+  if (!normalized) {
+    throw new Error("clientKeyForAddress requires a non-empty address");
+  }
+  return createHmac(HASH_ALGORITHM, secret).update(normalized).digest("hex");
 }
