@@ -1,3 +1,5 @@
+export const OPTIONAL_FIELDS = ["title", "email", "url"] as const;
+
 export interface FeedbackInput {
   message: string;
   title?: string;

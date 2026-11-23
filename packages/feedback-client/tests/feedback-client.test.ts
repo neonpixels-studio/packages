@@ -86,6 +86,12 @@ describe("sendFeedback request", () => {
     expect(body).toEqual({ message: "hello" });
   });
 
+  it("does not follow redirects", async () => {
+    const fetchMock = okFetch();
+    await sendFeedback({ token: TOKEN, message: "hi" }, { fetch: fetchMock });
+    expect(fetchMock.mock.calls[0]![1].redirect).toBe("manual");
+  });
+
   it("defaults the timeout to 10 seconds", () => {
     expect(DEFAULT_TIMEOUT_MS).toBe(10_000);
   });
@@ -101,6 +107,65 @@ describe("sendFeedback failures", () => {
       expect(error.reason).toBe("config");
     }
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid input as a config error before any request", async () => {
+    const fetchMock = okFetch();
+    const inputs = [
+      { message: undefined as unknown as string },
+      { message: "   " },
+      { message: "hi", title: 5 as unknown as string },
+      { message: "a".repeat(FEEDBACK_LIMITS.message + 1) },
+    ];
+    for (const input of inputs) {
+      const error = await captureError(
+        sendFeedback({ token: TOKEN, ...input }, { fetch: fetchMock }),
+      );
+      expect(error.reason).toBe("config");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unusable timeout as a config error", async () => {
+    const fetchMock = okFetch();
+    for (const timeoutMs of [Infinity, NaN, 0, -1, 2 ** 31]) {
+      const error = await captureError(
+        sendFeedback(
+          { token: TOKEN, message: "hi" },
+          { fetch: fetchMock, timeoutMs },
+        ),
+      );
+      expect(error.reason).toBe("config");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a redirect as an http error", async () => {
+    const error = await captureError(
+      sendFeedback({ token: TOKEN, message: "hi" }, { fetch: okFetch(302) }),
+    );
+    expect(error.reason).toBe("http");
+    expect(error.status).toBe(302);
+  });
+
+  it("reports a timeout when the fetch honors its abort signal", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn<FetchLike>(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+    const pending = captureError(
+      sendFeedback(
+        { token: TOKEN, message: "hi" },
+        { fetch: fetchMock, timeoutMs: 20 },
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(20);
+    expect((await pending).reason).toBe("timeout");
   });
 
   it("throws a FeedbackError carrying the status on a non-2xx", async () => {

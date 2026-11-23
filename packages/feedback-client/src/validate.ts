@@ -1,4 +1,8 @@
-import type { FeedbackInput, FeedbackProblem } from "./types.ts";
+import {
+  OPTIONAL_FIELDS,
+  type FeedbackInput,
+  type FeedbackProblem,
+} from "./types.ts";
 
 /** The receiver's field limits, in characters after trimming. */
 export const FEEDBACK_LIMITS = {
@@ -7,8 +11,6 @@ export const FEEDBACK_LIMITS = {
   email: 254,
   url: 2_000,
 } as const;
-
-const OPTIONAL_FIELDS = ["title", "email", "url"] as const;
 
 function checkLength(
   field: keyof typeof FEEDBACK_LIMITS,
