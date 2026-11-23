@@ -162,6 +162,14 @@ describe("stored record", () => {
     expect(JSON.parse(storage.entries.get(KEY)!).choice).toBe("granted");
   });
 
+  it("falls back to the legacy key when the current key is junk", () => {
+    const { consent } = setup(
+      { [KEY]: "{nope", "np-consent": "accepted" },
+      { legacyKey: "np-consent" },
+    );
+    expect(consent.status).toBe("granted");
+  });
+
   it("ignores a legacy key when none is configured", () => {
     const { consent } = setup({ "np-consent": "accepted" });
     expect(consent.status).toBe("unset");
@@ -329,6 +337,32 @@ describe("deny() cookie clearing", () => {
       "example.com",
     ]);
     expect(fakeWindow.cookieNames()).toEqual([]);
+  });
+
+  it("clears a single-label host once", () => {
+    const fakeWindow = createFakeWindow({
+      hostname: "localhost",
+      cookies: "_ga=1",
+    });
+    const { consent } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { window: fakeWindow },
+    );
+    consent.deny();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([
+      undefined,
+      "localhost",
+    ]);
+  });
+
+  it("clears cookies and stores a denial while a privacy signal is present", () => {
+    const { consent, fakeWindow, storage } = setup(
+      { [KEY]: record("granted", NOW + 1000) },
+      { navigator: stubPrivacySignal({ globalPrivacyControl: true }) },
+    );
+    expect(consent.deny()).toBe("signal");
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+    expect(JSON.parse(storage.entries.get(KEY)!).choice).toBe("denied");
   });
 
   it("skips parent domains for an IP address", () => {

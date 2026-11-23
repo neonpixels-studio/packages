@@ -139,15 +139,13 @@ function findParsed(options: ReadConsentOptions): {
 } {
   const { storage, key, legacyKey } = options;
   const current = safeGetItem(storage, key);
-  if (current !== null) {
-    return { parsed: parseStoredValue(current), fromLegacyKey: false };
+  const parsedCurrent = current === null ? null : parseStoredValue(current);
+  if (parsedCurrent !== null || legacyKey === undefined) {
+    return { parsed: parsedCurrent, fromLegacyKey: false };
   }
-  const legacy =
-    legacyKey === undefined ? null : safeGetItem(storage, legacyKey);
-  if (legacy === null) {
-    return { parsed: null, fromLegacyKey: false };
-  }
-  return { parsed: parseStoredValue(legacy), fromLegacyKey: true };
+  const legacy = safeGetItem(storage, legacyKey);
+  const parsedLegacy = legacy === null ? null : parseStoredValue(legacy);
+  return { parsed: parsedLegacy, fromLegacyKey: parsedLegacy !== null };
 }
 
 /**

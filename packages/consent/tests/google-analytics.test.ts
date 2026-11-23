@@ -67,6 +67,28 @@ describe("loadGoogleAnalytics", () => {
     expect(configs).toEqual(["G-A", "G-B"]);
   });
 
+  it("retries after an injection that threw", () => {
+    const browser = createFakeBrowser();
+    let shouldThrow = true;
+    const failing = {
+      ...browser,
+      document: {
+        ...browser.document,
+        createElement: () => {
+          if (shouldThrow) {
+            throw new Error("blocked");
+          }
+          return { async: false, src: "" };
+        },
+      },
+    };
+    expect(() => loadGoogleAnalytics("G-TEST", failing)).toThrow("blocked");
+    shouldThrow = false;
+    loadGoogleAnalytics("G-TEST", failing);
+    expect(browser.appended).toHaveLength(1);
+    expect(browser.window.dataLayer).toHaveLength(2);
+  });
+
   it("injects separately for separate windows", () => {
     const first = createFakeBrowser();
     const second = createFakeBrowser();

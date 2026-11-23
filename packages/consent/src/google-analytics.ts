@@ -46,10 +46,6 @@ function queueCommand(dataLayer: unknown[], ...args: unknown[]) {
   gtag(...args);
 }
 
-function configuredIdsFor(window: object): Set<string> | undefined {
-  return configuredIds.get(window);
-}
-
 /**
  * Injects gtag.js once per window, however often it is called. Google signals
  * and ad personalization are off. No Consent Mode commands are sent: the
@@ -61,9 +57,13 @@ export function loadGoogleAnalytics(
   { document, window }: AnalyticsBrowser,
 ) {
   setAnalyticsDisabled(window, measurementId, false);
-  const known = configuredIdsFor(window);
+  const known = configuredIds.get(window);
   if (known?.has(measurementId)) {
     return;
+  }
+  // Inject first: if it throws, nothing is queued or recorded and a later call retries.
+  if (known === undefined) {
+    appendScript(document, measurementId);
   }
   const target = window as DataLayerWindow;
   const dataLayer = (target.dataLayer ??= []);
@@ -75,9 +75,6 @@ export function loadGoogleAnalytics(
     allow_ad_personalization_signals: false,
   });
   configuredIds.set(window, (known ?? new Set()).add(measurementId));
-  if (known === undefined) {
-    appendScript(document, measurementId);
-  }
 }
 
 function appendScript(document: AnalyticsDocument, measurementId: string) {
