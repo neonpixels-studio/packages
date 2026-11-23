@@ -47,7 +47,7 @@ export default scheduledFunction(
 export const config = { schedule: "0 3 * * *" };
 ```
 
-`scheduledFunction` runs, in order: resolve the deploy context, load env, start Sentry, run the job (inside the monitor when `monitor` is given), capture any error, flush, rethrow. The Sentry DSN is read from `SENTRY_DSN` after the env file is decrypted. The job receives `{ request, context, deployContext }`.
+`scheduledFunction` runs, in order: resolve the deploy context, load env, start Sentry, run the job (inside the monitor when `monitor` is given), capture any error, flush, rethrow. The Sentry DSN is read from `SENTRY_DSN` after the env file is decrypted. The job receives `{ request, context, deployContext }`. Sentry starts after the env file is decrypted (the DSN normally lives there), so a failure to resolve the context or load env is rethrown and logged but not sent to Sentry.
 
 ### API
 

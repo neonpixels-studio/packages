@@ -109,7 +109,58 @@ describe("scheduledFunction", () => {
     ]);
   });
 
-  it("still flushes and rethrows when the deploy context is invalid", async () => {
+  it("rethrows when the env cannot be loaded and never runs the job", async () => {
+    const { scheduledFunction } = await import("../src/index.ts");
+    dotenvxConfig.mockImplementation(() => {
+      throw new Error("MISSING_PRIVATE_KEY");
+    });
+    const job = vi.fn();
+    const handler = scheduledFunction(
+      { name: "nightly", environment: () => "x" },
+      job,
+    );
+    await expect(handler(REQUEST, CONTEXT)).rejects.toThrow(
+      "MISSING_PRIVATE_KEY",
+    );
+    expect(job).not.toHaveBeenCalled();
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("closes the check-in as error, captures, flushes, then rethrows when a monitored job throws", async () => {
+    const { scheduledFunction } = await import("../src/index.ts");
+    const handler = scheduledFunction(
+      {
+        name: "nightly",
+        environment: () => "x",
+        monitor: {
+          slug: "nightly",
+          schedule: "0 3 * * *",
+          checkinMargin: 5,
+          maxRuntime: 10,
+        },
+      },
+      async () => {
+        calls.push("job");
+        throw new Error("boom");
+      },
+    );
+    await expect(handler(REQUEST, CONTEXT)).rejects.toThrow("boom");
+    expect(calls).toEqual([
+      "env",
+      "init",
+      "check-in",
+      "job",
+      "check-in",
+      "capture",
+      "flush",
+    ]);
+    expect(sentry.captureCheckIn.mock.calls[1]?.[0]).toMatchObject({
+      status: "error",
+    });
+  });
+
+  it("rethrows an invalid deploy context before any setup", async () => {
+    sentry.getClient.mockReturnValue(undefined);
     const { scheduledFunction } = await import("../src/index.ts");
     const job = vi.fn();
     const handler = scheduledFunction(
@@ -120,6 +171,6 @@ describe("scheduledFunction", () => {
       handler(REQUEST, { deploy: { context: "nope" } }),
     ).rejects.toThrow(/unknown deploy context/);
     expect(job).not.toHaveBeenCalled();
-    expect(calls).toEqual(["capture", "flush"]);
+    expect(calls).toEqual(["capture"]);
   });
 });

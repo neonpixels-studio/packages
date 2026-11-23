@@ -22,11 +22,9 @@ function hasDsn(): boolean {
   return Boolean(Sentry.getClient()?.getOptions().dsn);
 }
 
-// A finishing check-in closes the in_progress one by id. Without an id (the
-// first call failed) it is sent as a heartbeat with the monitor config, which
-// still records the outcome instead of leaving the run to read as missed.
+// Opens the run and returns its check-in id, or undefined when the SDK throws.
 function startCheckIn(options: CronMonitorOptions): string | undefined {
-  return capture(() =>
+  return sendCheckInSafely(() =>
     Sentry.captureCheckIn(
       { monitorSlug: options.slug, status: "in_progress" },
       monitorConfig(options),
@@ -42,7 +40,7 @@ function finishCheckIn(
   status: "ok" | "error",
   checkInId: string | undefined,
 ): void {
-  capture(() => {
+  sendCheckInSafely(() => {
     if (checkInId) {
       return Sentry.captureCheckIn({
         monitorSlug: options.slug,
@@ -58,7 +56,7 @@ function finishCheckIn(
 }
 
 // Monitoring must never break the job.
-function capture(send: () => string): string | undefined {
+function sendCheckInSafely(send: () => string): string | undefined {
   try {
     return send();
   } catch (checkInError) {
