@@ -1,7 +1,7 @@
 import { URL } from "node:url";
 import { CONSENT_LIFETIME_MS, consentStorageKey } from "@neon-pixels/consent";
 
-const OPAQUE_ORIGIN = "null";
+const PAGE_PROTOCOLS = new Set(["http:", "https:"]);
 
 /** @param {string} origin */
 function invalidOriginError(origin) {
@@ -21,12 +21,12 @@ function parseUrl(origin) {
 
 /** @param {string} origin */
 function normalizeOrigin(origin) {
-  const { origin: normalized } = parseUrl(origin);
-  // A value without a scheme, such as "localhost:3000", parses with an opaque origin.
-  if (normalized === OPAQUE_ORIGIN) {
+  const url = parseUrl(origin);
+  // A value without a scheme, such as "localhost:3000", parses with an opaque origin and a non-page protocol.
+  if (!PAGE_PROTOCOLS.has(url.protocol)) {
     throw invalidOriginError(origin);
   }
-  return normalized;
+  return url.origin;
 }
 
 /** @param {string} app */

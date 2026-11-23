@@ -78,7 +78,7 @@ Building the config also copies `NUXT_CLERK_SECRET_KEY` and `NUXT_PUBLIC_CLERK_P
 
 ### Consent
 
-With analytics configured, the consent banner shows on every page and can cover the controls a spec is testing. `consentDeclinedStorageState` returns a Playwright `storageState` that already holds a declined choice, written under the storage key and record shape that [`@neon-pixels/consent`](../consent) reads (`<app>:analytics-consent`, valid for 180 days).
+With analytics configured, the consent banner shows on every page and can cover the controls a spec is testing. `consentDeclinedStorageState` returns a Playwright `storageState` that already holds a declined choice, written under the storage key and record shape that [`@neon-pixels/consent`](../consent) reads (`<app>:analytics-consent`, with the package's full consent lifetime).
 
 ```ts
 // playwright.config.ts

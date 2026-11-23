@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CONSENT_LIFETIME_MS,
   consentStorageKey,
@@ -35,6 +35,10 @@ function readStatus(values: Record<string, string>) {
 }
 
 describe("consentDeclinedStorageState", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("stores a choice that @neon-pixels/consent reads as denied", () => {
     const state = consentDeclinedStorageState({
       app: APP,
@@ -84,6 +88,12 @@ describe("consentDeclinedStorageState", () => {
     ).toThrow(/"origin" must be an absolute URL/);
   });
 
+  it("rejects an origin that is not http or https", () => {
+    expect(() =>
+      consentDeclinedStorageState({ app: APP, origin: "ws://localhost:3000" }),
+    ).toThrow(/"origin" must be an absolute URL/);
+  });
+
   it("rejects an origin without a scheme", () => {
     expect(() =>
       consentDeclinedStorageState({ app: APP, origin: "localhost:3000" }),
@@ -103,10 +113,20 @@ describe("consentDeclinedStorageState", () => {
     },
   );
 
-  it("rejects an empty app name", () => {
+  it.each([undefined, null, 42, " "])("rejects an app name of %s", (app) => {
     expect(() =>
-      consentDeclinedStorageState({ app: " ", origin: ORIGIN }),
+      consentDeclinedStorageState({ app: app as string, origin: ORIGIN }),
     ).toThrow(/"app" must be a non-empty string/);
+  });
+
+  it("defaults the time to now, so the choice is current", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const state = consentDeclinedStorageState({ app: APP, origin: ORIGIN });
+    const record = JSON.parse(storedValues(state)[consentStorageKey(APP)]!);
+
+    expect(record.expiresAt).toBe(NOW + CONSENT_LIFETIME_MS);
+    expect(readStatus(storedValues(state)).status).toBe("denied");
   });
 });
 
