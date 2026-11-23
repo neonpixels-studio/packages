@@ -65,8 +65,9 @@ function assertNoUnknownSections(
   label: string,
 ): void {
   const known = new Set(templateSections.map((section) => section.name));
-  for (const name of kept.keys()) {
-    if (!known.has(name)) {
+  for (const [name, lines] of kept) {
+    const isEmpty = lines.every((line) => line.trim() === "");
+    if (!known.has(name) && !isEmpty) {
       throw new Error(
         `${label}: section "${name}" is not in the template, so its lines would be dropped.`,
       );

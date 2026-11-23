@@ -170,18 +170,25 @@ describe("package.json fields", () => {
 
 /** Understands only the `^x.y.z` and `>=x.y.z` forms the template uses. */
 function accepts(alternative: string, version: number[]): boolean {
-  const [major = 0, minor = 0, patch = 0] = version;
-  const [operator, bound] = /^(\^|>=)(.+)$/.exec(alternative)!.slice(1);
-  const [boundMajor = 0, boundMinor = 0, boundPatch = 0] = bound!
-    .split(".")
-    .map(Number);
-  const atLeast =
-    major !== boundMajor
-      ? major > boundMajor
-      : minor !== boundMinor
-        ? minor > boundMinor
-        : patch >= boundPatch;
-  return operator === ">=" ? atLeast : atLeast && major === boundMajor;
+  const match = /^(\^|>=)(.+)$/.exec(alternative);
+  if (!match) {
+    throw new Error(`accepts() does not understand "${alternative}"`);
+  }
+  const bound = match[2]!.split(".").map(Number);
+  if (compareVersions(version, bound) < 0) {
+    return false;
+  }
+  return match[1] === ">=" || version[0] === bound[0];
+}
+
+function compareVersions(left: number[], right: number[]): number {
+  for (const index of [0, 1, 2]) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
 }
 
 describe("--check", () => {
@@ -301,6 +308,9 @@ describe("repo-specific sections", () => {
     expect(() =>
       preserveSections("x\n", `${begin("custom")}${end("custom")}`, "f"),
     ).toThrow("not in the template");
+    expect(preserveSections("x\n", `${begin("old")}${end("old")}`, "f")).toBe(
+      "x\n",
+    );
     expect(() => preserveSections("x\n", end("a"), "f")).toThrow(
       "unmatched end marker",
     );
@@ -361,6 +371,26 @@ describe("symlinks", () => {
 
     expect(errors.join("\n")).toContain("symbolic link");
     expect(listFiles(outside)).toEqual([]);
+  });
+});
+
+describe("a symlinked package.json", () => {
+  it("is refused", () => {
+    const outside = join(sandbox, "outside");
+    mkdirSync(outside);
+    writeFileSync(join(outside, "package.json"), PACKAGE_JSON);
+    rmSync(join(repository, "package.json"));
+    symlinkSync(
+      join(outside, "package.json"),
+      join(repository, "package.json"),
+    );
+
+    expect(sync(["--stack", "node"])).toBe(1);
+
+    expect(errors.join("\n")).toContain("symbolic link");
+    expect(readFileSync(join(outside, "package.json"), "utf8")).toBe(
+      PACKAGE_JSON,
+    );
   });
 });
 

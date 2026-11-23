@@ -174,9 +174,9 @@ It touches only these files, and refuses any path that is a symlink or resolves 
 
 ### Repo-specific sections
 
-Lines between `# np-sync:begin <name>` and `# np-sync:end <name>` are kept when the file is synced, and everything else is overwritten. A section a repository never edited keeps the template's default. The synced files offer:
+Lines between `# np-sync:begin <name>` and `# np-sync:end <name>` are kept when the file is synced, and everything else is overwritten. A file that has no markers yet is overwritten whole, so run `--check` and move any lines you want to keep into a section before the first sync. A section the repository does not have yet starts empty from the template. The synced files offer:
 
 - `.gitleaks.toml`: `extra-rules` (more `[[rules]]`) and `allowlist` (more keys for the `[allowlist]` table, such as `commits` or `regexes`; do not repeat `paths`).
 - `.husky/pre-commit` and `.husky/pre-push`: `repo-specific`, for extra steps before the shared ones.
 
-Broken markers (unclosed, nested, duplicated, or unmatched) and sections the template does not know stop the sync with an error before anything is written, so a repository's own lines are never dropped.
+Broken markers (unclosed, nested, duplicated, or unmatched) and sections with content that the template does not know stop the sync with an error before anything is written, so lines inside a section are never dropped.
