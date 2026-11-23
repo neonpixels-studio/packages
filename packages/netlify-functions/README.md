@@ -33,13 +33,17 @@ export default scheduledFunction(
     },
   },
   async () => {
-    const { processed, hasMore } = await runInBatches({
+    const { processed, failures, hasMore } = await runInBatches({
       loadBatch: (limit) => loadExpiredRows(limit),
       handle: (row) => purgeRow(row),
       batchSize: 100,
       timeBudgetMs: 20_000,
     });
-    return Response.json({ processed, hasMore });
+    // Item failures are returned, not reported. A non-2xx response records an error check-in.
+    return Response.json(
+      { processed, hasMore, failed: failures.length },
+      { status: failures.length > 0 ? 500 : 200 },
+    );
   },
 );
 
@@ -56,4 +60,4 @@ export const config = { schedule: "0 3 * * *" };
 - `initFunctionSentry({ dsn, environment, beforeSend, tracesSampleRate })` starts the Sentry Node SDK once and never throws. Without a DSN it logs once and does nothing.
 - `flushFunctionSentry(timeoutMs = 2000)` waits for queued events and never throws. A timeout is logged.
 - `withCronMonitor({ slug, schedule, checkinMargin, maxRuntime }, job)` sends an `in_progress` check-in, runs the job, then sends `ok` or `error`. A throw or a non-2xx response counts as `error`; the original response or error passes through. Without a DSN it runs the job with no check-ins. `schedule` is a crontab expression; the margin and runtime are in minutes.
-- `runInBatches({ loadBatch, handle, batchSize, timeBudgetMs })` loads up to `batchSize` items at a time until `loadBatch` returns none or the budget is spent (checked between batches). It returns `{ processed, failures, hasMore }`. One failed item does not stop its batch; a batch with failures ends the run with `hasMore: true`, so make `loadBatch` skip items that failed or were already handled.
+- `runInBatches({ loadBatch, handle, batchSize, timeBudgetMs })` loads up to `batchSize` items at a time until `loadBatch` returns none or the budget is spent (checked between batches). It returns `{ processed, failures, hasMore }`. One failed item does not stop its batch; a batch with failures ends the run with `hasMore: true`, so make `loadBatch` skip items that failed or were already handled. Failures are not reported automatically, and an error thrown by `loadBatch` propagates without the partial counts.
