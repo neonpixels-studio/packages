@@ -52,7 +52,7 @@ export function parseAddress(value: unknown): EmailAddress | null {
 }
 
 export function normalizeHeaders(value: unknown): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = Object.create(null);
   const entries = Array.isArray(value)
     ? value.map((item) => [asRecord(item).name, asRecord(item).value] as const)
     : Object.entries(asRecord(value));
@@ -65,9 +65,9 @@ export function normalizeHeaders(value: unknown): Record<string, string> {
       : headerValue;
     const lowerName = name.toLowerCase();
     const headerText = text === undefined || text === null ? "" : String(text);
-    const existing = headers[lowerName];
-    headers[lowerName] =
-      existing === undefined ? headerText : `${existing}, ${headerText}`;
+    headers[lowerName] = Object.hasOwn(headers, lowerName)
+      ? `${headers[lowerName]}, ${headerText}`
+      : headerText;
   }
   return headers;
 }

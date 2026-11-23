@@ -33,11 +33,12 @@ async function request(
 ): Promise<Response> {
   const {
     apiKey,
-    fetch: fetchImpl = globalThis.fetch,
+    fetch: fetchFunction = globalThis.fetch,
     timeoutMs = DEFAULT_TIMEOUT_MS,
   } = options;
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
-    return await fetchImpl(
+    return await fetchFunction(
       `${RESEND_RECEIVED_EMAIL_URL}${encodeURIComponent(emailId)}`,
       {
         method: "GET",
@@ -45,7 +46,7 @@ async function request(
           authorization: `Bearer ${apiKey}`,
           accept: "application/json",
         },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal,
       },
     );
   } catch (error) {
@@ -119,6 +120,9 @@ export async function fetchReceivedEmail(
 ): Promise<InboundEmail> {
   if (emailId.trim() === "") {
     throw new TypeError("fetchReceivedEmail requires an email id.");
+  }
+  if (!options.apiKey?.trim()) {
+    throw new TypeError("fetchReceivedEmail requires an API key.");
   }
   const response = await request(emailId, options);
   if (!response.ok) {

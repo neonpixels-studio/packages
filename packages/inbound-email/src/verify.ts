@@ -44,7 +44,7 @@ function readHeader(headers: WebhookHeaders, name: string): string | null {
   return text ? text : null;
 }
 
-function decodeSecret(secret: string | null | undefined): Buffer {
+export function decodeSecret(secret: string | null | undefined): Buffer {
   const trimmed = (secret ?? "").trim();
   const encoded = trimmed.startsWith(SECRET_PREFIX)
     ? trimmed.slice(SECRET_PREFIX.length)

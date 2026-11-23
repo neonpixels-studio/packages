@@ -70,6 +70,12 @@ export async function handle(
     const recipient = findRecipient(email, { domain: "inbound.example.com" });
     // Map recipient.local to a user, then store the email.
   } catch (error) {
+    const misconfigured =
+      error instanceof FetchReceivedEmailError &&
+      (error.status === 401 || error.status === 403);
+    if (misconfigured) {
+      return new Response("misconfigured", { status: 503 });
+    }
     if (error instanceof FetchReceivedEmailError && !error.retryable) {
       return new Response("unfetchable", { status: 200 });
     }

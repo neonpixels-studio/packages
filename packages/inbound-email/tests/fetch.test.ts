@@ -210,6 +210,37 @@ describe("fetchReceivedEmail", () => {
     expect(email.headers).toEqual({ received: "hop1, hop2" });
   });
 
+  it("rejects a missing API key before calling fetch", async () => {
+    const fetchStub = stubFetch(jsonResponse({}));
+    await expect(
+      fetchReceivedEmail("e1", { apiKey: " ", fetch: fetchStub }),
+    ).rejects.toThrow(TypeError);
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an invalid timeout as a programming error, not a retryable failure", async () => {
+    await expect(
+      fetchReceivedEmail("e1", {
+        apiKey: API_KEY,
+        fetch: stubFetch(jsonResponse({})),
+        timeoutMs: -1,
+      }),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("keeps header names that match object built-ins", async () => {
+    const headers = JSON.parse(
+      '{"constructor":"a","__proto__":"b","toString":"c"}',
+    );
+    const email = await fetchReceivedEmail("e1", {
+      apiKey: API_KEY,
+      fetch: stubFetch(jsonResponse(buildReceivedEmailResponse({ headers }))),
+    });
+    expect(email.headers.constructor).toBe("a");
+    expect(email.headers.tostring).toBe("c");
+    expect(Object.hasOwn(email.headers, "__proto__")).toBe(true);
+  });
+
   it("rejects an empty email id before calling fetch", async () => {
     const fetchStub = stubFetch(jsonResponse({}));
     await expect(

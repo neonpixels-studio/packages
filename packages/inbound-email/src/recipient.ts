@@ -34,16 +34,15 @@ export function findRecipient(
   if (domain === "") {
     throw new TypeError("findRecipient requires a non-empty domain.");
   }
-  for (const raw of [
+  const candidates = [
     ...email.receivedFor,
     ...email.to,
     ...email.cc,
     ...email.bcc,
-  ]) {
-    const recipient = splitAddress(raw, domain);
-    if (recipient) {
-      return recipient;
-    }
-  }
-  return null;
+  ];
+  return (
+    candidates
+      .map((raw) => splitAddress(raw, domain))
+      .find((recipient) => recipient !== null) ?? null
+  );
 }

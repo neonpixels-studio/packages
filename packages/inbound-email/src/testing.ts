@@ -1,7 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { decodeSecret } from "./verify.ts";
 import type { ReceivedEmailEvent } from "./types.ts";
-
-const SECRET_PREFIX = "whsec_";
 
 export interface SignedWebhookRequest {
   rawBody: string;
@@ -25,7 +24,7 @@ export function buildSignedWebhookRequest(
   const timestamp = String(options.timestamp ?? Math.floor(Date.now() / 1000));
   const body = options.body ?? buildReceivedEmailEvent();
   const rawBody = typeof body === "string" ? body : JSON.stringify(body);
-  const key = Buffer.from(options.secret.replace(SECRET_PREFIX, ""), "base64");
+  const key = decodeSecret(options.secret);
   const signature = createHmac("sha256", key)
     .update(`${id}.${timestamp}.${rawBody}`)
     .digest("base64");
