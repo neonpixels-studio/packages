@@ -14,7 +14,20 @@ const LINE_BREAK_PATTERN = /\r\n?/g;
 const JAVASCRIPT_URL_PATTERN = /^\s*javascript:/i;
 // URL parsers drop tabs and newlines anywhere in the value.
 const URL_IGNORED_CHARACTERS = /[\t\n\r]/g;
-const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction"]);
+const URL_ATTRIBUTES = new Set([
+  "href",
+  "src",
+  "action",
+  "formaction",
+  "xlink:href",
+]);
+const NUMERIC_REFERENCE_PATTERN = /&#(?:x([0-9a-f]+)|(\d+));?/gi;
+const NAMED_REFERENCES: Record<string, string> = {
+  "&tab;": "",
+  "&newline;": "",
+  "&colon;": ":",
+};
+const NAMED_REFERENCE_PATTERN = /&(?:tab|newline|colon);/gi;
 const TAG_PATTERN = /<([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 const ATTRIBUTE_PATTERN =
   /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
@@ -89,13 +102,30 @@ function isHashableStyle(attributes: Map<string, string>): boolean {
   return STYLE_TYPES.has(declaredType(attributes));
 }
 
+function decodeCharacterReferences(value: string): string {
+  return value
+    .replace(
+      NUMERIC_REFERENCE_PATTERN,
+      (_match, hex?: string, decimal?: string) =>
+        String.fromCodePoint(
+          Number.parseInt(hex ?? decimal ?? "0", hex ? 16 : 10) % 0x110000,
+        ),
+    )
+    .replace(
+      NAMED_REFERENCE_PATTERN,
+      (match) => NAMED_REFERENCES[match.toLowerCase()] ?? match,
+    );
+}
+
 function isUnhashable(name: string, value: string): boolean {
   if (name === "style" || EVENT_HANDLER_PATTERN.test(name)) {
     return true;
   }
   return (
     URL_ATTRIBUTES.has(name) &&
-    JAVASCRIPT_URL_PATTERN.test(value.replace(URL_IGNORED_CHARACTERS, ""))
+    JAVASCRIPT_URL_PATTERN.test(
+      decodeCharacterReferences(value).replace(URL_IGNORED_CHARACTERS, ""),
+    )
   );
 }
 

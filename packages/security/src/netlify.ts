@@ -21,7 +21,12 @@ const CSP_HEADER_NAME = "Content-Security-Policy";
 // Directives that govern inline elements and so carry the hashes.
 const SCRIPT_HASH_DIRECTIVES = ["script-src", "script-src-elem"] as const;
 const STYLE_HASH_DIRECTIVES = ["style-src", "style-src-elem"] as const;
-const HASH_DIRECTIVES = [...SCRIPT_HASH_DIRECTIVES, ...STYLE_HASH_DIRECTIVES];
+const UNSAFE_INLINE_DIRECTIVES = [
+  ...SCRIPT_HASH_DIRECTIVES,
+  ...STYLE_HASH_DIRECTIVES,
+  "script-src-attr",
+  "style-src-attr",
+] as const;
 const BASE_DIRECTIVES: CspDirectives = {
   "default-src": [SELF_SOURCE],
   "script-src": [SELF_SOURCE],
@@ -93,8 +98,10 @@ async function findHtmlFiles(outDir: string): Promise<string[]> {
 }
 
 function assertNoUnsafeInline(directives: CspDirectives): void {
-  const offending = HASH_DIRECTIVES.filter((name) =>
-    directives[name]?.includes(UNSAFE_INLINE_SOURCE),
+  const offending = UNSAFE_INLINE_DIRECTIVES.filter((name) =>
+    directives[name]?.some(
+      (source) => source.toLowerCase() === UNSAFE_INLINE_SOURCE,
+    ),
   );
   if (offending.length === 0) {
     return;

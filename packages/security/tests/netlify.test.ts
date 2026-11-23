@@ -210,6 +210,17 @@ describe("writeHeadersFile", () => {
     expect(file).toContain(`style-src-elem 'self' ${sha256(INLINE_STYLE)}`);
   });
 
+  it("refuses 'unsafe-inline' in any case and in the -attr directives", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    for (const directives of [
+      { "script-src": ["'UNSAFE-INLINE'"] },
+      { "style-src-attr": ["'unsafe-inline'"] },
+    ]) {
+      const error = await failure(writeHeadersFile(outDir, { directives }));
+      expect(error.code).toBe("unsafe-inline-directive");
+    }
+  });
+
   it("refuses directives that allow 'unsafe-inline' for scripts or styles", async () => {
     await writeSite({ "index.html": page("<p>x</p>") });
     const error = await failure(
@@ -243,13 +254,17 @@ describe("findInlineSources", () => {
     expect(findInlineSources(html).scriptHashes).toHaveLength(2);
   });
 
-  it("flags javascript: URLs split by a tab", () => {
-    expect(
-      findInlineSources('<a href="java&#9;script:x()">a</a>').unhashable,
-    ).toEqual([]);
-    expect(
-      findInlineSources('<a href="java\tscript:x()">a</a>').unhashable,
-    ).toEqual(["<a href>"]);
+  it.each([
+    "java\tscript:x()",
+    "java&#9;script:x()",
+    "&#106;avascript:x()",
+    "&#x6A;avascript:x()",
+    "javascript&colon;x()",
+    "  javascript:x()",
+  ])("flags the obfuscated javascript: URL %s", (href) => {
+    expect(findInlineSources(`<a href="${href}">a</a>`).unhashable).toEqual([
+      "<a href>",
+    ]);
   });
 
   it("flags javascript: URLs but not other URLs", () => {
