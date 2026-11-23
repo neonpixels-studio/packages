@@ -24,6 +24,10 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 /** Empty text is rejected by Slack and Discord, so a placeholder stands in. */
+export function singleLineOrPlaceholder(text: string): string {
+  return orPlaceholder(singleLine(text));
+}
+
 export function orPlaceholder(text: string): string {
   return text.trim() === "" ? "-" : text;
 }
@@ -37,12 +41,14 @@ export function escapeSlackText(text: string): string {
 
 const DISCORD_MARKDOWN = /[\\*_~`|<>[\]()]/g;
 const DISCORD_LINE_START = /^([ \t]*)([#+-])/gm;
+const DISCORD_ORDERED_LIST = /^([ \t]*)(\d+)\./gm;
 
 /** Backslash-escapes Discord markdown, line-start headings and lists, and the `<` that starts mentions, links, and emoji. */
 export function escapeDiscordText(text: string): string {
   return text
     .replace(DISCORD_MARKDOWN, "\\$&")
-    .replace(DISCORD_LINE_START, "$1\\$2");
+    .replace(DISCORD_LINE_START, "$1\\$2")
+    .replace(DISCORD_ORDERED_LIST, "$1$2\\.");
 }
 
 export function escapeHtml(text: string): string {

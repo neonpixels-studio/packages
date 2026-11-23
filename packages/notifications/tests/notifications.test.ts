@@ -10,7 +10,8 @@ import {
 } from "../src/index.ts";
 import { renderDiscordPayload } from "../src/discord.ts";
 import { renderSlackPayload } from "../src/slack.ts";
-import { TRUNCATION_MARKER } from "../src/text.ts";
+import { parseRetryAfterMs } from "../src/http.ts";
+import { TRUNCATION_MARKER, truncate } from "../src/text.ts";
 
 const SLACK_URL =
   "https://hooks.slack.com/services/T0SECRET/B0SECRET/slacktoken123";
@@ -294,7 +295,8 @@ describe("discord", () => {
       embed.description.length +
       embed.footer.text.length +
       embed.fields.reduce(
-        (sum: number, f: Loose) => sum + f.name.length + f.value.length,
+        (sum: number, field: Loose) =>
+          sum + field.name.length + field.value.length,
         0,
       );
     expect(total).toBeLessThanOrEqual(6000);
@@ -313,13 +315,13 @@ describe("discord", () => {
     const payload = renderDiscordPayload({
       ...BASE,
       title: "<@123> @everyone **bold**",
-      body: "[click](https://evil.com) <#456> `code`\n# heading\n- item",
+      body: "[click](https://evil.com) <#456> `code`\n# heading\n- item\n1. step",
     });
     const embed = payload.embeds[0] as Loose;
     expect(payload.allowed_mentions.parse).toEqual([]);
     expect(embed.title).toBe("\\<@123\\> @everyone \\*\\*bold\\*\\*");
     expect(embed.description).toBe(
-      "\\[click\\]\\(https://evil.com\\) \\<#456\\> \\`code\\`\n\\# heading\n\\- item",
+      "\\[click\\]\\(https://evil.com\\) \\<#456\\> \\`code\\`\n\\# heading\n\\- item\n1\\. step",
     );
   });
 });
@@ -459,7 +461,7 @@ describe("email", () => {
 
 describe("sendNotification", () => {
   it("reports each channel and continues past a failure", async () => {
-    const slackFetch = async (url: string, init: RequestInit) => {
+    const slackFetch = async (url: string) => {
       if (url === SLACK_URL) {
         return respond(404);
       }
@@ -467,7 +469,6 @@ describe("sendNotification", () => {
         throw new Error(`connect failed for ${url}`);
       }
       return respond(200);
-      void init;
     };
     const results = await sendNotification(
       BASE,
@@ -709,5 +710,111 @@ describe("secrets", () => {
       { fetch: fakeFetch().fetch },
     );
     expect(JSON.stringify(results)).not.toContain("slacktoken123");
+  });
+});
+
+describe("edge cases", () => {
+  it("rejects fields that are not label/value strings", async () => {
+    const { calls, fetch } = fakeFetch();
+    const channel = slackChannel({ webhookUrl: SLACK_URL });
+    const numeric = await sendNotification(
+      { ...BASE, fields: [{ label: "Count", value: 3 as unknown as string }] },
+      [channel],
+      { fetch },
+    );
+    const notArray = await sendNotification(
+      { ...BASE, fields: "nope" as unknown as Notification["fields"] },
+      [channel],
+      { fetch },
+    );
+    expect(calls).toHaveLength(0);
+    for (const results of [numeric, notArray]) {
+      expect(firstOf(results)).toMatchObject({
+        status: "failed",
+        reason:
+          "invalid notification: fields must be { label: string, value: string }[]",
+      });
+    }
+  });
+
+  it("does not throw for null options", async () => {
+    await expect(
+      sendNotification(BASE, [], null as unknown as undefined),
+    ).resolves.toEqual([]);
+  });
+
+  it("falls back to defaults for unusable numeric options and keeps a long retry delay", async () => {
+    const { fetch } = fakeFetch(respond(500), respond(200));
+    const sleep = vi.fn(noSleep);
+    const results = await sendNotification(
+      BASE,
+      [slackChannel({ webhookUrl: SLACK_URL })],
+      {
+        fetch,
+        sleep,
+        timeoutMs: Number.NaN,
+        retryDelayMs: 8000,
+      },
+    );
+    expect(results).toEqual([{ channel: "slack", status: "sent" }]);
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(8000);
+  });
+
+  it("reads Retry-After exactly", () => {
+    const now = Date.parse("Sun, 22 Nov 2026 00:00:00 GMT");
+    expect(parseRetryAfterMs("Sun, 22 Nov 2026 00:00:02 GMT", now)).toBe(2000);
+    expect(parseRetryAfterMs("1.5", now)).toBe(1500);
+    expect(parseRetryAfterMs("-3", now)).toBeUndefined();
+    expect(parseRetryAfterMs(null, now)).toBeUndefined();
+  });
+
+  it("does not split a surrogate pair when truncating", () => {
+    const text = "a".repeat(20) + "😀".repeat(10);
+    const cut = truncate(text, TRUNCATION_MARKER.length + 21);
+    expect(cut).toHaveLength(TRUNCATION_MARKER.length + 20);
+    expect(cut.endsWith(TRUNCATION_MARKER)).toBe(true);
+  });
+
+  it("does not cut an escaped entity in the Slack fallback text", () => {
+    const payload = renderSlackPayload({
+      ...BASE,
+      title: "<".repeat(400),
+    }) as Loose;
+    expect(payload.text).not.toMatch(
+      /&(?:l|lt|a|am|amp|g|gt)?(?:… \(truncated\))/,
+    );
+  });
+
+  it("rejects more than 50 email recipients", async () => {
+    const { calls, fetch } = fakeFetch();
+    const to = Array.from(
+      { length: 51 },
+      (_, index) => `user${index}@example.com`,
+    );
+    const results = await sendNotification(
+      BASE,
+      [emailChannel({ apiKey: API_KEY, from: "a@example.com", to })],
+      { fetch },
+    );
+    expect(calls).toHaveLength(0);
+    expect(firstOf(results)).toMatchObject({
+      reason: "invalid email configuration",
+    });
+  });
+
+  it("sends the normalized webhook url, query string included", async () => {
+    const { calls, fetch } = fakeFetch();
+    await sendNotification(
+      BASE,
+      [
+        discordChannel({
+          webhookUrl: "https://discordapp.com/api/webhooks/1/abc?thread_id=9",
+        }),
+      ],
+      { fetch },
+    );
+    expect(firstOf(calls).url).toBe(
+      "https://discordapp.com/api/webhooks/1/abc?thread_id=9",
+    );
   });
 });

@@ -4,7 +4,7 @@ import {
   escapeDiscordText,
   orPlaceholder,
   safeLink,
-  singleLine,
+  singleLineOrPlaceholder,
   truncate,
 } from "./text.ts";
 import { parseDiscordWebhookUrl } from "./urls.ts";
@@ -34,6 +34,10 @@ interface EmbedField {
   value: string;
 }
 
+function discordText(text: string, maxLength: number): string {
+  return truncate(escapeDiscordText(text), maxLength);
+}
+
 /** Fields are added in order until the embed's combined 6000-character budget is spent. */
 function fitFields(notification: Notification, budget: number): EmbedField[] {
   const fitted: EmbedField[] = [];
@@ -42,17 +46,18 @@ function fitFields(notification: Notification, budget: number): EmbedField[] {
     0,
     DISCORD_FIELDS_MAX,
   )) {
-    const name = truncate(
-      escapeDiscordText(orPlaceholder(singleLine(field.label))),
+    const name = discordText(
+      singleLineOrPlaceholder(field.label),
       DISCORD_FIELD_NAME_MAX,
     );
-    const value = truncate(
-      escapeDiscordText(orPlaceholder(field.value)),
-      Math.min(DISCORD_FIELD_VALUE_MAX, remaining - name.length),
-    );
-    if (remaining - name.length < MIN_FIELD_VALUE_LENGTH) {
+    const valueBudget = remaining - name.length;
+    if (valueBudget < MIN_FIELD_VALUE_LENGTH) {
       break;
     }
+    const value = discordText(
+      orPlaceholder(field.value),
+      Math.min(DISCORD_FIELD_VALUE_MAX, valueBudget),
+    );
     fitted.push({ name, value });
     remaining -= name.length + value.length;
   }
@@ -69,14 +74,11 @@ function footerText(notification: Notification, omitted: number): string {
  * and `<` are backslash-escaped so caller text renders as written.
  */
 export function renderDiscordPayload(notification: Notification) {
-  const title = truncate(
-    escapeDiscordText(orPlaceholder(singleLine(notification.title))),
+  const title = discordText(
+    singleLineOrPlaceholder(notification.title),
     DISCORD_TITLE_MAX,
   );
-  const description = truncate(
-    escapeDiscordText(notification.body),
-    DISCORD_DESCRIPTION_MAX,
-  );
+  const description = discordText(notification.body, DISCORD_DESCRIPTION_MAX);
   const fieldBudget =
     DISCORD_EMBED_TOTAL_MAX -
     title.length -

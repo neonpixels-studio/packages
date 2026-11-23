@@ -35,7 +35,9 @@ export function parseRetryAfterMs(
 
 function retryDelayMs(response: Response, context: DeliveryContext): number {
   const requested = parseRetryAfterMs(response.headers.get("retry-after"));
-  return Math.min(requested ?? context.retryDelayMs, context.maxRetryAfterMs);
+  return requested === undefined
+    ? context.retryDelayMs
+    : Math.min(requested, context.maxRetryAfterMs);
 }
 
 async function discardBody(response: Response): Promise<void> {

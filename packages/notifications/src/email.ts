@@ -2,9 +2,8 @@ import { DeliveryError } from "./errors.ts";
 import { postJson } from "./http.ts";
 import {
   escapeHtml,
-  orPlaceholder,
   safeLink,
-  singleLine,
+  singleLineOrPlaceholder,
   truncate,
 } from "./text.ts";
 import type { Channel, Notification } from "./types.ts";
@@ -34,7 +33,7 @@ function recipientsOf(to: EmailChannelOptions["to"]): string[] | undefined {
 }
 
 export function renderEmailSubject(notification: Notification): string {
-  const title = orPlaceholder(singleLine(notification.title));
+  const title = singleLineOrPlaceholder(notification.title);
   return truncate(`[${notification.severity}] ${title}`, EMAIL_SUBJECT_MAX);
 }
 

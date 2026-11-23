@@ -4,7 +4,7 @@ import {
   escapeSlackText,
   orPlaceholder,
   safeLink,
-  singleLine,
+  singleLineOrPlaceholder,
   truncate,
 } from "./text.ts";
 import { parseSlackWebhookUrl } from "./urls.ts";
@@ -15,7 +15,6 @@ export const SLACK_SECTION_TEXT_MAX = 3000;
 export const SLACK_FIELD_TEXT_MAX = 2000;
 export const SLACK_FIELDS_MAX = 10;
 const SLACK_BUTTON_URL_MAX = 3000;
-const SLACK_TEXT_MAX = 3000;
 
 export interface SlackChannelOptions {
   webhookUrl: string;
@@ -28,7 +27,7 @@ function plainText(text: string) {
 function fieldBlocks(notification: Notification) {
   const fields = notification.fields ?? [];
   const shown = fields.slice(0, SLACK_FIELDS_MAX).map((field) => {
-    const text = `${orPlaceholder(singleLine(field.label))}\n${orPlaceholder(field.value)}`;
+    const text = `${singleLineOrPlaceholder(field.label)}\n${orPlaceholder(field.value)}`;
     return plainText(truncate(text, SLACK_FIELD_TEXT_MAX));
   });
   if (shown.length === 0) {
@@ -68,7 +67,7 @@ function linkBlocks(notification: Notification) {
  * is escaped and `mrkdwn` is turned off as well.
  */
 export function renderSlackPayload(notification: Notification) {
-  const title = orPlaceholder(singleLine(notification.title));
+  const title = singleLineOrPlaceholder(notification.title);
   const blocks: unknown[] = [
     { type: "header", text: plainText(truncate(title, SLACK_HEADER_MAX)) },
   ];
@@ -84,9 +83,8 @@ export function renderSlackPayload(notification: Notification) {
     ...linkBlocks(notification),
   );
   return {
-    text: truncate(
-      escapeSlackText(`[${notification.severity}] ${title}`),
-      SLACK_TEXT_MAX,
+    text: escapeSlackText(
+      truncate(`[${notification.severity}] ${title}`, SLACK_HEADER_MAX),
     ),
     mrkdwn: false,
     blocks,

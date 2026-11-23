@@ -10,6 +10,7 @@ import type {
   ChannelResult,
   DeliveryContext,
   Notification,
+  NotificationField,
   SendOptions,
 } from "./types.ts";
 
@@ -29,15 +30,41 @@ function invalidNotificationReason(notification: unknown): string | undefined {
   ) {
     return "invalid notification: severity must be info, warning, or error";
   }
-  return undefined;
+  return invalidFieldsReason(candidate.fields);
+}
+
+function isValidField(field: unknown): boolean {
+  const candidate = field as Partial<NotificationField> | null;
+  return (
+    typeof candidate?.label === "string" && typeof candidate.value === "string"
+  );
+}
+
+function invalidFieldsReason(fields: unknown): string | undefined {
+  if (fields === undefined) {
+    return undefined;
+  }
+  const valid = Array.isArray(fields) && fields.every(isValidField);
+  return valid
+    ? undefined
+    : "invalid notification: fields must be { label: string, value: string }[]";
+}
+
+function milliseconds(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback;
 }
 
 function contextFrom(options: SendOptions): DeliveryContext {
   return {
     fetch: options.fetch ?? ((input, init) => fetch(input, init)),
-    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    retryDelayMs: options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS,
-    maxRetryAfterMs: options.maxRetryAfterMs ?? DEFAULT_MAX_RETRY_AFTER_MS,
+    timeoutMs: milliseconds(options.timeoutMs, DEFAULT_TIMEOUT_MS),
+    retryDelayMs: milliseconds(options.retryDelayMs, DEFAULT_RETRY_DELAY_MS),
+    maxRetryAfterMs: milliseconds(
+      options.maxRetryAfterMs,
+      DEFAULT_MAX_RETRY_AFTER_MS,
+    ),
     sleep: options.sleep ?? sleepFor,
   };
 }
@@ -68,12 +95,12 @@ async function deliverTo(
  * Sends to every channel at once and returns one result per channel, in the
  * order given. A delivery failure never throws and never stops another channel.
  */
-export function sendNotification(
+export async function sendNotification(
   notification: Notification,
   channels: Channel[],
-  options: SendOptions = {},
+  options?: SendOptions,
 ): Promise<ChannelResult[]> {
-  const context = contextFrom(options);
+  const context = contextFrom(options ?? {});
   const invalid = invalidNotificationReason(notification);
   return Promise.all(
     channels.map((channel) =>
