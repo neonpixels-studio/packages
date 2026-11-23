@@ -79,11 +79,18 @@ async function reportPassed(
   client: IssueClient,
   environment: ReportEnvironment,
 ): Promise<void> {
-  const closed = await closePassedIssues(
+  const results = await closePassedIssues(
     client,
     environment.variables["RUN_URL"] || null,
   );
-  environment.log(`Closed ${closed.length} Lighthouse regression issue(s).`);
+  for (const result of results.filter((item) => !item.closed)) {
+    environment.error(`Could not close #${result.number}: ${result.error}`);
+  }
+  const closed = results.filter((result) => result.closed).length;
+  environment.log(`Closed ${closed} Lighthouse regression issue(s).`);
+  if (closed < results.length) {
+    throw new Error("Could not close every Lighthouse regression issue");
+  }
 }
 
 async function reportFailure(

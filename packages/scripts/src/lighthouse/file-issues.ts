@@ -31,6 +31,19 @@ async function fileSiteIssue(
   return { site, action: "created", output: url };
 }
 
+async function fileSiteIssueSafely(
+  client: IssueClient,
+  open: OpenIssue[],
+  site: string,
+  body: string,
+): Promise<FilingResult> {
+  try {
+    return await fileSiteIssue(client, open, site, body);
+  } catch (error) {
+    return { site, action: "failed", output: describeError(error) };
+  }
+}
+
 /**
  * Opens one issue per failing site, or comments on the site's open one. A
  * site that fails is recorded and the rest still run, so the caller can report
@@ -49,26 +62,42 @@ export async function fileFailureIssues(
       context,
       resultsForSite(results, site, fallbackSite),
     );
-    try {
-      filings.push(await fileSiteIssue(client, open, site, body));
-    } catch (error) {
-      filings.push({ site, action: "failed", output: describeError(error) });
-    }
+    filings.push(await fileSiteIssueSafely(client, open, site, body));
   }
   return filings;
 }
 
-/** Closes every open regression issue after a passing run; returns their numbers. */
+export interface CloseResult {
+  number: number;
+  closed: boolean;
+  error: string | null;
+}
+
+async function closeIssueSafely(
+  client: IssueClient,
+  number: number,
+  comment: string,
+): Promise<CloseResult> {
+  try {
+    await client.closeIssue(number, comment);
+    return { number, closed: true, error: null };
+  } catch (error) {
+    return { number, closed: false, error: describeError(error) };
+  }
+}
+
+/** Closes every open regression issue after a passing run; one failure does not stop the rest. */
 export async function closePassedIssues(
   client: IssueClient,
   runUrl: string | null,
-): Promise<number[]> {
+): Promise<CloseResult[]> {
   const open = await client.listOpenRegressionIssues();
   const comment = runUrl
     ? `The scheduled Lighthouse run passed, closing: ${runUrl}`
     : "The scheduled Lighthouse run passed, closing.";
+  const results: CloseResult[] = [];
   for (const issue of open) {
-    await client.closeIssue(issue.number, comment);
+    results.push(await closeIssueSafely(client, issue.number, comment));
   }
-  return open.map((issue) => issue.number);
+  return results;
 }

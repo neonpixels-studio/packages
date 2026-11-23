@@ -185,7 +185,7 @@ describe("createNeonSqlClient", () => {
 });
 
 function environment(
-  rowsByQuery: { exists: boolean; recorded: RecordedMigration[] },
+  rowsByQuery: { exists: boolean | string; recorded: RecordedMigration[] },
   journalEntries = [
     { idx: 0, tag: "0000_init", when: 100 },
     { idx: 1, tag: "0001_more", when: 200 },
@@ -231,6 +231,18 @@ describe("runCheckMigrationDrift", () => {
     });
     expect(await runCheckMigrationDrift([], testEnvironment)).toBe(0);
     expect(log.join("\n")).toContain("nothing to check");
+  });
+
+  it.each([
+    ["t", 0, "2 applied"],
+    ["f", 0, "nothing to check"],
+  ])("reads Postgres text boolean %s", async (exists, exitCode, message) => {
+    const { testEnvironment, log } = environment({
+      exists,
+      recorded: [recorded(FIRST, 100), recorded(SECOND, 200)],
+    });
+    expect(await runCheckMigrationDrift([], testEnvironment)).toBe(exitCode);
+    expect(log.join("\n")).toContain(message);
   });
 
   it("fails on a drifted journal and never prints the database URL", async () => {

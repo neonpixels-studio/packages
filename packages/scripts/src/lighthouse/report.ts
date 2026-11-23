@@ -4,6 +4,7 @@ export const DEFAULT_WORKFLOW_FILE = "lighthouse.yml";
 export const DEFAULT_RESULTS_PATH = ".lighthouseci/assertion-results.json";
 // Keeps the issue body well under GitHub's 65,536 character limit.
 const MAX_TABLE_ROWS = 100;
+const MAX_CELL_LENGTH = 200;
 export const ISSUE_TITLE_PREFIX = "Lighthouse regression on ";
 
 export interface AssertionResult {
@@ -141,7 +142,12 @@ function formatScore(value: number | undefined): string {
 
 // Lighthouse URLs are data from the audited site: keep them from breaking out of the table cell.
 function tableCell(text: string): string {
-  return text.replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
+  const flat = text.replace(/[\r\n]+/g, " ");
+  const short =
+    flat.length > MAX_CELL_LENGTH
+      ? `${flat.slice(0, MAX_CELL_LENGTH)}...`
+      : flat;
+  return short.replace(/\|/g, "\\|");
 }
 
 export function formatAssertionRows(failing: AssertionResult[]): string {

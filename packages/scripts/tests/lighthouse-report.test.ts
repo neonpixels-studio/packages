@@ -248,6 +248,13 @@ describe("partial failures", () => {
     expect(lines.join("\n")).toContain("Issue failed for one.example.com");
   });
 
+  it("truncates a very long cell", () => {
+    const table = formatAssertionRows([
+      { url: `https://x.test/${"a".repeat(5000)}`, passed: false },
+    ]);
+    expect(table.length).toBeLessThan(1000);
+  });
+
   it("caps a very large table", () => {
     const many = Array.from({ length: 500 }, (_, index) => ({
       url: `https://x.test/${index}`,
@@ -275,9 +282,34 @@ describe("closePassedIssues", () => {
       { number: 1, title: "Lighthouse regression on a" },
       { number: 2, title: "Lighthouse regression on b" },
     ]);
-    expect(await closePassedIssues(client, "https://run")).toEqual([1, 2]);
+    const results = await closePassedIssues(client, "https://run");
+    expect(results.map((result) => result.number)).toEqual([1, 2]);
     expect(closed.map((entry) => entry.number)).toEqual([1, 2]);
     expect(closed[0]?.comment).toContain("https://run");
+  });
+
+  it("keeps closing after one issue fails, then exits non-zero", async () => {
+    const { client, closed } = fakeClient([
+      { number: 1, title: "Lighthouse regression on a" },
+      { number: 2, title: "Lighthouse regression on b" },
+    ]);
+    const close = client.closeIssue;
+    client.closeIssue = async (number, comment) => {
+      if (number === 1) {
+        throw new Error("forbidden");
+      }
+      return close(number, comment);
+    };
+    const { testEnvironment, lines } = environment(
+      { GITHUB_REPOSITORY: "acme/site" },
+      null,
+      client,
+    );
+    expect(
+      await runReportLighthouseFailure(["--passed"], testEnvironment),
+    ).toBe(1);
+    expect(closed.map((entry) => entry.number)).toEqual([2]);
+    expect(lines.join("\n")).toContain("Could not close #1: forbidden");
   });
 
   it("does nothing when no issue is open", async () => {
