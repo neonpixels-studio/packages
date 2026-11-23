@@ -1,0 +1,32 @@
+{
+  "name": "@neon-pixels/feedback-client",
+  "version": "0.2.0",
+  "description": "Send user feedback to the Neon Pixels dashboard: one typed request, a typed error, and the receiver's field limits.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neonpixels-studio/packages.git",
+    "directory": "packages/feedback-client"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
