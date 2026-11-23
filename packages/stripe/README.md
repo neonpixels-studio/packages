@@ -13,6 +13,7 @@ pnpm add @neon-pixels/stripe stripe
 ## Usage
 
 ```ts
+import type Stripe from "stripe";
 import {
   constructWebhookEvent,
   createBillingPortalSession,
@@ -46,23 +47,26 @@ const portal = await createBillingPortalSession(stripe, {
 ### Webhook handler
 
 ```ts
+let event: Stripe.Event;
 try {
-  const event = constructWebhookEvent({ stripe, rawBody, signature, secret });
+  event = constructWebhookEvent({ stripe, rawBody, signature, secret });
 } catch (error) {
   if (
     error instanceof MissingSignatureError ||
     error instanceof InvalidSignatureError
   ) {
-    // answer 4xx
+    return respond(400);
   }
   // MissingWebhookSecretError is a server problem: answer 5xx so Stripe retries
+  throw error;
 }
 
 const owner = await resolveSubscriptionOwner(event, {
   findByCustomerId,
   findByUserId,
 });
-if (owner && !isStaleEvent(event, owner.lastAppliedAt)) {
+// lastEventCreatedAt is the `created` time of the last event you applied
+if (owner && !isStaleEvent(event, owner.lastEventCreatedAt)) {
   const data = extractSubscriptionData(
     event.data.object as Stripe.Subscription,
   );
@@ -73,11 +77,11 @@ if (owner && !isStaleEvent(event, owner.lastAppliedAt)) {
 ### API
 
 - `createStripeClient(secretKey)` returns a `Stripe` client. Throws `MissingSecretKeyError` for an empty key.
-- `constructWebhookEvent({ stripe, rawBody, signature, secret })` verifies the signature against the raw body and returns the event. Throws `MissingWebhookSecretError`, `MissingSignatureError`, or `InvalidSignatureError` (all extend `StripeKitError`, which has a `code`). Other errors are rethrown unchanged.
+- `constructWebhookEvent({ stripe, rawBody, signature, secret })` verifies the signature against the raw body and returns the event. Empty or whitespace-only values count as missing. Throws `MissingWebhookSecretError`, `MissingSignatureError`, or `InvalidSignatureError` (all extend `StripeKitError`, which has a `code`). Other errors are rethrown unchanged.
 - `extractSubscriptionData(subscription)` returns `subscriptionId`, `customerId`, `status`, `priceId`, `currentPeriodEnd`, `cancelAtPeriodEnd`, and `trialEnd` (dates are `Date` or `null`).
 - `resolveSubscriptionOwner(event, { findByCustomerId, findByUserId })` looks the owner up by the Stripe customer id first, then by `metadata.userId`. Resolves to `undefined` when neither matches.
 - `isEntitledStatus(status)` is `true` for `active`, `trialing`, and `past_due`.
-- `isStaleEvent(event, lastAppliedAt)` is `true` when the event is strictly older than the last one you applied. An equal timestamp is not stale.
+- `isStaleEvent(event, lastAppliedAt)` is `true` when the event is strictly older than the last one you applied. Pass that event's `created` time (`new Date(event.created * 1000)`), not when you processed it. An equal timestamp is not stale.
 - `createCheckoutSession(stripe, params)` creates a subscription checkout session and writes `userId` to `client_reference_id`, session metadata, and subscription metadata. A trial is added only when `trialDays` is a positive number. `buildCheckoutSessionParams` returns the parameters without calling Stripe.
 - `createBillingPortalSession(stripe, { customerId, returnUrl })` returns `{ url }`.
 - `PlanLimitError(message, { plan, limit })` has `status` 403, `code` `plan_limit_reached`, `plan`, and `limit`. You write the message.

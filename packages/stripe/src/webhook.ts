@@ -30,18 +30,14 @@ export function constructWebhookEvent(
   params: ConstructWebhookEventParams,
 ): Stripe.Event {
   const { stripe, rawBody, signature, secret } = params;
-  if (!secret) {
+  if (!secret?.trim()) {
     throw new MissingWebhookSecretError();
   }
-  if (!signature) {
+  if (!signature?.trim()) {
     throw new MissingSignatureError();
   }
   try {
-    return stripe.webhooks.constructEvent(
-      rawBody as string,
-      signature,
-      secret,
-    ) as Stripe.Event;
+    return stripe.webhooks.constructEvent(rawBody as string, signature, secret);
   } catch (error) {
     if (!isSignatureVerificationError(error)) {
       throw error;

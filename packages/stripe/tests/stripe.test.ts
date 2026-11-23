@@ -55,6 +55,10 @@ describe("createStripeClient", () => {
     expect(makeClient().webhooks).toBeDefined();
   });
 
+  it("throws a typed error for a whitespace-only key", () => {
+    expect(() => createStripeClient("  ")).toThrow(MissingSecretKeyError);
+  });
+
   it("throws a typed error for an empty key", () => {
     const error = errorOf(() => createStripeClient(""));
     expect(error).toBeInstanceOf(MissingSecretKeyError);
@@ -139,6 +143,34 @@ describe("constructWebhookEvent", () => {
     expect(error).toBeInstanceOf(MissingWebhookSecretError);
   });
 
+  it("treats null, undefined, and blank secrets as missing", () => {
+    const { payload, header } = signedPayload();
+    for (const secret of [null, undefined, "  "]) {
+      const error = errorOf(() =>
+        constructWebhookEvent({
+          stripe,
+          rawBody: payload,
+          signature: header,
+          secret,
+        }),
+      );
+      expect(error).toBeInstanceOf(MissingWebhookSecretError);
+    }
+  });
+
+  it("keeps the original verification error as the cause", () => {
+    const { payload, header } = signedPayload("another-secret");
+    const error = errorOf(() =>
+      constructWebhookEvent({
+        stripe,
+        rawBody: payload,
+        signature: header,
+        secret: WEBHOOK_SECRET,
+      }),
+    ) as InvalidSignatureError;
+    expect(error.cause).toBeInstanceOf(Error);
+  });
+
   it("keeps the three webhook errors distinguishable", () => {
     expect(new MissingSignatureError().code).toBe("missing-signature");
     expect(new InvalidSignatureError().code).toBe("invalid-signature");
@@ -214,6 +246,14 @@ describe("extractSubscriptionData", () => {
       }),
     );
     expect(data.currentPeriodEnd).toEqual(new Date(1_700_300_000_000));
+  });
+
+  it("handles a subscription without an items property", () => {
+    const data = extractSubscriptionData(
+      makeSubscription({ items: undefined }),
+    );
+    expect(data.priceId).toBeNull();
+    expect(data.currentPeriodEnd).toBeNull();
   });
 
   it("returns nulls when there are no items", () => {
@@ -362,6 +402,15 @@ describe("createCheckoutSession", () => {
     expect(second.subscription_data).not.toHaveProperty("trial_period_days");
     expect(second.customer).toBeUndefined();
     expect(second.customer_email).toBeUndefined();
+  });
+
+  it("ignores fractional and negative trial days", async () => {
+    const { create, stripe } = stubStripe();
+    await createCheckoutSession(stripe, { ...base, trialDays: 1.5 });
+    await createCheckoutSession(stripe, { ...base, trialDays: -1 });
+    for (const [sent] of create.mock.calls) {
+      expect(sent.subscription_data).not.toHaveProperty("trial_period_days");
+    }
   });
 
   it("prefers the customer id over the email", async () => {

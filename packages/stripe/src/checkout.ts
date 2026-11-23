@@ -35,8 +35,9 @@ function subscriptionData(
   const data: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
     metadata: { userId: params.userId },
   };
-  if (params.trialDays && params.trialDays > 0) {
-    data.trial_period_days = params.trialDays;
+  const trialDays = params.trialDays ?? 0;
+  if (Number.isInteger(trialDays) && trialDays > 0) {
+    data.trial_period_days = trialDays;
   }
   return data;
 }

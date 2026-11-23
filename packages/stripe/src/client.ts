@@ -6,7 +6,7 @@ import { MissingSecretKeyError } from "./errors.ts";
  * the pin.
  */
 export function createStripeClient(secretKey: string): Stripe {
-  if (!secretKey) {
+  if (!secretKey?.trim()) {
     throw new MissingSecretKeyError();
   }
   return new Stripe(secretKey);

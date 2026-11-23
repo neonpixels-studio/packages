@@ -9,8 +9,12 @@ export class StripeKitError extends Error {
   override name = "StripeKitError";
   readonly code: StripeKitErrorCode;
 
-  constructor(code: StripeKitErrorCode, message: string) {
-    super(message);
+  constructor(
+    code: StripeKitErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.code = code;
   }
 }
@@ -46,9 +50,12 @@ export class MissingSignatureError extends StripeKitError {
 export class InvalidSignatureError extends StripeKitError {
   override name = "InvalidSignatureError";
 
-  constructor(options?: { cause?: unknown }) {
-    super("invalid-signature", "The Stripe webhook signature is invalid.");
-    this.cause = options?.cause;
+  constructor(options?: ErrorOptions) {
+    super(
+      "invalid-signature",
+      "The Stripe webhook signature is invalid.",
+      options,
+    );
   }
 }
 

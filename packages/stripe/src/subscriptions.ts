@@ -60,8 +60,10 @@ export function isEntitledStatus(status: string): boolean {
 }
 
 /**
- * True when the event is strictly older than the last one the app applied. An
- * equal timestamp is not stale: Stripe can emit two events in the same second.
+ * True when the event is strictly older than the last one the app applied.
+ * `lastAppliedAt` must be the `created` time of that last event
+ * (`new Date(event.created * 1000)`), not the time it was processed. An equal
+ * timestamp is not stale: Stripe can emit two events in the same second.
  */
 export function isStaleEvent(
   event: Pick<Stripe.Event, "created">,
