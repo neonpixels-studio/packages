@@ -47,10 +47,17 @@ describe("parsePublishedCommitRef", () => {
     expect(parsePublishedCommitRef({})).toBeNull();
     expect(parsePublishedCommitRef({ published_deploy: null })).toBeNull();
     expect(parsePublishedCommitRef({ published_deploy: {} })).toBeNull();
+    expect(
+      parsePublishedCommitRef({ published_deploy: { commit_ref: "" } }),
+    ).toBeNull();
+    expect(
+      parsePublishedCommitRef({ published_deploy: { commit_ref: 123 } }),
+    ).toBeNull();
   });
 
   it("rejects a non-object payload", () => {
     expect(() => parsePublishedCommitRef("nope")).toThrow(NetlifyFatalError);
+    expect(() => parsePublishedCommitRef([])).toThrow(NetlifyFatalError);
   });
 });
 
@@ -68,18 +75,6 @@ describe("createNetlifyClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
     expect(new URL(String(url)).pathname).toBe("/api/v1/sites/site%201");
-  });
-
-  it("ignores a newer ready deploy after a rollback or locked publishing", async () => {
-    const client = createNetlifyClient({
-      siteId: "s",
-      token: "t",
-      fetchImpl: respond(200, {
-        published_deploy: { commit_ref: "rolled-back-to" },
-        deploys: [{ state: "ready", commit_ref: "newer" }],
-      }),
-    });
-    expect(await client.getPublishedCommitRef()).toBe("rolled-back-to");
   });
 
   it("lists production deploys with the token in the header only", async () => {

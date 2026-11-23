@@ -67,7 +67,7 @@ export function parseDeploy(value: unknown): NetlifyDeploy {
 }
 
 export function parsePublishedCommitRef(value: unknown): string | null {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new NetlifyFatalError(
       "Netlify returned an unexpected payload (expected a site object).",
     );

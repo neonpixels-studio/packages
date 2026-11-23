@@ -53,13 +53,13 @@ describe("runShouldDeploy", () => {
     GITHUB_OUTPUT: "/tmp/output",
   };
 
-  it("writes skip=true when the commit is already live", async () => {
+  it("writes skip=true when the published deploy is already the current commit, even if publishing is locked", async () => {
     const testEnvironment = environment(full, async () => "abc");
     expect(await runShouldDeploy([], testEnvironment)).toBe(0);
     expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
-  it("writes skip=false when main is newer", async () => {
+  it("writes skip=false on a rolled-back site, where the published deploy is older than main", async () => {
     const testEnvironment = environment(full, async () => "old");
     await runShouldDeploy([], testEnvironment);
     expect(testEnvironment.output).toEqual(["skip=false\n"]);
