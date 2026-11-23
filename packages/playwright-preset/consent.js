@@ -6,7 +6,7 @@ const PAGE_PROTOCOLS = new Set(["http:", "https:"]);
 /** @param {string} origin */
 function invalidOriginError(origin) {
   return new Error(
-    `@neon-pixels/playwright-preset: "origin" must be an absolute URL such as "http://localhost:3000", received ${String(origin)}.`,
+    `@neon-pixels/playwright-preset: "origin" must be an http(s) URL such as "http://localhost:3000", received ${JSON.stringify(origin)}.`,
   );
 }
 
@@ -56,17 +56,19 @@ function assertValidNow(now) {
  * @param {import("./consent.js").ConsentDeclinedStorageStateOptions} options
  * @returns {import("./consent.js").ConsentStorageState}
  */
-export function consentDeclinedStorageState(options) {
+export function consentDeclinedStorageState(options = {}) {
   const { app, origin, now = Date.now() } = options;
   assertValidApp(app);
   assertValidNow(now);
+  const normalizedOrigin = normalizeOrigin(origin);
+  /** @type {import("@neon-pixels/consent").StoredConsent} */
   const record = { choice: "denied", expiresAt: now + CONSENT_LIFETIME_MS };
 
   return {
     cookies: [],
     origins: [
       {
-        origin: normalizeOrigin(origin),
+        origin: normalizedOrigin,
         localStorage: [
           { name: consentStorageKey(app), value: JSON.stringify(record) },
         ],

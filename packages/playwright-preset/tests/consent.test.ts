@@ -85,19 +85,19 @@ describe("consentDeclinedStorageState", () => {
   it("rejects an origin that is not an absolute URL", () => {
     expect(() =>
       consentDeclinedStorageState({ app: APP, origin: "not a url" }),
-    ).toThrow(/"origin" must be an absolute URL/);
+    ).toThrow(/"origin" must be an http\(s\) URL/);
   });
 
   it("rejects an origin that is not http or https", () => {
     expect(() =>
       consentDeclinedStorageState({ app: APP, origin: "ws://localhost:3000" }),
-    ).toThrow(/"origin" must be an absolute URL/);
+    ).toThrow(/"origin" must be an http\(s\) URL/);
   });
 
   it("rejects an origin without a scheme", () => {
     expect(() =>
       consentDeclinedStorageState({ app: APP, origin: "localhost:3000" }),
-    ).toThrow(/"origin" must be an absolute URL/);
+    ).toThrow(/"origin" must be an http\(s\) URL/);
   });
 
   it.each([null, Number.NaN, "1700000000000"])(
@@ -112,6 +112,12 @@ describe("consentDeclinedStorageState", () => {
       ).toThrow(/"now" must be a finite number/);
     },
   );
+
+  it("rejects missing options", () => {
+    expect(() => consentDeclinedStorageState(undefined as never)).toThrow(
+      /"app" must be a non-empty string/,
+    );
+  });
 
   it.each([undefined, null, 42, " "])("rejects an app name of %s", (app) => {
     expect(() =>

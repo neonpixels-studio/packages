@@ -76,6 +76,8 @@ The config adds a `setup` project that runs any file ending in `auth.setup.ts`. 
 
 Building the config also copies `NUXT_CLERK_SECRET_KEY` and `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY` onto the `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` names that `@clerk/testing` reads, without overwriting values already set. `clerkSetup()` runs inside the setup test rather than in `globalSetup`, so the testing token is not inherited by your web server, where it would sign in every request.
 
+To change anything, override it in your own config: spread the result and replace the key.
+
 ### Consent
 
 With analytics configured, the consent banner shows on every page and can cover the controls a spec is testing. `consentDeclinedStorageState` returns a Playwright `storageState` that already holds a declined choice, written under the storage key and record shape that [`@neon-pixels/consent`](../consent) reads (`<app>:analytics-consent`, with the package's full consent lifetime).
@@ -122,8 +124,6 @@ test.describe("consent banner", () => {
 ```
 
 A project has one `storageState`, so this replaces a saved sign-in file rather than merging with it.
-
-To change anything, override it in your own config: spread the result and replace the key.
 
 ## License
 
