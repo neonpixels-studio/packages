@@ -61,7 +61,7 @@ export function normalizeHeaders(value: unknown): Record<string, string> {
       continue;
     }
     const text = Array.isArray(headerValue)
-      ? headerValue.join(", ")
+      ? headerValue.join("\n")
       : headerValue;
     const lowerName = name.toLowerCase();
     const headerText = text === undefined || text === null ? "" : String(text);

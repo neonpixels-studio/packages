@@ -32,8 +32,8 @@ export function findRecipient(
   options: FindRecipientOptions,
 ): InboundRecipient | null {
   const domain = options.domain.trim().toLowerCase();
-  if (domain === "") {
-    throw new TypeError("findRecipient requires a non-empty domain.");
+  if (domain === "" || domain.includes("@") || domain.endsWith(".")) {
+    throw new TypeError("findRecipient requires a bare host name as domain.");
   }
   const candidates = [
     ...email.receivedFor,

@@ -134,7 +134,7 @@ describe("fetchReceivedEmail", () => {
       apiKey: API_KEY,
       fetch: stubFetch(jsonResponse(response)),
     });
-    expect(email.headers).toEqual({ received: "a", "x-multi": "b, c" });
+    expect(email.headers).toEqual({ received: "a", "x-multi": "b\nc" });
   });
 
   it.each([
@@ -224,7 +224,7 @@ describe("fetchReceivedEmail", () => {
       fetchReceivedEmail("e1", {
         apiKey: API_KEY,
         fetch: stubFetch(jsonResponse({})),
-        timeoutMs: -1,
+        timeoutMs: 0,
       }),
     ).rejects.toThrow(RangeError);
   });

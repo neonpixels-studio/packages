@@ -97,3 +97,14 @@ describe("parseInboundEvent lists", () => {
     });
   });
 });
+
+describe("parseInboundEvent time", () => {
+  it("falls back to the event time", () => {
+    const result = parseInboundEvent({
+      type: "email.received",
+      created_at: "2026-01-02T00:00:00.000Z",
+      data: { email_id: "e1" },
+    });
+    expect(result).toMatchObject({ receivedAt: "2026-01-02T00:00:00.000Z" });
+  });
+});

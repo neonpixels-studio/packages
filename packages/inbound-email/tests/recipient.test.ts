@@ -92,6 +92,13 @@ describe("findRecipient", () => {
     ).toThrow(TypeError);
   });
 
+  it.each(["@inbound.example.com", "inbound.example.com."])(
+    "rejects the malformed domain %s",
+    (domain) => {
+      expect(() => findRecipient(message({}), { domain })).toThrow(TypeError);
+    },
+  );
+
   it("returns null when nothing matches", () => {
     expect(
       findRecipient(message({ to: ["a@other.example.org"] }), {

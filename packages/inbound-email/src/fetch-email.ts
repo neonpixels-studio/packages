@@ -133,6 +133,9 @@ export async function fetchReceivedEmail(
   if (emailId.trim() === "") {
     throw new TypeError("fetchReceivedEmail requires an email id.");
   }
+  if (options.timeoutMs !== undefined && !(options.timeoutMs > 0)) {
+    throw new RangeError("fetchReceivedEmail timeoutMs must be positive.");
+  }
   if (!options.apiKey?.trim()) {
     throw new TypeError("fetchReceivedEmail requires an API key.");
   }
