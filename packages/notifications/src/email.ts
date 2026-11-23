@@ -11,6 +11,7 @@ import type { Channel, Notification } from "./types.ts";
 export const RESEND_EMAILS_URL = "https://api.resend.com/emails";
 export const EMAIL_SUBJECT_MAX = 200;
 export const RESEND_RECIPIENTS_MAX = 50;
+const HEADER_SAFE_PATTERN = /^[\x21-\x7e]+$/;
 const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,256}$/;
 
 export interface EmailChannelOptions {
@@ -95,7 +96,12 @@ export function emailChannel(options: EmailChannelOptions): Channel {
     name: "email",
     async deliver(notification, context) {
       const recipients = recipientsOf(to);
-      if (!isNonEmptyString(apiKey) || !isNonEmptyString(from) || !recipients) {
+      if (
+        !isNonEmptyString(apiKey) ||
+        !HEADER_SAFE_PATTERN.test(apiKey) ||
+        !isNonEmptyString(from) ||
+        !recipients
+      ) {
         throw new DeliveryError("invalid email configuration");
       }
       const headers: Record<string, string> = {

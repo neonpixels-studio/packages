@@ -1,3 +1,4 @@
+export { DeliveryError } from "./errors.ts";
 export { discordChannel } from "./discord.ts";
 export type { DiscordChannelOptions } from "./discord.ts";
 export { emailChannel } from "./email.ts";
@@ -9,6 +10,7 @@ export { isDiscordWebhookUrl, isSlackWebhookUrl } from "./urls.ts";
 export type {
   Channel,
   ChannelResult,
+  DeliveryContext,
   FetchLike,
   Notification,
   NotificationField,

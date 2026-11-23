@@ -389,6 +389,13 @@ describe("email", () => {
         /^sha256-[0-9a-f]{64}$/,
       );
     }
+    const [longKey, spacedKey] = calls.map((call) =>
+      call.headers.get("idempotency-key"),
+    );
+    expect(longKey).not.toBe(spacedKey);
+    expect(spacedKey).toBe(
+      "sha256-ea084d505f1e003368d65192824c39f0808fe784da843e4903cb4889432b4a52",
+    );
   });
 
   it("escapes HTML and drops unsafe links", async () => {
@@ -448,13 +455,21 @@ describe("email", () => {
           to: "b@example.com",
         }),
         emailChannel({ apiKey: API_KEY, from: "a@example.com", to: [] }),
+        emailChannel({
+          apiKey: "abc\ndef",
+          from: "a@example.com",
+          to: "b@example.com",
+        }),
       ],
       { fetch },
     );
     expect(calls).toHaveLength(0);
-    expect(results.map((result) => result.status)).toEqual([
-      "failed",
-      "failed",
+    expect(
+      results.map((result) => (result as { reason?: string }).reason),
+    ).toEqual([
+      "invalid email configuration",
+      "invalid email configuration",
+      "invalid email configuration",
     ]);
   });
 });
@@ -678,16 +693,14 @@ describe("retry", () => {
 
 describe("secrets", () => {
   it("never appear in results or error reasons", async () => {
-    const failures = [
-      new Error(`fail ${SLACK_URL} ${DISCORD_URL} ${API_KEY}`),
-      respond(500),
-      respond(401),
+    const failures: Array<() => Response> = [
+      () => respond(500),
+      () => respond(401),
+      () => {
+        throw new Error(`fail ${SLACK_URL} ${DISCORD_URL} ${API_KEY}`);
+      },
     ];
     for (const failure of failures) {
-      const { fetch } = fakeFetch(
-        failure,
-        failure instanceof Error ? failure : respond(500),
-      );
       const results = await sendNotification(
         BASE,
         [
@@ -699,8 +712,9 @@ describe("secrets", () => {
             to: "b@example.com",
           }),
         ],
-        { fetch: async (url, init) => fetch(url, init), sleep: noSleep },
+        { fetch: async () => failure(), sleep: noSleep },
       );
+      expect(results.every((result) => result.status === "failed")).toBe(true);
       expectNoSecrets(results);
     }
   });
@@ -746,6 +760,7 @@ describe("edge cases", () => {
   });
 
   it("falls back to defaults for unusable numeric options and keeps a long retry delay", async () => {
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const { fetch } = fakeFetch(respond(500), respond(200));
     const sleep = vi.fn(noSleep);
     const results = await sendNotification(
@@ -760,6 +775,8 @@ describe("edge cases", () => {
     );
     expect(results).toEqual([{ channel: "slack", status: "sent" }]);
     expect(sleep).toHaveBeenCalledExactlyOnceWith(8000);
+    expect(timeoutSpy.mock.calls.some((call) => call[1] === 10_000)).toBe(true);
+    timeoutSpy.mockRestore();
   });
 
   it("reads Retry-After exactly", () => {
@@ -848,6 +865,7 @@ describe("review follow-ups", () => {
   });
 
   it("clamps timer options Node would treat as 1 ms and rejects a zero timeout", async () => {
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const { fetch } = fakeFetch(respond(500), respond(200));
     const sleep = vi.fn(noSleep);
     await sendNotification(BASE, [slackChannel({ webhookUrl: SLACK_URL })], {
@@ -858,6 +876,8 @@ describe("review follow-ups", () => {
       timeoutMs: 0,
     });
     expect(sleep).toHaveBeenCalledExactlyOnceWith(2_147_483_647);
+    expect(timeoutSpy.mock.calls.some((call) => call[1] === 10_000)).toBe(true);
+    timeoutSpy.mockRestore();
   });
 
   it("rejects a non-string dedupeKey", async () => {
