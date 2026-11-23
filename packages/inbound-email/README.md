@@ -97,7 +97,7 @@ export async function handle(
 - `findRecipient(email, { domain })` returns `{ address, local, tag, domain }` for the first address at `domain` (exact match, case-insensitive), looking at `receivedFor`, then `to`, `cc`, `bcc`; or `null`. The tag is whatever follows the first `+` in the local part.
 - Types: `InboundEmail`, `InboundAttachment`, `EmailAddress`, `InboundEmailMetadata`, `ParsedInboundEvent`, `InboundRecipient`, and more.
 
-`InboundEmail` fields: `id`, `messageId`, `from` (`{ address, name }`), `to`, `cc`, `bcc`, `replyTo`, `receivedFor`, `subject`, `html`, `text`, `headers` (lower-cased names), `authentication` (`spf`, `dkim`, `dmarc`), `attachments` (metadata only), `receivedAt`. Missing optional values are `null`, never `undefined` or an empty string.
+`InboundEmail` fields: `id`, `messageId`, `from` (`{ address, name }`), `to`, `cc`, `bcc`, `replyTo`, `receivedFor`, `subject`, `html`, `text`, `headers` (lower-cased names; a header that appears more than once is joined with a newline), `authentication` (`spf`, `dkim`, `dmarc`), `attachments` (metadata only), `receivedAt`. Missing optional values are `null`, never `undefined` or an empty string.
 
 Attachment contents, HTML sanitizing, and de-duplication storage are not part of this package.
 

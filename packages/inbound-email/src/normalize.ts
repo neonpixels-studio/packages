@@ -66,7 +66,7 @@ export function normalizeHeaders(value: unknown): Record<string, string> {
     const lowerName = name.toLowerCase();
     const headerText = text === undefined || text === null ? "" : String(text);
     headers[lowerName] = Object.hasOwn(headers, lowerName)
-      ? `${headers[lowerName]}, ${headerText}`
+      ? `${headers[lowerName]}\n${headerText}`
       : headerText;
   }
   return headers;

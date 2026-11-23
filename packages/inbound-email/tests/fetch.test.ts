@@ -138,6 +138,7 @@ describe("fetchReceivedEmail", () => {
   });
 
   it.each([
+    [408, true],
     [429, true],
     [500, true],
     [503, true],
@@ -207,7 +208,7 @@ describe("fetchReceivedEmail", () => {
       apiKey: API_KEY,
       fetch: stubFetch(jsonResponse(response)),
     });
-    expect(email.headers).toEqual({ received: "hop1, hop2" });
+    expect(email.headers).toEqual({ received: "hop1\nhop2" });
   });
 
   it("rejects a missing API key before calling fetch", async () => {

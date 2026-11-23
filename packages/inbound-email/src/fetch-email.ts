@@ -13,6 +13,7 @@ import type { InboundEmail } from "./types.ts";
 export const RESEND_RECEIVED_EMAIL_URL =
   "https://api.resend.com/emails/receiving/";
 export const DEFAULT_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT = 408;
 const TOO_MANY_REQUESTS = 429;
 const SERVER_ERROR_FLOOR = 500;
 
@@ -24,7 +25,11 @@ export interface FetchReceivedEmailOptions {
 }
 
 function isRetryableStatus(status: number): boolean {
-  return status === TOO_MANY_REQUESTS || status >= SERVER_ERROR_FLOOR;
+  return (
+    status === REQUEST_TIMEOUT ||
+    status === TOO_MANY_REQUESTS ||
+    status >= SERVER_ERROR_FLOOR
+  );
 }
 
 async function request(
@@ -70,16 +75,23 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     return asRecord(await response.json());
   } catch (error) {
-    if (!(error instanceof SyntaxError)) {
-      throw transportFailure(error);
-    }
-    throw new FetchReceivedEmailError(
-      "invalid-response",
-      response.status,
-      false,
-      "Resend returned a response that is not valid JSON.",
-    );
+    throw bodyReadFailure(error, response.status);
   }
+}
+
+function bodyReadFailure(
+  error: unknown,
+  status: number,
+): FetchReceivedEmailError {
+  if (!(error instanceof SyntaxError)) {
+    return transportFailure(error);
+  }
+  return new FetchReceivedEmailError(
+    "invalid-response",
+    status,
+    false,
+    "Resend returned a response that is not valid JSON.",
+  );
 }
 
 export function normalizeReceivedEmail(

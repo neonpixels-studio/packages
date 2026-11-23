@@ -197,7 +197,7 @@ describe("verifyInboundWebhook", () => {
     expect(error).toBeInstanceOf(InvalidWebhookSignatureError);
   });
 
-  it.each([undefined, null, "", "whsec_"])(
+  it.each([undefined, null, "", "whsec_", "whsec_a"])(
     "throws a missing-secret error for %j",
     (secret) => {
       const error = errorOf(() => verify({ secret }));
@@ -250,5 +250,19 @@ describe("verifyInboundWebhook", () => {
       verify({ rawBody: body, headers: svixSigned(NOW_SECONDS, body) }),
     );
     expect(error).toBeInstanceOf(InvalidWebhookSignatureError);
+  });
+});
+
+describe("buildSignedWebhookRequest", () => {
+  it("signs a string body verbatim", () => {
+    const body = '{"type":"email.received", "data":{}}';
+    const request = buildSignedWebhookRequest({ secret: SECRET, body });
+    expect(request.rawBody).toBe(body);
+    const verified = verifyInboundWebhook({
+      rawBody: request.rawBody,
+      headers: request.headers,
+      secret: SECRET,
+    });
+    expect(verified.event).toEqual({ type: "email.received", data: {} });
   });
 });

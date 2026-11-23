@@ -84,3 +84,16 @@ describe("parseInboundEvent sender", () => {
     expect(parseInboundEvent(event)).toMatchObject({ from: null });
   });
 });
+
+describe("parseInboundEvent lists", () => {
+  it("accepts a single string recipient and drops attachments without an id", () => {
+    const event = buildReceivedEmailEvent({
+      to: "one@example.com",
+      attachments: [{ filename: "no-id.txt" }],
+    });
+    expect(parseInboundEvent(event)).toMatchObject({
+      to: ["one@example.com"],
+      attachments: [],
+    });
+  });
+});

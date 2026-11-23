@@ -12,10 +12,11 @@ function splitAddress(raw: string, domain: string): InboundRecipient | null {
   if (!address || separator < 1 || address.slice(separator + 1) !== domain) {
     return null;
   }
-  const full = address.slice(0, separator);
-  const plus = full.indexOf("+");
-  const local = plus === -1 ? full : full.slice(0, plus);
-  const tag = plus === -1 ? "" : full.slice(plus + 1);
+  const localWithTag = address.slice(0, separator);
+  const plusIndex = localWithTag.indexOf("+");
+  const local =
+    plusIndex === -1 ? localWithTag : localWithTag.slice(0, plusIndex);
+  const tag = plusIndex === -1 ? "" : localWithTag.slice(plusIndex + 1);
   if (local === "") {
     return null;
   }

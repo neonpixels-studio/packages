@@ -52,7 +52,11 @@ export function decodeSecret(secret: string | null | undefined): Buffer {
   if (!BASE64_PATTERN.test(encoded)) {
     throw new MissingWebhookSecretError();
   }
-  return Buffer.from(encoded, "base64");
+  const key = Buffer.from(encoded, "base64");
+  if (key.length === 0) {
+    throw new MissingWebhookSecretError();
+  }
+  return key;
 }
 
 function sign(
