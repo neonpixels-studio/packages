@@ -103,6 +103,12 @@ describe("sendFeedback request", () => {
 
   it("allows http only for local endpoints and accepts the largest timeout", async () => {
     const fetchMock = okFetch();
+    for (const host of ["127.0.0.1", "[::1]"]) {
+      await sendFeedback(
+        { token: TOKEN, message: "hi" },
+        { fetch: fetchMock, endpoint: `http://${host}:3000/f` },
+      );
+    }
     await sendFeedback(
       { token: TOKEN, message: "hi" },
       {
@@ -111,7 +117,7 @@ describe("sendFeedback request", () => {
         timeoutMs: 2 ** 31 - 1,
       },
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("cancels the response body on success and on failure", async () => {
@@ -133,7 +139,13 @@ describe("sendFeedback request", () => {
 describe("sendFeedback failures", () => {
   it("throws before any request when the token is missing", async () => {
     const fetchMock = okFetch();
-    for (const token of ["", "   ", undefined as unknown as string]) {
+    for (const token of [
+      "",
+      "   ",
+      "abc\ndef",
+      "t\u00f6k\u00e9n",
+      undefined as unknown as string,
+    ]) {
       const error = await captureError(
         sendFeedback({ token, message: "hi" }, { fetch: fetchMock }),
       );
@@ -234,6 +246,24 @@ describe("sendFeedback failures", () => {
     expect(error.reason).toBe("network");
     expect(error.status).toBeUndefined();
     expect(error.cause).toBeUndefined();
+  });
+
+  it("adds only the system error code to a network failure", async () => {
+    const fetchMock = vi.fn<FetchLike>(async () => {
+      throw new TypeError("x", { cause: { code: "ECONNREFUSED" } });
+    });
+    const error = await captureError(
+      sendFeedback({ token: TOKEN, message: "hi" }, { fetch: fetchMock }),
+    );
+    expect(error.message).toContain("ECONNREFUSED");
+    expect(error.message).not.toContain(TOKEN);
+    const leaky = vi.fn<FetchLike>(async () => {
+      throw new TypeError("x", { cause: { code: TOKEN } });
+    });
+    const leakyError = await captureError(
+      sendFeedback({ token: TOKEN, message: "hi" }, { fetch: leaky }),
+    );
+    expect(leakyError.message).not.toContain(TOKEN);
   });
 
   it("aborts and throws a timeout error when the request hangs", async () => {

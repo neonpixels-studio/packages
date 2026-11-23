@@ -24,11 +24,18 @@ function buildBody(input: FeedbackInput): Record<string, string> {
   };
 }
 
+// Visible ASCII only: anything else cannot be sent as a header value.
+const HEADER_SAFE_TOKEN = /^[\x21-\x7E]+$/;
+
 function requireToken(token: string | undefined): string {
-  if (typeof token !== "string" || token.trim() === "") {
-    throw new FeedbackError("config", "Feedback token is missing.");
+  const trimmed = typeof token === "string" ? token.trim() : "";
+  if (!HEADER_SAFE_TOKEN.test(trimmed)) {
+    throw new FeedbackError(
+      "config",
+      "Feedback token is missing or malformed.",
+    );
   }
-  return token;
+  return trimmed;
 }
 
 function requireTimeout(timeoutMs: number): number {
@@ -135,6 +142,14 @@ function timeoutError(timeoutMs: number): FeedbackError {
   );
 }
 
+// Only the system error code is copied: it cannot carry the token.
+function networkCode(error: unknown): string {
+  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === "string" && /^[A-Z0-9_]+$/.test(code)
+    ? `: ${code}`
+    : "";
+}
+
 function toFeedbackError(
   error: unknown,
   controller: AbortController,
@@ -146,7 +161,10 @@ function toFeedbackError(
   if (controller.signal.aborted) {
     return timeoutError(timeoutMs);
   }
-  return new FeedbackError("network", "Feedback submission failed (network).");
+  return new FeedbackError(
+    "network",
+    `Feedback submission failed (network${networkCode(error)}).`,
+  );
 }
 
 /**
