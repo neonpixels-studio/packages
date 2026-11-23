@@ -1,0 +1,38 @@
+{
+  "name": "@neon-pixels/stripe",
+  "version": "0.2.0",
+  "description": "Stripe client, webhook verification, subscription mapping, and checkout helpers.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neonpixels-studio/packages.git",
+    "directory": "packages/stripe"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "stripe": "^23.0.0"
+  },
+  "devDependencies": {
+    "stripe": "^23.0.0"
+  }
+}
