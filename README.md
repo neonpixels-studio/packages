@@ -39,7 +39,7 @@ This also installs the Husky git hooks.
 
 ## Reusable workflows
 
-Two workflows are callable from other repositories with `workflow_call`. Neither needs secrets, and both declare `contents: read` only.
+Four workflows are callable from other repositories with `workflow_call`. All declare `contents: read` at the workflow level and add other permissions only on the job that needs them. `gitleaks.yml` and `dependency-audit.yml` need no secrets; `production-deploy.yml` and `lighthouse.yml` are described [below](#production-deploy-and-lighthouse).
 
 - `gitleaks.yml`: scans the pull request commit range (or the full history on any other event) with the caller's `.gitleaks.toml` (required in the repository root), using a pinned, checksum-verified gitleaks. No inputs.
 - `dependency-audit.yml`: runs `np-audit-gate` from the published [`@neon-pixels/scripts`](packages/scripts/README.md) against the caller's lockfile. It does not install the caller's dependencies. The lockfile must match `package-manager`.
@@ -49,6 +49,87 @@ Two workflows are callable from other repositories with `workflow_call`. Neither
 | `package-manager`              | yes      | `npm` or `pnpm` (pnpm needs `packageManager` in `package.json`) |
 | `node-version-file`            | no       | File naming the Node version, default `.nvmrc`                  |
 | `scripts-version`              | yes      | Exact `@neon-pixels/scripts` version the gate runs from         |
+
+### Production deploy and Lighthouse
+
+- `production-deploy.yml`: a scheduled Netlify production deploy. It skips when the commit is already live (`np-should-deploy`), calls the site's build hook, and waits for that exact deploy to be `ready` and built from the same commit (`np-verify-netlify-deploy`). It only runs on `main`: a run dispatched from another ref does nothing. Runs of the same repository never overlap: a second run waits for the first, which is never cancelled (GitHub keeps one waiting run, so a third replaces it and the replaced run reports as cancelled). A failed or cancelled deploy opens one `deploy-failure` issue (later failures comment on it), and a later verified deploy closes it. The schedule stays in the caller, because cadence differs by site. Anything that must pass before a deploy (CI, an e2e gate) is a job in the caller that the deploy job `needs`.
+- `lighthouse.yml`: installs and builds the caller's project, then runs Lighthouse CI with the caller's own config file. Thresholds, URLs, and how the build is served live in that file (the workflow has no threshold inputs). On a scheduled run, or a non-pull-request run on the default branch, a failing audit files one `lighthouse-regression` issue per site and a passing audit closes the open ones (`np-report-lighthouse-failure`).
+
+| Input (`production-deploy.yml`) | Required | Meaning                                                |
+| ------------------------------- | -------- | ------------------------------------------------------ |
+| `scripts-version`               | yes      | Exact `@neon-pixels/scripts` version the bins run from |
+| `node-version-file`             | no       | File naming the Node version, default `.nvmrc`         |
+
+| Secret (`production-deploy.yml`) | Meaning                                              |
+| -------------------------------- | ---------------------------------------------------- |
+| `NETLIFY_BUILD_HOOK_URL`         | Build hook URL for branch `main`                     |
+| `NETLIFY_AUTH_TOKEN`             | Netlify personal access token that can read the site |
+| `NETLIFY_SITE_ID`                | The production site's id                             |
+
+| Input (`lighthouse.yml`) | Required | Meaning                                                              |
+| ------------------------ | -------- | -------------------------------------------------------------------- |
+| `package-manager`        | yes      | `npm` (`npm ci`) or `pnpm` (frozen lockfile, needs `packageManager`) |
+| `node-version-file`      | no       | File naming the Node version, default `.nvmrc`                       |
+| `build-script`           | no       | `package.json` script that builds the site, default `build`          |
+| `config-path`            | no       | Lighthouse CI config in the caller, default `./lighthouserc.cjs`     |
+| `scripts-version`        | yes      | Exact `@neon-pixels/scripts` version for the report bin              |
+
+`scripts-version` must be a release that contains the bins the workflow runs (`np-should-deploy` and `np-verify-netlify-deploy` for the deploy, `np-report-lighthouse-failure` for Lighthouse).
+
+A reusable workflow cannot hold more permissions than its caller grants, so the calling job must grant `issues: write` for the failure issues. Pass secrets by name, never with `secrets: inherit`. The deploy call also needs a caller-owned schedule:
+
+```yaml
+name: Weekly production deploy
+
+on:
+  schedule:
+    - cron: "0 14 * * 1" # Mondays 14:00 UTC; the cadence is yours to choose
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: neonpixels-studio/packages/.github/workflows/production-deploy.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+      issues: write
+    with:
+      scripts-version: 0.3.0
+    secrets:
+      NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+```
+
+```yaml
+name: Lighthouse
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    uses: neonpixels-studio/packages/.github/workflows/lighthouse.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+      issues: write
+    with:
+      package-manager: pnpm
+      node-version-file: .nvmrc
+      build-script: build
+      config-path: ./lighthouserc.cjs
+      scripts-version: 0.3.0
+```
+
+The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, `np-deploy-failure-issue-<owner>/<repo>`, or `np-lighthouse-report-<owner>/<repo>`, which the reusable workflows' jobs use.
 
 Pin the workflow to a full commit SHA of this repository, with the release or date in a trailing comment:
 
