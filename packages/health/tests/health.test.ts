@@ -51,6 +51,7 @@ describe("check results", () => {
       probe: () => Promise.reject(new Error("down")),
     });
     expect(await check()).toEqual(UNAVAILABLE);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("is unavailable when the probe throws synchronously", async () => {
@@ -60,6 +61,7 @@ describe("check results", () => {
       },
     });
     expect(await check()).toEqual(UNAVAILABLE);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("is unavailable when the probe exceeds the default 3000 ms timeout", async () => {
@@ -241,6 +243,28 @@ describe("reset", () => {
     expect(await check()).toEqual(OK);
     stale.resolve();
     await pending;
+    expect(probe).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the newer in-flight probe when a stale one settles first", async () => {
+    const stale = deferred();
+    const fresh = deferred();
+    const probe = vi
+      .fn<() => Promise<unknown>>()
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(fresh.promise)
+      .mockResolvedValue(1);
+    const { check, reset } = createHealthCheck({ probe });
+
+    const stalePending = check();
+    reset();
+    const freshPending = check();
+    stale.resolve();
+    await stalePending;
+    const joined = check();
+    fresh.resolve();
+
+    expect(await Promise.all([freshPending, joined])).toEqual([OK, OK]);
     expect(probe).toHaveBeenCalledTimes(2);
   });
 });
