@@ -1,0 +1,39 @@
+{
+  "name": "@neon-pixels/rate-limit",
+  "version": "0.2.0",
+  "description": "Fixed-window rate limiting on Postgres with a memory store, fail-open wrapper, hashed client keys, and RateLimit headers.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neonpixels-studio/packages.git",
+    "directory": "packages/rate-limit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.45.0 <1.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "drizzle-orm": "^0.45.4"
+  }
+}

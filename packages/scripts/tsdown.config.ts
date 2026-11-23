@@ -8,6 +8,7 @@ export default defineConfig({
     "src/check-migration-snapshots.ts",
     "src/report-lighthouse-failure.ts",
     "src/should-deploy.ts",
+    "src/sync-templates.ts",
     "src/verify-netlify-deploy.ts",
   ],
   format: "esm",
