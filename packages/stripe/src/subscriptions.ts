@@ -102,7 +102,7 @@ export async function resolveSubscriptionOwner<TOwner>(
   const byCustomer = customerId
     ? await lookups.findByCustomerId(customerId)
     : null;
-  if (byCustomer) {
+  if (byCustomer != null) {
     return byCustomer;
   }
   const userId = object.metadata?.userId;

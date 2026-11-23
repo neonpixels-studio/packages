@@ -104,6 +104,21 @@ describe("constructWebhookEvent", () => {
     expect(error).toBeInstanceOf(MissingSignatureError);
   });
 
+  it("treats undefined and blank signatures as missing", () => {
+    const { payload } = signedPayload();
+    for (const signature of [undefined, "  "]) {
+      const error = errorOf(() =>
+        constructWebhookEvent({
+          stripe,
+          rawBody: payload,
+          signature,
+          secret: WEBHOOK_SECRET,
+        }),
+      );
+      expect(error).toBeInstanceOf(MissingSignatureError);
+    }
+  });
+
   it("throws InvalidSignatureError for a signature from another secret", () => {
     const { payload, header } = signedPayload("another-secret");
     const error = errorOf(() =>

@@ -61,6 +61,10 @@ try {
   throw error;
 }
 
+if (!event.type.startsWith("customer.subscription.")) {
+  return respond(200); // handle other event types separately
+}
+
 const owner = await resolveSubscriptionOwner(event, {
   findByCustomerId,
   findByUserId,
@@ -79,9 +83,9 @@ if (owner && !isStaleEvent(event, owner.lastEventCreatedAt)) {
 - `createStripeClient(secretKey)` returns a `Stripe` client. Throws `MissingSecretKeyError` for an empty key.
 - `constructWebhookEvent({ stripe, rawBody, signature, secret })` verifies the signature against the raw body and returns the event. Empty or whitespace-only values count as missing. Throws `MissingWebhookSecretError`, `MissingSignatureError`, or `InvalidSignatureError` (all extend `StripeKitError`, which has a `code`). Other errors are rethrown unchanged.
 - `extractSubscriptionData(subscription)` returns `subscriptionId`, `customerId`, `status`, `priceId`, `currentPeriodEnd`, `cancelAtPeriodEnd`, and `trialEnd` (dates are `Date` or `null`).
-- `resolveSubscriptionOwner(event, { findByCustomerId, findByUserId })` looks the owner up by the Stripe customer id first, then by `metadata.userId`. Resolves to `undefined` when neither matches.
+- `resolveSubscriptionOwner(event, { findByCustomerId, findByUserId })` looks the owner up by the Stripe customer id first, then by `metadata.userId`. Works on events whose object is a subscription or checkout session (it reads `customer` and `metadata.userId`). Resolves to `undefined` when neither matches.
 - `isEntitledStatus(status)` is `true` for `active`, `trialing`, and `past_due`.
 - `isStaleEvent(event, lastAppliedAt)` is `true` when the event is strictly older than the last one you applied. Pass that event's `created` time (`new Date(event.created * 1000)`), not when you processed it. An equal timestamp is not stale.
-- `createCheckoutSession(stripe, params)` creates a subscription checkout session and writes `userId` to `client_reference_id`, session metadata, and subscription metadata. A trial is added only when `trialDays` is a positive number. `buildCheckoutSessionParams` returns the parameters without calling Stripe.
+- `createCheckoutSession(stripe, params)` creates a subscription checkout session and writes `userId` to `client_reference_id`, session metadata, and subscription metadata. A trial is added only when `trialDays` is a positive whole number. `buildCheckoutSessionParams` returns the parameters without calling Stripe.
 - `createBillingPortalSession(stripe, { customerId, returnUrl })` returns `{ url }`.
 - `PlanLimitError(message, { plan, limit })` has `status` 403, `code` `plan_limit_reached`, `plan`, and `limit`. You write the message.
