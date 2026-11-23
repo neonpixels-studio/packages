@@ -19,15 +19,16 @@ export function normalizeScopes(
   if (!Array.isArray(input) || input.length === 0) {
     throw new InvalidScopesError("scopes must be a non-empty array");
   }
-  const unknownScopes = input.filter(
+  const requested: unknown[] = Array.from(input);
+  const unknownScopes = requested.filter(
     (scope) => typeof scope !== "string" || !knownScopes.includes(scope),
   );
   if (unknownScopes.length > 0) {
     throw new InvalidScopesError(
-      `unknown scopes: ${unknownScopes.map(String).join(", ")}`,
+      `unknown scopes: ${unknownScopes.filter((scope) => typeof scope === "string").join(", ")}`,
     );
   }
-  return Array.from(new Set(input as string[]));
+  return Array.from(new Set(requested as string[]));
 }
 
 export function hasScope(

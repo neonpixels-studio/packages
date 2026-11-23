@@ -32,8 +32,12 @@ export function isExpired(
   expiresAt: Date | null | undefined,
   now: Date = new Date(),
 ): boolean {
-  if (!expiresAt) {
+  if (expiresAt === null || expiresAt === undefined) {
     return false;
+  }
+  // A driver that returns a string or number instead of a Date fails closed.
+  if (!(expiresAt instanceof Date)) {
+    return true;
   }
   const expiresAtMs = expiresAt.getTime();
   // An unreadable date fails closed.
@@ -52,8 +56,11 @@ export function isLastUsedStale(
   now: Date = new Date(),
   intervalMs: number = DEFAULT_LAST_USED_INTERVAL_MS,
 ): boolean {
-  if (!lastUsedAt) {
+  if (!(lastUsedAt instanceof Date)) {
     return true;
+  }
+  if (!(intervalMs >= 0)) {
+    throw new RangeError("intervalMs must be a number of 0 or more");
   }
   const elapsedMs = now.getTime() - lastUsedAt.getTime();
   // An unreadable or future timestamp (clock skew) is treated as stale.

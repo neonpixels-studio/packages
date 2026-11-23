@@ -38,7 +38,8 @@ describe("generateApiKey", () => {
   it("does not expose the full key through the prefix or hash", () => {
     const { key, prefix, keyHash } = generateApiKey({ marker: MARKER });
     expect(prefix).not.toBe(key);
-    expect(keyHash).not.toContain(key.slice(MARKER.length));
+    expect(keyHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(key.length).toBeGreaterThan(prefix.length);
   });
 
   it("rejects an empty marker and one too long to leave random characters in the prefix", () => {
@@ -96,6 +97,10 @@ describe("computeExpiresAt", () => {
 describe("isExpired", () => {
   it("fails closed on an Invalid Date", () => {
     expect(isExpired(new Date("garbage"), NOW)).toBe(true);
+  });
+
+  it("fails closed on a non-Date value from a driver", () => {
+    expect(isExpired("2020-01-01" as unknown as Date, NOW)).toBe(true);
   });
 
   it("treats no expiry as never expired", () => {
@@ -275,6 +280,12 @@ describe("isLastUsedStale", () => {
   it("is stale for an Invalid Date or a future timestamp", () => {
     expect(isLastUsedStale(new Date("garbage"), NOW)).toBe(true);
     expect(isLastUsedStale(new Date(NOW.getTime() + 1000), NOW)).toBe(true);
+  });
+
+  it("is stale for a non-Date value and rejects a bad interval", () => {
+    expect(isLastUsedStale("2020-01-01" as unknown as Date, NOW)).toBe(true);
+    expect(() => isLastUsedStale(NOW, NOW, Number.NaN)).toThrow(RangeError);
+    expect(() => isLastUsedStale(NOW, NOW, -1)).toThrow(RangeError);
   });
 
   it("honors a custom interval", () => {

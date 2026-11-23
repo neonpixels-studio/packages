@@ -45,13 +45,13 @@ if (!result.valid) {
 
 ### Verifying
 
-`verifyApiKey({ token, marker, findByHash, now? })` returns a promise of `{ valid: true, record }` or `{ valid: false, reason }`. Reasons are checked in this order: `unknown` (no marker, or no record), `revoked`, `expired`. `findByHash` receives the hash, never the raw token, and may be sync or async. The record may carry `revokedAt` and `expiresAt` dates. An invalid key never throws (a missing or invalid `marker` does, so a misconfiguration is loud rather than rejecting every key), and the token is never logged or returned. Errors thrown by `findByHash` (for example a database outage) propagate.
+`verifyApiKey({ token, marker, findByHash, now? })` returns a promise of `{ valid: true, record }` or `{ valid: false, reason }`. Reasons are checked in this order: `unknown` (no marker, or no record), `revoked`, `expired`. `findByHash` receives the hash, never the raw token, and may be sync or async. The record may carry `revokedAt` and `expiresAt`; convert stored values to `Date` in `findByHash` (a non-`Date` `expiresAt` is treated as expired). An invalid key never throws (a missing or invalid `marker` does, so a misconfiguration is loud rather than rejecting every key), and the token is never logged or returned. Errors thrown by `findByHash` (for example a database outage) propagate.
 
 ### Expiry and last-used
 
 - `computeExpiresAt(days, now?)` returns a `Date` for a whole number of days from 1 to 3650, or `null` when `days` is omitted (no expiry). Anything else throws a `RangeError`.
 - `isExpired(expiresAt, now?)` is `false` for `null`, and `true` at and after the expiry instant.
-- `isLastUsedStale(lastUsedAt, now?, intervalMs?)` is `true` when the key was never used or was last used at least `intervalMs` ago (default 5 minutes). Use it to write `lastUsedAt` at most once per interval.
+- `isLastUsedStale(lastUsedAt, now?, intervalMs?)` is `true` when the key was never used, was last used at least `intervalMs` ago (default 5 minutes), or the timestamp is unreadable or in the future (clock skew). A negative or `NaN` `intervalMs` throws a `RangeError`. Use it to write `lastUsedAt` at most once per interval.
 
 ### Scopes
 
