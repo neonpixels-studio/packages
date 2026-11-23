@@ -1,0 +1,37 @@
+# Gitleaks configuration. Extends the default ruleset and adds rules for the
+# secret shapes the defaults miss. Anything between the np-sync markers is kept
+# when templates are synced; everything else is overwritten.
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "clerk-secret-key"
+description = "Clerk secret key (sk_live_ / sk_test_)"
+# Publishable keys (pk_live_/pk_test_) are public by design and intentionally excluded.
+regex = '''sk_(?:live|test)_[A-Za-z0-9_-]{16,}'''
+keywords = ["sk_live_", "sk_test_"]
+
+[[rules]]
+id = "postgres-connection-string-with-credentials"
+description = "Postgres connection string containing user:password credentials"
+regex = '''postgres(?:ql)?:\/\/[^\s:@\/]+:[^\s:@\/]+@[^\s\/]+'''
+keywords = ["postgres://", "postgresql://"]
+
+# np-sync:begin extra-rules
+# np-sync:end extra-rules
+
+[allowlist]
+description = "Allow documented placeholders and test fixtures"
+# Example and sample env files hold documented placeholders, and fixture
+# directories hold synthetic secrets. Test source files are still scanned.
+paths = [
+  '''(^|/)\.env\.(example|sample)$''',
+  '''\.example$''',
+  '''(^|/)(fixtures?|__fixtures__|test-fixtures?)/''',
+]
+# Add reviewed fingerprints or regexes for this repository here, for example
+# `commits = [...]` or `regexes = [...]`. Do not repeat the `paths` key.
+# np-sync:begin allowlist
+# np-sync:end allowlist

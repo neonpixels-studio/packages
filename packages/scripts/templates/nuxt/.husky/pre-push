@@ -1,0 +1,17 @@
+# Mirrors the `ci` job in .github/workflows/ci.yml. Keep the two in sync.
+set -e
+
+# np-sync:begin repo-specific
+# np-sync:end repo-specific
+
+if git rev-parse --verify --quiet "refs/remotes/origin/main^{commit}" >/dev/null; then
+  lint_script="lint:ci"
+else
+  echo "origin/main not found - falling back to full lint instead of lint:ci." >&2
+  lint_script="lint"
+fi
+
+npm run "$lint_script"
+npx nuxt prepare
+npm run typecheck
+npm run test:ci
