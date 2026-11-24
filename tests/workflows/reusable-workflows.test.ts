@@ -46,7 +46,7 @@ describe.each(Object.entries(WORKFLOWS))(
           (line) =>
             line.includes("${{") &&
             !/^\s+[A-Z_]+: \$\{\{/.test(line) &&
-            !/^\s+(node-version-file|if|name):/.test(line),
+            !/^\s+(node-version-file|if):/.test(line),
         );
       expect(scriptLines).toEqual([]);
     });
@@ -78,8 +78,8 @@ describe("reusable dependency-audit workflow inputs", () => {
     );
   });
 
-  it("shows the audited scope in the job name and passes the flag through", () => {
-    expect(text).toMatch(/^ {4}name: Dependency audit \(.*include-dev.*\)$/m);
+  it("passes the flag through and keeps the job name unchanged", () => {
+    expect(text).not.toMatch(/^ {4}name:/m);
     expect(text).toContain("INCLUDE_DEV: ${{ inputs.include-dev }}");
     expect(text).toContain("gate_flags+=(--include-dev)");
     expect(text.match(/np-audit-gate "\$\{gate_flags\[@\]\}"/g)).toHaveLength(

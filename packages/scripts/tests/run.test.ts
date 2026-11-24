@@ -62,7 +62,7 @@ describe("runAuditGate", () => {
   it("passes on a clean report and writes the step summary", () => {
     const environment = auditEnvironment();
     expect(runAuditGate([], environment)).toBe(0);
-    expect(logs[0]).toContain("no un-allowlisted");
+    expect(logs.join("\n")).toContain("no un-allowlisted");
     expect(environment.summaries[0]).toContain("## Dependency audit");
   });
 
@@ -127,6 +127,26 @@ describe("runAuditGate", () => {
     });
     expect(runAuditGate(["--include-dev"], environment)).toBe(1);
     expect(errors[0]).toContain("expired on 2026-11-01");
+  });
+
+  it("accepts an allowlisted advisory with --include-dev", () => {
+    const environment = auditEnvironment({
+      runAudit: () => HIGH_REPORT,
+      files: {
+        "audit-allowlist.json": JSON.stringify([
+          {
+            id: "GHSA-aaaa-bbbb-cccc",
+            reason: "No fix",
+            expires: "2027-06-01",
+          },
+        ]),
+      },
+    });
+    expect(runAuditGate(["--include-dev"], environment)).toBe(0);
+    expect(errors).toEqual([]);
+    expect(environment.summaries[0]).toContain(
+      "- GHSA-aaaa-bbbb-cccc [high] pkg",
+    );
   });
 
   it("fails with one line per blocking advisory", () => {

@@ -24,7 +24,7 @@ on:
         type: string
         required: true
       include-dev:
-        description: "Audit all dependencies, dev dependencies included, instead of production dependencies only."
+        description: "Audit all dependencies, dev dependencies included, instead of production dependencies only. Needs a scripts-version that supports --include-dev (0.4.0 or later)."
         type: boolean
         default: false
 
@@ -33,7 +33,6 @@ permissions:
 
 jobs:
   dependency-audit:
-    name: Dependency audit (${{ inputs.include-dev && 'all dependencies' || 'production dependencies' }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
