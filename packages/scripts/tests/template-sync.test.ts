@@ -119,6 +119,54 @@ describe("copying templates", () => {
   });
 });
 
+function npmGroups(dependabotConfig: string): {
+  names: string[];
+  body: string;
+} {
+  const npmEntry = dependabotConfig
+    .split(/^ {2}- package-ecosystem: /m)
+    .find((entry) => entry.startsWith("npm"));
+  const groupsBlock = npmEntry?.split(/^ {4}groups:\n/m)[1] ?? "";
+  const names = [...groupsBlock.matchAll(/^ {6}([\w-]+):$/gm)].map(
+    (match) => match[1] ?? "",
+  );
+  return { names, body: groupsBlock };
+}
+
+describe("dependabot neon-pixels group", () => {
+  it.each(["nuxt", "vitepress", "node"])(
+    "is the first npm group, matches @neon-pixels/*, and has no update-types for %s",
+    (stack) => {
+      sync(["--stack", stack]);
+      const { names, body } = npmGroups(read(".github/dependabot.yml"));
+      expect(names[0]).toBe("neon-pixels");
+      expect(names).toContain("minor-and-patch");
+      const neonBlock = body.split(/^ {6}minor-and-patch:/m)[0];
+      expect(neonBlock).toContain('- "@neon-pixels/*"');
+      expect(neonBlock).not.toContain("update-types");
+    },
+  );
+
+  it("is reported by --check on the old template and applied alone by a sync", () => {
+    const current = readFileSync(
+      join(TEMPLATES_ROOT, "base", ".github", "dependabot.yml"),
+      "utf8",
+    );
+    const oldTemplate = current.replace(
+      / {6}# Listed first[\s\S]*?"@neon-pixels\/\*"\n/,
+      "",
+    );
+    expect(oldTemplate).not.toContain("neon-pixels");
+    sync(["--stack", "node"]);
+    put(".github/dependabot.yml", oldTemplate);
+    expect(sync(["--stack", "node", "--check"])).toBe(1);
+    expect(errors.join("\n")).toContain("+      neon-pixels:");
+    expect(read(".github/dependabot.yml")).toBe(oldTemplate);
+    sync(["--stack", "node"]);
+    expect(read(".github/dependabot.yml")).toBe(current);
+  });
+});
+
 describe("package.json fields", () => {
   it("sets engines.node and leaves every other field alone", () => {
     sync(["--stack", "node"]);
