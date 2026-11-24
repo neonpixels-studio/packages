@@ -188,9 +188,35 @@ describe("production-deploy-decide workflow", () => {
       status: number;
       gh: string[];
     } {
-      const result = runScript(script, environment, { gh: ghBody });
-      return { status: result.status, gh: result.calls.gh ?? [] };
+      return withTemporaryDirectory("np-ci-run-", (directory) => {
+        const result = runScript(
+          script,
+          { ...environment, RUNNER_TEMP: directory },
+          { gh: ghBody },
+        );
+        return { status: result.status, gh: result.calls.gh ?? [] };
+      });
     }
+
+    // Applies the step's real --jq filter to a fixture, as gh would.
+    function runCheckWithApiResponse(response: object): number {
+      const applyJqFilter = [
+        'filter=""',
+        'while [ $# -gt 0 ]; do if [ "$1" = "--jq" ]; then filter="$2"; fi; shift; done',
+        `printf '%s' '${JSON.stringify(response)}' | jq -r "$filter"`,
+      ].join("\n");
+      return runCheck(applyJqFilter).status;
+    }
+
+    it("passes only a completed successful run through its jq filter", () => {
+      const run = (conclusion: string | null, status: string) => ({
+        workflow_runs: [{ conclusion, status }],
+      });
+      expect(runCheckWithApiResponse(run("success", "completed"))).toBe(0);
+      expect(runCheckWithApiResponse(run("failure", "completed"))).toBe(1);
+      expect(runCheckWithApiResponse(run(null, "in_progress"))).toBe(1);
+      expect(runCheckWithApiResponse({ workflow_runs: [] })).toBe(1);
+    });
 
     it("runs only when a workflow is required and the commit will deploy", () => {
       const block = DECIDE.slice(DECIDE.indexOf(`- name: ${step}`));
