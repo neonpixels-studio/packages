@@ -46,8 +46,12 @@ export function stepScript(text: string, stepName: string): string {
   }
   const block = text.slice(start + 1);
   const step = block.split(/\n(?: {0,5}\S| {6}[-#])/)[0] ?? block;
+  const marker = step.indexOf("run: |\n");
+  if (marker === -1) {
+    throw new Error(`Step has no run: | block: ${stepName}`);
+  }
   return step
-    .slice(step.indexOf("run: |\n") + "run: |\n".length)
+    .slice(marker + "run: |\n".length)
     .split("\n")
     .map((line) => line.slice(RUN_BLOCK_INDENT))
     .join("\n");
@@ -55,6 +59,7 @@ export function stepScript(text: string, stepName: string): string {
 
 export interface ScriptRun {
   status: number;
+  stdout: string;
   calls: Record<string, string[]>;
 }
 
@@ -111,6 +116,7 @@ export function runScript(
     });
     return {
       status: result.status ?? -1,
+      stdout: result.stdout.toString(),
       calls: readFakeCalls(directory, Object.keys(fakes)),
     };
   } finally {
@@ -142,4 +148,8 @@ export function secretNames(text: string): string[] {
   return [...block.matchAll(/^ {6}([A-Z_]+):$/gm)].map(
     (match) => match[1] ?? "",
   );
+}
+
+export function readIfExists(path: string): string {
+  return existsSync(path) ? readFileSync(path, "utf-8") : "";
 }

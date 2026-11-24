@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   inputNames,
   jobBlock,
+  readIfExists,
   readText,
   runGh,
   runScript,
@@ -47,7 +48,7 @@ describe.each([
       .filter(
         (line) =>
           line.includes("${{") &&
-          !/^\s+[A-Za-z_-]+: \$\{\{/.test(line) &&
+          !/^\s+(?!run:)[A-Za-z_-]+: \$\{\{/.test(line) &&
           !/^\s+(?:- uses|uses): /.test(line) &&
           !/^\s+(?:if|group):/.test(line),
       );
@@ -110,8 +111,9 @@ describe("production-deploy-decide workflow", () => {
   });
 
   it("records the commit it checked as the sha output", () => {
-    const script = stepScript(DECIDE, "Record the checked commit");
-    expect(script).toContain("sha=${GITHUB_SHA}");
+    expect(DECIDE).toContain(
+      '        run: echo "sha=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"',
+    );
   });
 
   describe("secrets and inputs step", () => {
@@ -223,24 +225,33 @@ describe("production-deploy-decide workflow", () => {
       expect(script).toContain(".workflow_runs[0]");
     });
 
-    function annotationOf(ghBody: string): string {
+    function ciCheckOutput(ghBody: string): string {
       const directory = mkdtempSync(join(tmpdir(), "np-ci-check-"));
       try {
-        const result = runScript(
+        return runScript(
           script,
           { ...environment, RUNNER_TEMP: directory },
           { gh: ghBody },
-        );
-        return `${result.status}`;
+        ).stdout;
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
     }
 
-    it("names the conclusion and the missing permission in its error lines", () => {
-      expect(script).toContain("is ${conclusion}, not success");
-      expect(script).toContain("permissions: actions: read");
-      expect(annotationOf("exit 1")).toBe("1");
+    it("names the conclusion it found in the error line", () => {
+      expect(ciCheckOutput('echo "failure"')).toContain(
+        `::error::The newest push run of ci.yml for ${FULL_SHA} is failure, not success.`,
+      );
+      expect(ciCheckOutput('echo "no run found"')).toContain(
+        "is no run found, not success",
+      );
+    });
+
+    it("names the missing permission and the API error when the lookup fails", () => {
+      const output = ciCheckOutput("echo 'HTTP 403' >&2; exit 1");
+      expect(output).toContain("::error::Could not look up the ci.yml run");
+      expect(output).toContain("permissions: actions: read");
+      expect(output).toContain("HTTP 403");
     });
   });
 });
@@ -387,13 +398,7 @@ describe("production-deploy-trigger workflow", () => {
           PRE_DEPLOY_RESULT: result,
           GITHUB_OUTPUT: outputFile,
         });
-        let output = "";
-        try {
-          output = readFileSync(outputFile, "utf-8");
-        } catch {
-          output = "";
-        }
-        return { status, output };
+        return { status, output: readIfExists(outputFile) };
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
