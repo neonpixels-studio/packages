@@ -100,11 +100,44 @@ The wrapper itself has to call them. Pass its path pattern (or an array of patte
 
 Name your wrappers something other than `useAuth` and `useUser`, or the call check flags the wrappers' own callers.
 
-#### Overriding
+#### Adding your own restrictions
 
-`allowClerkComposables()` switches off `no-restricted-imports`, `no-restricted-syntax`, and `vue/no-restricted-syntax` entirely for the files it matches, so put any restrictions of your own for those files in a block after it.
+Flat config replaces a rule's options instead of merging them, so a block of yours that sets `no-restricted-imports`, `no-restricted-syntax`, or `vue/no-restricted-syntax` drops the Clerk restriction for the files it matches. Use `extendRestrictions()` instead. It returns a block whose three rules hold the preset's Clerk entries followed by yours.
 
-A later `no-restricted-imports` or `no-restricted-syntax` block in your config replaces the Clerk rule for the files it matches (flat config does not merge rule options). Re-include the restriction in your own block if you need extra restrictions on the same files.
+```js
+// eslint.config.mjs
+import nuxt, {
+  allowClerkComposables,
+  extendRestrictions,
+} from "@neon-pixels/eslint-config/nuxt";
+import withNuxt from "./.nuxt/eslint.config.mjs";
+
+export default withNuxt(
+  ...nuxt,
+  extendRestrictions({
+    files: ["app/**/*.vue"], // optional, defaults to every file
+    imports: [{ name: "lodash", message: "Import from lodash-es." }],
+    syntax: [
+      { selector: "ThrowStatement", message: "Return a result instead." },
+    ],
+    vueSyntax: [
+      {
+        selector: "VElement[name='marquee']",
+        message: "Do not use <marquee>.",
+      },
+    ],
+  }),
+  allowClerkComposables("app/composables/useClerkAuth.ts"),
+);
+```
+
+`imports` entries use the `no-restricted-imports` path shape (`name`, `importNames`, `message`, `allowTypeImports`). `syntax` and `vueSyntax` entries are `{ selector, message }`. A rule you pass nothing for still carries the Clerk entries. The helper throws a `TypeError` on an empty call, an unknown key, or an entry without a `name` or `selector`.
+
+Two `extendRestrictions()` blocks that match the same files replace each other, so put all your entries for one set of files in one call.
+
+Order matters: the preset, then your `extendRestrictions()` blocks, then `allowClerkComposables()`. A restriction block placed after `allowClerkComposables()` switches the restriction back on for the wrapper files.
+
+`allowClerkComposables()` switches off all three rules entirely for the files it matches, so put any restrictions you want on those files in a block after it.
 
 ## License
 

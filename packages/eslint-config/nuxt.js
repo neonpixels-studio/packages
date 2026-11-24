@@ -3,7 +3,7 @@ import { withBase } from "./lib/base.js";
 import { clerkWrapperRestriction } from "./lib/clerk.js";
 import { vueConfigs } from "./lib/vue.js";
 
-export { allowClerkComposables } from "./lib/clerk.js";
+export { allowClerkComposables, extendRestrictions } from "./lib/clerk.js";
 
 export default withBase(
   ...vueConfigs,
