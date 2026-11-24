@@ -304,7 +304,7 @@ describe.each([
     ).toEqual([]);
   });
 
-  it("passes a label whose for matches an input id", async () => {
+  it("passes a label with for and a matching input id", async () => {
     expect(
       await lintFixture(config, "vitepress/label-for-id.vue", virtualPath),
     ).toEqual([]);
