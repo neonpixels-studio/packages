@@ -39,6 +39,15 @@ export function jobBlock(text: string, job: string): string {
   return rest.split(/\n {2}\S/)[0] ?? rest;
 }
 
+// Every step of every job, each cut off where the next job-level key or a
+// step-level comment begins.
+export function stepBlocks(text: string): string[] {
+  return text
+    .split(/\n(?= {6}- )/)
+    .slice(1)
+    .map((step) => step.split(/\n(?: {0,4}\S| {6}#)/)[0] ?? step);
+}
+
 export function stepScript(text: string, stepName: string): string {
   const start = text.indexOf(`      - name: ${stepName}\n`);
   if (start === -1) {

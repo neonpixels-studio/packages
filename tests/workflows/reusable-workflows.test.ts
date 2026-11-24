@@ -68,7 +68,28 @@ describe("reusable dependency-audit workflow inputs", () => {
       "package-manager",
       "node-version-file",
       "scripts-version",
+      "include-dev",
     ]);
+  });
+
+  it("takes include-dev as an optional boolean that defaults to false", () => {
+    expect(text).toMatch(
+      /^ {6}include-dev:\n(?: {8}.*\n)*? {8}type: boolean\n {8}default: false$/m,
+    );
+  });
+
+  it("does not require include-dev", () => {
+    const block = text.match(/^ {6}include-dev:\n((?: {8}.*\n)*)/m)?.[1] ?? "";
+    expect(block).not.toContain("required: true");
+  });
+
+  it("passes the flag through and keeps the job name unchanged", () => {
+    expect(text).not.toMatch(/^ {4}name:/m);
+    expect(text).toContain("INCLUDE_DEV: ${{ inputs.include-dev }}");
+    expect(text).toContain("gate_flags+=(--include-dev)");
+    expect(text.match(/np-audit-gate "\$\{gate_flags\[@\]\}"/g)).toHaveLength(
+      2,
+    );
   });
 
   it("runs np-audit-gate from the published package at the pinned version", () => {

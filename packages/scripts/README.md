@@ -10,14 +10,19 @@ pnpm add -D @neon-pixels/scripts
 
 ## `np-audit-gate`
 
-Audits production dependencies and fails on any high or critical advisory that is not on your reviewed allowlist. Moderate and low advisories are counted in the summary but never fail the gate.
+Audits production dependencies (all dependencies with `--include-dev`) and fails on any high or critical advisory that is not on your reviewed allowlist. Moderate and low advisories are counted in the summary but never fail the gate.
 
 ```sh
 pnpm exec np-audit-gate
 pnpm exec np-audit-gate --allowlist path/to/audit-allowlist.json
+pnpm exec np-audit-gate --include-dev
 ```
 
 Run it from the project root. It picks the package manager from the lockfile (`pnpm-lock.yaml`, `package-lock.json`, or `npm-shrinkwrap.json`) and runs `pnpm audit --prod --json` or `npm audit --omit=dev --json`. A project with no lockfile, or with both kinds, fails.
+
+`--include-dev` audits every dependency, dev dependencies included, with `pnpm audit --json` or `npm audit --json`. Use it for a site whose framework and build tooling are all dev dependencies, so the default scope covers almost nothing. The default scope is unchanged. The allowlist format, expiry, stale-entry reporting, fail-closed handling, and step summary are the same in both modes, and one allowlist file serves both. The printed result and the step summary heading name the audited scope (`production dependencies` or `all dependencies`), so two runs in one workflow can be told apart.
+
+An allowlist entry for an advisory that only exists in a dev dependency is reported as stale in a production-only run, because that run never sees the advisory. Treat the stale warning as expected when you run both scopes from one allowlist.
 
 The gate fails closed: empty output, an audit error (registry down), or an unrecognized JSON shape fails instead of passing, an advisory it cannot identify is never allowlisted, and any severity other than info, low, or moderate blocks.
 

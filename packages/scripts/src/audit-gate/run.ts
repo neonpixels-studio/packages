@@ -6,6 +6,8 @@ import { evaluateAudit, formatSummary, type GateResult } from "./gate.ts";
 import {
   auditCommandFor,
   detectPackageManager,
+  SCOPE_LABELS,
+  type AuditScope,
   type PackageManager,
 } from "./package-manager.ts";
 import { parseAuditReport } from "./report.ts";
@@ -19,7 +21,7 @@ export interface AuditGateEnvironment {
   /** Returns null when the file does not exist. */
   readTextFile(path: string): string | null;
   /** Returns the audit's JSON output, whatever the audit's exit code. */
-  runAudit(packageManager: PackageManager): string;
+  runAudit(packageManager: PackageManager, scope: AuditScope): string;
   now(): Date;
   appendStepSummary(markdown: string): void;
 }
@@ -46,8 +48,11 @@ export function readAuditOutput(
   return result.stdout;
 }
 
-function runAuditCommand(packageManager: PackageManager): string {
-  const { command, args } = auditCommandFor(packageManager);
+function runAuditCommand(
+  packageManager: PackageManager,
+  scope: AuditScope,
+): string {
+  const { command, args } = auditCommandFor(packageManager, scope);
   const result = spawnSync(command, args, {
     encoding: "utf-8",
     maxBuffer: MAX_AUDIT_OUTPUT_BYTES,
@@ -82,7 +87,8 @@ function loadAllowlist(
   return content === null ? [] : parseAllowlist(content);
 }
 
-function printResult(result: GateResult): void {
+function printResult(result: GateResult, scope: AuditScope): void {
+  console.log(`np-audit-gate: audited ${SCOPE_LABELS[scope]}`);
   for (const entry of result.staleEntries) {
     console.warn(`np-audit-gate: stale allowlist entry ${entry.id}, remove it`);
   }
@@ -90,22 +96,35 @@ function printResult(result: GateResult): void {
     console.error(`np-audit-gate: ${failure}`);
   }
   if (result.failures.length === 0) {
-    console.log("np-audit-gate: no un-allowlisted high or critical advisories");
+    console.log(
+      `np-audit-gate: no un-allowlisted high or critical advisories in ${SCOPE_LABELS[scope]}`,
+    );
   }
 }
 
-function runGate(
-  argv: string[],
-  environment: AuditGateEnvironment,
-): GateResult {
+interface GateRun {
+  result: GateResult;
+  scope: AuditScope;
+}
+
+function runGate(argv: string[], environment: AuditGateEnvironment): GateRun {
   const { values } = parseArgs({
     args: argv,
-    options: { allowlist: { type: "string" } },
+    options: {
+      allowlist: { type: "string" },
+      "include-dev": { type: "boolean", default: false },
+    },
   });
+  const scope: AuditScope = values["include-dev"] ? "all" : "production";
   const allowlist = loadAllowlist(environment, values.allowlist);
   const packageManager = detectPackageManager(environment.listProjectFiles());
-  const advisories = parseAuditReport(environment.runAudit(packageManager));
-  return evaluateAudit(advisories, allowlist, environment.now());
+  const advisories = parseAuditReport(
+    environment.runAudit(packageManager, scope),
+  );
+  return {
+    result: evaluateAudit(advisories, allowlist, environment.now()),
+    scope,
+  };
 }
 
 /** Runs the gate and returns the process exit code. */
@@ -114,9 +133,9 @@ export function runAuditGate(
   environment: AuditGateEnvironment = systemEnvironment,
 ): number {
   try {
-    const result = runGate(argv, environment);
-    printResult(result);
-    environment.appendStepSummary(formatSummary(result));
+    const { result, scope } = runGate(argv, environment);
+    printResult(result, scope);
+    environment.appendStepSummary(formatSummary(result, scope));
     return result.failures.length > 0 ? 1 : 0;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

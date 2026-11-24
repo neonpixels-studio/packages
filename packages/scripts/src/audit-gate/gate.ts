@@ -1,4 +1,5 @@
 import { entryCovers, isExpired, type AllowlistEntry } from "./allowlist.ts";
+import { SCOPE_LABELS, type AuditScope } from "./package-manager.ts";
 import { isBlocking, type Advisory } from "./report.ts";
 
 export interface GateResult {
@@ -73,10 +74,13 @@ function otherSeverityRows(counts: Record<string, number>): string[] {
 }
 
 /** Markdown for the GitHub step summary. */
-export function formatSummary(result: GateResult): string {
+export function formatSummary(
+  result: GateResult,
+  scope: AuditScope = "production",
+): string {
   const { severityCounts } = result;
   const lines = [
-    "## Dependency audit",
+    `## Dependency audit (${SCOPE_LABELS[scope]})`,
     "",
     "| Severity | Advisories |",
     "| -------- | ---------- |",
