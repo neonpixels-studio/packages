@@ -141,6 +141,11 @@ describe("dependabot neon-pixels group", () => {
       const { names, body } = npmGroups(read(".github/dependabot.yml"));
       expect(names[0]).toBe("neon-pixels");
       expect(names).toContain("minor-and-patch");
+      if (stack === "vitepress") {
+        expect(names.indexOf("minor-and-patch")).toBeLessThan(
+          names.indexOf("vite-vitepress"),
+        );
+      }
       const neonBlock =
         body
           .split(/^ {6}(?=[\w-]+:$)/m)
