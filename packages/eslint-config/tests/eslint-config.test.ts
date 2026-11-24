@@ -6,6 +6,7 @@ import nuxtConfig, {
   allowClerkComposables,
   extendRestrictions,
 } from "../nuxt.js";
+import { clerkWrapperRestriction } from "../lib/clerk.js";
 import vitepressConfig from "../vitepress.js";
 import { lintFixture } from "./lint.ts";
 
@@ -299,7 +300,9 @@ describe("nuxt entry point", () => {
     const extension = extendRestrictions({
       files: ["app/**/*.ts", "app/**/*.vue"],
       imports: [{ name: "left-pad", message: "No left-pad." }],
-      syntax: [{ selector: "DebuggerStatement", message: "No debugger." }],
+      syntax: [
+        { selector: "ThrowStatement", message: "Return a result instead." },
+      ],
       vueSyntax: [
         { selector: "VElement[name='marquee']", message: "No marquee." },
       ],
@@ -363,9 +366,26 @@ describe("nuxt entry point", () => {
     it("carries the Clerk entries for a rule the app passes nothing for", () => {
       const rules = extendRestrictions({ imports: [{ name: "left-pad" }] })
         .rules as Record<string, unknown[]>;
-      expect(rules["no-restricted-syntax"]).toHaveLength(2);
-      expect(rules["vue/no-restricted-syntax"]).toHaveLength(2);
-      expect(rules["no-restricted-imports"]).toHaveLength(5);
+      const clerkRules = clerkWrapperRestriction.rules as Record<
+        string,
+        unknown[]
+      >;
+      expect(rules["no-restricted-syntax"]).toEqual(
+        clerkRules["no-restricted-syntax"],
+      );
+      expect(rules["vue/no-restricted-syntax"]).toEqual(
+        clerkRules["vue/no-restricted-syntax"],
+      );
+      expect(rules["no-restricted-imports"]).toEqual([
+        ...(clerkRules["no-restricted-imports"] ?? []),
+        { name: "left-pad" },
+      ]);
+    });
+
+    it("accepts a single glob string for files", () => {
+      expect(
+        extendRestrictions({ files: "app/**", imports: [{ name: "a" }] }).files,
+      ).toEqual(["app/**"]);
     });
 
     it("rejects an empty call, unknown keys, and incomplete entries", () => {
@@ -375,6 +395,7 @@ describe("nuxt entry point", () => {
       expect(call({})).toThrow(TypeError);
       expect(call({ files: "app/**" })).toThrow(TypeError);
       expect(call({ syntax: [] })).toThrow(TypeError);
+      expect(call({ syntax: "ThrowStatement" })).toThrow(/must be an array/);
       expect(call({ syntex: [{ selector: "A" }] })).toThrow(TypeError);
       expect(call({ syntax: [{ message: "x" }] })).toThrow(TypeError);
       expect(call({ vueSyntax: [{ selector: "" }] })).toThrow(TypeError);

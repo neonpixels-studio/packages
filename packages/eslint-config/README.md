@@ -115,7 +115,9 @@ export default withNuxt(
   extendRestrictions({
     files: ["app/**/*.vue"], // optional, defaults to every file
     imports: [{ name: "lodash", message: "Import from lodash-es." }],
-    syntax: [{ selector: "DebuggerStatement", message: "No debugger." }],
+    syntax: [
+      { selector: "ThrowStatement", message: "Return a result instead." },
+    ],
     vueSyntax: [
       {
         selector: "VElement[name='marquee']",

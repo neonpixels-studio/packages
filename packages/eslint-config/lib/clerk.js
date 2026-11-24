@@ -85,10 +85,7 @@ function assertEntries(
   }
 }
 
-function assertExtendOptions(/** @type {unknown} */ options) {
-  if (options === null || typeof options !== "object") {
-    throw new TypeError("extendRestrictions() needs an options object.");
-  }
+function assertKnownKeys(/** @type {object} */ options) {
   const unknownKeys = Object.keys(options).filter(
     (key) => !EXTEND_KEYS.includes(key),
   );
@@ -97,28 +94,43 @@ function assertExtendOptions(/** @type {unknown} */ options) {
       `extendRestrictions() got unknown keys: ${unknownKeys.join(", ")}.`,
     );
   }
-  const { files, ...restrictions } = /** @type {Record<string, unknown>} */ (
-    options
+}
+
+function assertFiles(/** @type {unknown} */ files) {
+  if (files === undefined) {
+    return;
+  }
+  const patterns = [files].flat();
+  if (patterns.length && !patterns.some(isBlankPattern)) {
+    return;
+  }
+  throw new TypeError(
+    "extendRestrictions() files must be non-empty glob patterns.",
   );
-  const hasRestriction = Object.values(restrictions).some(
-    (entries) => Array.isArray(entries) && entries.length,
+}
+
+function assertHasRestriction(/** @type {Record<string, unknown>} */ options) {
+  const hasRestriction = ["imports", "syntax", "vueSyntax"].some(
+    (key) => Array.isArray(options[key]) && options[key].length,
   );
   if (!hasRestriction) {
     throw new TypeError(
       "extendRestrictions() needs at least one entry in imports, syntax, or vueSyntax.",
     );
   }
-  if (files !== undefined) {
-    const patterns = [files].flat();
-    if (!patterns.length || patterns.some(isBlankPattern)) {
-      throw new TypeError(
-        "extendRestrictions() files must be non-empty glob patterns.",
-      );
-    }
+}
+
+function assertExtendOptions(/** @type {unknown} */ options) {
+  if (options === null || typeof options !== "object") {
+    throw new TypeError("extendRestrictions() needs an options object.");
   }
-  assertEntries("imports", restrictions.imports, "name");
-  assertEntries("syntax", restrictions.syntax, "selector");
-  assertEntries("vueSyntax", restrictions.vueSyntax, "selector");
+  const checked = /** @type {Record<string, unknown>} */ (options);
+  assertKnownKeys(checked);
+  assertFiles(checked.files);
+  assertEntries("imports", checked.imports, "name");
+  assertEntries("syntax", checked.syntax, "selector");
+  assertEntries("vueSyntax", checked.vueSyntax, "selector");
+  assertHasRestriction(checked);
 }
 
 /**
