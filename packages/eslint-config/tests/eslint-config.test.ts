@@ -2,7 +2,10 @@ import eslintConfigPrettier from "eslint-config-prettier";
 import { describe, expect, it } from "vitest";
 import baseConfig from "../index.js";
 import nodeConfig from "../node.js";
-import nuxtConfig, { allowClerkComposables } from "../nuxt.js";
+import nuxtConfig, {
+  allowClerkComposables,
+  extendRestrictions,
+} from "../nuxt.js";
 import vitepressConfig from "../vitepress.js";
 import { lintFixture } from "./lint.ts";
 
@@ -290,5 +293,94 @@ describe("nuxt entry point", () => {
         "app/composables/useClerkAuth.ts",
       ),
     ).toEqual([CLERK_IMPORTS]);
+  });
+
+  describe("extendRestrictions()", () => {
+    const extension = extendRestrictions({
+      files: ["app/**/*.ts", "app/**/*.vue"],
+      imports: [{ name: "left-pad", message: "No left-pad." }],
+      syntax: [{ selector: "DebuggerStatement", message: "No debugger." }],
+      vueSyntax: [
+        { selector: "VElement[name='marquee']", message: "No marquee." },
+      ],
+    });
+    const config = [
+      ...nuxtConfig,
+      extension,
+      allowClerkComposables("app/composables/clerk/*.ts"),
+    ];
+
+    it("still reports a raw Clerk call in files the block matches", async () => {
+      expect(
+        await lintFixture(config, "nuxt/clerk-call.ts", "app/composables/x.ts"),
+      ).toContain(CLERK_SYNTAX);
+    });
+
+    it("still reports Clerk imports in files the block matches", async () => {
+      expect(
+        await lintFixture(config, "nuxt/clerk-import.ts", "app/raw.ts"),
+      ).toEqual([CLERK_IMPORTS]);
+    });
+
+    it("reports the app's added import", async () => {
+      expect(
+        await lintFixture(config, "nuxt/extra-import.ts", "app/extra.ts"),
+      ).toEqual([CLERK_IMPORTS]);
+    });
+
+    it("reports the app's added selector", async () => {
+      expect(
+        await lintFixture(config, "nuxt/extra-syntax.ts", "app/extra.ts"),
+      ).toEqual([CLERK_SYNTAX]);
+    });
+
+    it("reports the app's added template selector", async () => {
+      expect(
+        await lintFixture(
+          [...nuxtConfig, extension],
+          "nuxt/extra-template.vue",
+          "app/components/Banner.vue",
+        ),
+      ).toContain(CLERK_VUE_SYNTAX);
+    });
+
+    it("keeps the wrapper files exempt when the exemption comes last", async () => {
+      expect(
+        await lintFixture(
+          config,
+          "nuxt/clerk-call.ts",
+          "app/composables/clerk/auth.ts",
+        ),
+      ).toEqual([]);
+    });
+
+    it("does not apply outside the files it names", async () => {
+      expect(
+        await lintFixture(config, "nuxt/extra-syntax.ts", "server/extra.ts"),
+      ).toEqual([]);
+    });
+
+    it("carries the Clerk entries for a rule the app passes nothing for", () => {
+      const rules = extendRestrictions({ imports: [{ name: "left-pad" }] })
+        .rules as Record<string, unknown[]>;
+      expect(rules["no-restricted-syntax"]).toHaveLength(2);
+      expect(rules["vue/no-restricted-syntax"]).toHaveLength(2);
+      expect(rules["no-restricted-imports"]).toHaveLength(5);
+    });
+
+    it("rejects an empty call, unknown keys, and incomplete entries", () => {
+      const call = (options: unknown) => () =>
+        extendRestrictions(options as Parameters<typeof extendRestrictions>[0]);
+      expect(call(undefined)).toThrow(TypeError);
+      expect(call({})).toThrow(TypeError);
+      expect(call({ files: "app/**" })).toThrow(TypeError);
+      expect(call({ syntax: [] })).toThrow(TypeError);
+      expect(call({ syntex: [{ selector: "A" }] })).toThrow(TypeError);
+      expect(call({ syntax: [{ message: "x" }] })).toThrow(TypeError);
+      expect(call({ vueSyntax: [{ selector: "" }] })).toThrow(TypeError);
+      expect(call({ imports: [{ message: "x" }] })).toThrow(TypeError);
+      expect(call({ imports: ["left-pad"] })).toThrow(TypeError);
+      expect(call({ imports: [{ name: "a" }], files: [] })).toThrow(TypeError);
+    });
   });
 });
