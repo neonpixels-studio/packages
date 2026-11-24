@@ -147,9 +147,7 @@ describe("dependabot neon-pixels group", () => {
         );
       }
       const neonBlock =
-        body
-          .split(/^ {6}(?=[\w-]+:$)/m)
-          .find((chunk) => chunk.startsWith("neon-pixels:")) ?? "";
+        (body.match(/^ {6}neon-pixels:\n((?: {8,}.*\n)*)/m) ?? [])[1] ?? "";
       expect(neonBlock).toContain('- "@neon-pixels/*"');
       expect(neonBlock).not.toContain("update-types");
     },
