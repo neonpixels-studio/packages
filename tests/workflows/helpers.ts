@@ -140,14 +140,29 @@ export function statusOf(script: string, environment: Record<string, string>) {
   return runScript(script, environment).status;
 }
 
-export function secretNames(text: string): string[] {
-  const block = text.slice(
+export function secretsBlock(text: string): string {
+  return text.slice(
     text.indexOf("    secrets:\n"),
     text.indexOf("\npermissions:"),
   );
-  return [...block.matchAll(/^ {6}([A-Z_]+):$/gm)].map(
+}
+
+export function secretNames(text: string): string[] {
+  return [...secretsBlock(text).matchAll(/^ {6}([A-Z_]+):$/gm)].map(
     (match) => match[1] ?? "",
   );
+}
+
+export function withTemporaryDirectory<Result>(
+  prefix: string,
+  callback: (directory: string) => Result,
+): Result {
+  const directory = mkdtempSync(join(tmpdir(), prefix));
+  try {
+    return callback(directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 export function readIfExists(path: string): string {

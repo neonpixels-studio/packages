@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,8 +10,10 @@ import {
   runGh,
   runScript,
   secretNames,
+  secretsBlock,
   statusOf,
   stepScript,
+  withTemporaryDirectory,
 } from "./helpers.ts";
 
 const DECIDE = readText(".github/workflows/production-deploy-decide.yml");
@@ -226,16 +228,13 @@ describe("production-deploy-decide workflow", () => {
     });
 
     function ciCheckOutput(ghBody: string): string {
-      const directory = mkdtempSync(join(tmpdir(), "np-ci-check-"));
-      try {
+      return withTemporaryDirectory("np-ci-check-", (directory) => {
         return runScript(
           script,
           { ...environment, RUNNER_TEMP: directory },
           { gh: ghBody },
         ).stdout;
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
+      });
     }
 
     it("names the conclusion it found in the error line", () => {
@@ -271,16 +270,12 @@ describe("production-deploy-trigger workflow", () => {
   });
 
   it("declares the build hook and both Netlify tokens as required named secrets", () => {
-    const secretsBlock = TRIGGER.slice(
-      TRIGGER.indexOf("    secrets:\n"),
-      TRIGGER.indexOf("\npermissions:"),
-    );
     expect(secretNames(TRIGGER)).toEqual([
       "NETLIFY_BUILD_HOOK_URL",
       "NETLIFY_AUTH_TOKEN",
       "NETLIFY_SITE_ID",
     ]);
-    expect(secretsBlock.match(/required: true/g)).toHaveLength(3);
+    expect(secretsBlock(TRIGGER).match(/required: true/g)).toHaveLength(3);
   });
 
   it("verifies with np-verify-netlify-deploy against the expected sha", () => {
@@ -391,17 +386,14 @@ describe("production-deploy-trigger workflow", () => {
     );
 
     function runGate(result: string): { status: number; output: string } {
-      const directory = mkdtempSync(join(tmpdir(), "np-gate-"));
-      try {
+      return withTemporaryDirectory("np-gate-", (directory) => {
         const outputFile = join(directory, "output");
         const { status } = runScript(script, {
           PRE_DEPLOY_RESULT: result,
           GITHUB_OUTPUT: outputFile,
         });
         return { status, output: readIfExists(outputFile) };
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
+      });
     }
 
     it("lets the deploy continue after a successful pre-deploy job", () => {
@@ -451,9 +443,8 @@ describe("production-deploy-trigger workflow", () => {
     const script = stepScript(TRIGGER, "Trigger the Netlify production deploy");
 
     it("posts to the hook with a title unique to the run and attempt", () => {
-      const outputDirectory = mkdtempSync(join(tmpdir(), "np-output-"));
-      try {
-        const outputFile = join(outputDirectory, "output");
+      withTemporaryDirectory("np-output-", (directory) => {
+        const outputFile = join(directory, "output");
         const result = runScript(
           script,
           {
@@ -471,9 +462,7 @@ describe("production-deploy-trigger workflow", () => {
           "trigger_title=Production deploy run 42 attempt 1",
         );
         expect(output).toMatch(/triggered_at=\d{4}-\d{2}-\d{2}T/);
-      } finally {
-        rmSync(outputDirectory, { recursive: true, force: true });
-      }
+      });
     });
 
     it("fails when the hook call fails", () => {
@@ -614,9 +603,9 @@ describe("production-deploy workflow (one-call version)", () => {
   });
 
   it("deploys nothing when the commit is already live", () => {
-    const condition = jobBlock(DEPLOY, "deploy");
-    expect(condition).toContain("!cancelled()");
-    expect(condition).toContain("needs.decide.outputs.skip == 'false'");
+    expect(jobBlock(DEPLOY, "deploy")).toContain(
+      "if: ${{ !cancelled() && (needs.decide.result != 'success' || needs.decide.outputs.skip == 'false') }}",
+    );
   });
 
   it("grants the trigger call issues: write and the decide call no writes", () => {
