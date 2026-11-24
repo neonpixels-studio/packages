@@ -357,6 +357,20 @@ describe("nuxt entry point", () => {
       ).toEqual([]);
     });
 
+    it("switches the restriction back on when placed after the exemption", async () => {
+      expect(
+        await lintFixture(
+          [
+            ...nuxtConfig,
+            allowClerkComposables("app/composables/clerk/*.ts"),
+            extension,
+          ],
+          "nuxt/clerk-call.ts",
+          "app/composables/clerk/auth.ts",
+        ),
+      ).toContain(CLERK_SYNTAX);
+    });
+
     it("does not apply outside the files it names", async () => {
       expect(
         await lintFixture(config, "nuxt/extra-syntax.ts", "server/extra.ts"),
@@ -392,6 +406,10 @@ describe("nuxt entry point", () => {
       const call = (options: unknown) => () =>
         extendRestrictions(options as Parameters<typeof extendRestrictions>[0]);
       expect(call(undefined)).toThrow(TypeError);
+      expect(call(null)).toThrow(TypeError);
+      expect(call({ imports: [{ name: "a" }], files: ["  "] })).toThrow(
+        TypeError,
+      );
       expect(call({})).toThrow(TypeError);
       expect(call({ files: "app/**" })).toThrow(TypeError);
       expect(call({ syntax: [] })).toThrow(TypeError);

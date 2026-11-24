@@ -131,6 +131,8 @@ export default withNuxt(
 
 `imports` entries use the `no-restricted-imports` path shape (`name`, `importNames`, `message`, `allowTypeImports`). `syntax` and `vueSyntax` entries are `{ selector, message }`. A rule you pass nothing for still carries the Clerk entries. The helper throws a `TypeError` on an empty call, an unknown key, or an entry without a `name` or `selector`.
 
+Two `extendRestrictions()` blocks that match the same files replace each other, so put all your entries for one set of files in one call.
+
 Order matters: the preset, then your `extendRestrictions()` blocks, then `allowClerkComposables()`. A restriction block placed after `allowClerkComposables()` switches the restriction back on for the wrapper files.
 
 `allowClerkComposables()` switches off all three rules entirely for the files it matches, so put any restrictions you want on those files in a block after it.
