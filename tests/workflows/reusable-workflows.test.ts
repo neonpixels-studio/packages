@@ -78,6 +78,11 @@ describe("reusable dependency-audit workflow inputs", () => {
     );
   });
 
+  it("does not require include-dev", () => {
+    const block = text.match(/^ {6}include-dev:\n((?: {8}.*\n)*)/m)?.[1] ?? "";
+    expect(block).not.toContain("required: true");
+  });
+
   it("passes the flag through and keeps the job name unchanged", () => {
     expect(text).not.toMatch(/^ {4}name:/m);
     expect(text).toContain("INCLUDE_DEV: ${{ inputs.include-dev }}");

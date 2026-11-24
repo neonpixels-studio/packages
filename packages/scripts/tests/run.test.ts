@@ -69,7 +69,10 @@ describe("runAuditGate", () => {
   it("names the audited scope in the printed result and the step summary", () => {
     const production = auditEnvironment();
     expect(runAuditGate([], production)).toBe(0);
-    expect(logs.join("\n")).toContain("production dependencies");
+    expect(logs).toContain("np-audit-gate: audited production dependencies");
+    expect(logs).toContain(
+      "np-audit-gate: no un-allowlisted high or critical advisories in production dependencies",
+    );
     expect(production.summaries[0]).toContain(
       "## Dependency audit (production dependencies)",
     );
@@ -77,7 +80,10 @@ describe("runAuditGate", () => {
     logs.length = 0;
     const all = auditEnvironment();
     expect(runAuditGate(["--include-dev"], all)).toBe(0);
-    expect(logs.join("\n")).toContain("all dependencies");
+    expect(logs).toContain("np-audit-gate: audited all dependencies");
+    expect(logs).toContain(
+      "np-audit-gate: no un-allowlisted high or critical advisories in all dependencies",
+    );
     expect(all.summaries[0]).toContain(
       "## Dependency audit (all dependencies)",
     );
