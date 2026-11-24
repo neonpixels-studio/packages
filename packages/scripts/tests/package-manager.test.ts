@@ -38,14 +38,27 @@ describe("detectPackageManager", () => {
 });
 
 describe("auditCommandFor", () => {
-  it("audits production dependencies as JSON", () => {
-    expect(auditCommandFor("pnpm")).toEqual({
-      command: "pnpm",
-      args: ["audit", "--prod", "--json"],
-    });
-    expect(auditCommandFor("npm")).toEqual({
-      command: "npm",
-      args: ["audit", "--omit=dev", "--json"],
+  it.each([
+    ["pnpm", ["audit", "--prod", "--json"]],
+    ["npm", ["audit", "--omit=dev", "--json"]],
+  ] as const)(
+    "audits production dependencies as JSON with %s",
+    (manager, args) => {
+      expect(auditCommandFor(manager)).toEqual({ command: manager, args });
+      expect(auditCommandFor(manager, "production")).toEqual({
+        command: manager,
+        args,
+      });
+    },
+  );
+
+  it.each([
+    ["pnpm", ["audit", "--json"]],
+    ["npm", ["audit", "--json"]],
+  ] as const)("audits all dependencies as JSON with %s", (manager, args) => {
+    expect(auditCommandFor(manager, "all")).toEqual({
+      command: manager,
+      args,
     });
   });
 });
