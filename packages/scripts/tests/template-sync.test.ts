@@ -141,7 +141,10 @@ describe("dependabot neon-pixels group", () => {
       const { names, body } = npmGroups(read(".github/dependabot.yml"));
       expect(names[0]).toBe("neon-pixels");
       expect(names).toContain("minor-and-patch");
-      const neonBlock = body.split(/^ {6}minor-and-patch:/m)[0];
+      const neonBlock =
+        body
+          .split(/^ {6}(?=[\w-]+:$)/m)
+          .find((chunk) => chunk.startsWith("neon-pixels:")) ?? "";
       expect(neonBlock).toContain('- "@neon-pixels/*"');
       expect(neonBlock).not.toContain("update-types");
     },
@@ -160,7 +163,13 @@ describe("dependabot neon-pixels group", () => {
     sync(["--stack", "node"]);
     put(".github/dependabot.yml", oldTemplate);
     expect(sync(["--stack", "node", "--check"])).toBe(1);
-    expect(errors.join("\n")).toContain("+      neon-pixels:");
+    const diffLines = errors
+      .join("\n")
+      .split("\n")
+      .filter((line) => /^[+-] /.test(line));
+    expect(diffLines.length).toBeGreaterThan(0);
+    expect(diffLines.every((line) => line.startsWith("+"))).toBe(true);
+    expect(diffLines.join("\n")).toMatch(/neon-pixels:/);
     expect(read(".github/dependabot.yml")).toBe(oldTemplate);
     sync(["--stack", "node"]);
     expect(read(".github/dependabot.yml")).toBe(current);

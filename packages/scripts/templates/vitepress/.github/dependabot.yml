@@ -15,8 +15,8 @@ updates:
       neon-pixels:
         patterns:
           - "@neon-pixels/*"
-      # Minor and patch bumps, vite and vitepress included, land in one weekly
-      # PR.
+      # Kept ahead of `vite-vitepress` so minor and patch bumps, vite and
+      # vitepress included, land in one weekly PR.
       minor-and-patch:
         update-types:
           - minor
