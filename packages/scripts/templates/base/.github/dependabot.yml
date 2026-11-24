@@ -9,6 +9,12 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # Listed first on purpose: Dependabot assigns a dependency to the first
+      # group that matches it, so the shared packages must be claimed before
+      # `minor-and-patch` can swallow their minor and patch bumps.
+      neon-pixels:
+        patterns:
+          - "@neon-pixels/*"
       # Collapse all minor and patch bumps into a single PR to reduce churn.
       minor-and-patch:
         update-types:

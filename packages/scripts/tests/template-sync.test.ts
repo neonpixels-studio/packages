@@ -119,6 +119,66 @@ describe("copying templates", () => {
   });
 });
 
+function npmGroups(dependabotConfig: string): {
+  names: string[];
+  body: string;
+} {
+  const npmEntry = dependabotConfig
+    .split(/^ {2}- package-ecosystem: /m)
+    .find((entry) => entry.startsWith("npm"));
+  const groupsBlock = npmEntry?.split(/^ {4}groups:\n/m)[1] ?? "";
+  const names = [...groupsBlock.matchAll(/^ {6}([\w-]+):$/gm)].map(
+    (match) => match[1] ?? "",
+  );
+  return { names, body: groupsBlock };
+}
+
+describe("dependabot neon-pixels group", () => {
+  it.each(["nuxt", "vitepress", "node"])(
+    "is the first npm group, matches @neon-pixels/*, and has no update-types for %s",
+    (stack) => {
+      sync(["--stack", stack]);
+      const { names, body } = npmGroups(read(".github/dependabot.yml"));
+      expect(names[0]).toBe("neon-pixels");
+      expect(names).toContain("minor-and-patch");
+      if (stack === "vitepress") {
+        expect(names.indexOf("minor-and-patch")).toBeLessThan(
+          names.indexOf("vite-vitepress"),
+        );
+      }
+      const neonBlock =
+        (body.match(/^ {6}neon-pixels:\n((?: {8,}.*\n)*)/m) ?? [])[1] ?? "";
+      expect(neonBlock).toContain('- "@neon-pixels/*"');
+      expect(neonBlock).not.toContain("update-types");
+    },
+  );
+
+  it("is reported by --check on the old template and applied alone by a sync", () => {
+    const current = readFileSync(
+      join(TEMPLATES_ROOT, "base", ".github", "dependabot.yml"),
+      "utf8",
+    );
+    const oldTemplate = current.replace(
+      / {6}# Listed first[\s\S]*?"@neon-pixels\/\*"\n/,
+      "",
+    );
+    expect(oldTemplate).not.toContain("neon-pixels");
+    sync(["--stack", "node"]);
+    put(".github/dependabot.yml", oldTemplate);
+    expect(sync(["--stack", "node", "--check"])).toBe(1);
+    const diffLines = errors
+      .join("\n")
+      .split("\n")
+      .filter((line) => /^[+-] /.test(line));
+    expect(diffLines.length).toBeGreaterThan(0);
+    expect(diffLines.every((line) => line.startsWith("+"))).toBe(true);
+    expect(diffLines.join("\n")).toMatch(/neon-pixels:/);
+    expect(read(".github/dependabot.yml")).toBe(oldTemplate);
+    sync(["--stack", "node"]);
+    expect(read(".github/dependabot.yml")).toBe(current);
+  });
+});
+
 describe("package.json fields", () => {
   it("sets engines.node and leaves every other field alone", () => {
     sync(["--stack", "node"]);

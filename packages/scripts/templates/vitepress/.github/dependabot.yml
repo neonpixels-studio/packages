@@ -9,9 +9,14 @@ updates:
     schedule:
       interval: weekly
     groups:
-      # Listed first so minor and patch bumps, vite and vitepress included, land
-      # in one weekly PR. Dependabot assigns an update to the first group that
-      # matches it.
+      # Listed first on purpose: Dependabot assigns a dependency to the first
+      # group that matches it, so the shared packages must be claimed before
+      # `minor-and-patch` can swallow their minor and patch bumps.
+      neon-pixels:
+        patterns:
+          - "@neon-pixels/*"
+      # Kept ahead of `vite-vitepress` so minor and patch bumps, vite and
+      # vitepress included, land in one weekly PR.
       minor-and-patch:
         update-types:
           - minor

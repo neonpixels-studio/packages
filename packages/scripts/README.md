@@ -187,6 +187,8 @@ pnpm exec np-sync-templates --stack nuxt --check
 
 Run it from the repository root. `--stack` is required and is `nuxt`, `vitepress`, or `node`. With `--check` nothing is written: it prints a diff for every file that differs (`-` is the repository's line, `+` the template's) and exits 1, so CI can fail on drift.
 
+The Dependabot config groups every `@neon-pixels/*` update, of any kind, into its own pull request. The `neon-pixels` group is listed first among the npm groups because Dependabot puts a dependency in the first group that matches it; placed after `minor-and-patch`, it would never receive minor or patch bumps.
+
 It touches only these files, and refuses any path that is a symlink or resolves outside the current directory:
 
 | File                     | Variants                                                     |
