@@ -1,10 +1,16 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { defineConfig } from "@playwright/test";
-import { createPlaywrightConfig } from "../index.js";
+import type { PlaywrightTestConfig } from "@playwright/test";
+import {
+  createPlaywrightConfig,
+  type PlaywrightPresetWebServer,
+} from "../index.js";
 import { createClerkPlaywrightConfig } from "../clerk.js";
 
-const OPTIONS = { command: "pnpm dev --port 4123", port: 4123 };
-const LOOPBACK_URL = "http://127.0.0.1:4123";
+const PORT = 4123;
+const OPTIONS = { command: `pnpm dev --port ${PORT}`, port: PORT };
+const LOCALHOST_URL = `http://localhost:${PORT}`;
+const LOOPBACK_URL = `http://127.0.0.1:${PORT}`;
 
 const entryPoints = [
   ["createPlaywrightConfig", createPlaywrightConfig],
@@ -15,10 +21,10 @@ describe.each(entryPoints)("%s result is spreadable", (_name, create) => {
   it("types webServer as one object and use as defined", () => {
     const base = create(OPTIONS);
 
-    expectTypeOf(base.webServer).not.toBeArray();
-    expectTypeOf(base.webServer).not.toBeUndefined();
-    expectTypeOf(base.webServer.command).toEqualTypeOf<string>();
-    expectTypeOf(base.use).not.toBeUndefined();
+    expectTypeOf(base.webServer).toEqualTypeOf<PlaywrightPresetWebServer>();
+    expectTypeOf(base.use).toEqualTypeOf<
+      NonNullable<PlaywrightTestConfig["use"]>
+    >();
   });
 
   it("overrides webServer.reuseExistingServer by spreading", () => {
@@ -30,7 +36,7 @@ describe.each(entryPoints)("%s result is spreadable", (_name, create) => {
 
     expect(config.webServer).toMatchObject({
       command: OPTIONS.command,
-      url: "http://localhost:4123",
+      url: LOCALHOST_URL,
       reuseExistingServer: false,
     });
   });
