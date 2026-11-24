@@ -459,7 +459,7 @@ describe("reusable lighthouse workflow", () => {
     );
     expect(build).toBeDefined();
     expect(build).not.toMatch(
-      /\becho\b|\bprintf\b|\bprintenv\b|\benv\b(?!:)|GITHUB_STEP_SUMMARY|GITHUB_ENV|GITHUB_OUTPUT|set -[a-z]*x/,
+      /\becho\b|\bprintf\b|\bprintenv\b|\benv\b(?!:)|GITHUB_STEP_SUMMARY|GITHUB_ENV|GITHUB_OUTPUT|set -[a-z]*x|set -o xtrace|\bbash -[a-z]*x/,
     );
     expect(LIGHTHOUSE).not.toMatch(/toJSON\(\s*secrets\s*\)|secrets\[/);
     expect(LIGHTHOUSE).not.toContain("secrets: inherit");
