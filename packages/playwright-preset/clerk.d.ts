@@ -1,5 +1,8 @@
-import type { Page, PlaywrightTestConfig } from "@playwright/test";
-import type { PlaywrightPresetOptions } from "./index.js";
+import type { Page } from "@playwright/test";
+import type {
+  PlaywrightPresetConfig,
+  PlaywrightPresetOptions,
+} from "./index.js";
 
 /** Where the setup project writes the signed-in browser state. */
 export declare const AUTH_STATE_FILE: string;
@@ -38,7 +41,7 @@ export declare function applyClerkEnvironment(
 
 export declare function createClerkPlaywrightConfig(
   options: PlaywrightPresetOptions,
-): PlaywrightTestConfig;
+): PlaywrightPresetConfig;
 
 /** Registers the "authenticate" setup test. Call it from `e2e/auth.setup.ts`. */
 export declare function defineClerkAuthSetup(
