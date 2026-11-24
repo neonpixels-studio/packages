@@ -1,0 +1,219 @@
+# Second half of the split production deploy: triggers the site's Netlify
+# build hook, then waits for that exact deploy to reach `ready`
+# (np-verify-netlify-deploy). Call it after production-deploy-decide.yml and
+# any job of your own that must finish first (see README.md). A failed or
+# cancelled deploy files one tracking issue; a later verified deploy closes it.
+# Runs of the same repository never overlap: a second run waits for the first
+# instead of cancelling it. GitHub keeps one waiting run per group, so a third
+# run replaces the waiting one, which then ends as cancelled.
+name: Production deploy trigger
+
+on:
+  workflow_call:
+    inputs:
+      scripts-version:
+        description: "Exact @neon-pixels/scripts version to run the deploy bins from, such as 0.4.0."
+        type: string
+        required: true
+      node-version-file:
+        description: "File that names the Node version (for example .nvmrc), relative to the repository root."
+        type: string
+        default: .nvmrc
+      expected-sha:
+        description: "The commit to deploy: the sha output of production-deploy-decide.yml. 40 hex characters."
+        type: string
+        required: true
+      pre-deploy-result:
+        description: "Result of the caller's job that runs before the deploy (needs.<job>.result). Anything but success deploys nothing and files the failure issue."
+        type: string
+        default: success
+    secrets:
+      NETLIFY_BUILD_HOOK_URL:
+        description: "Netlify build hook URL for branch main."
+        required: true
+      NETLIFY_AUTH_TOKEN:
+        description: "Netlify personal access token that can read the site's deploys."
+        required: true
+      NETLIFY_SITE_ID:
+        description: "Netlify site id (API id) of the production site."
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_FAILURE_LABEL: deploy-failure
+  DEPLOY_FAILURE_TITLE: Production deploy failed
+
+jobs:
+  deploy:
+    # The hook always builds main, so a run from another ref must not deploy.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Covers the Netlify build, which the verify step polls for up to 30 minutes.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    # One deploy at a time per repository. Never cancel: killing a run between
+    # the hook call and the verify step would leave a deploy nothing watches.
+    concurrency:
+      group: np-production-deploy-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      pre-deploy-failed: ${{ steps.pre-deploy.outputs.failed }}
+    env:
+      SCRIPTS_VERSION: ${{ inputs.scripts-version }}
+      EXPECTED_SHA: ${{ inputs.expected-sha }}
+    steps:
+      # First, so a failed pre-deploy job never reaches the hook.
+      - name: Require the pre-deploy job to have succeeded
+        id: pre-deploy
+        env:
+          PRE_DEPLOY_RESULT: ${{ inputs.pre-deploy-result }}
+        run: |
+          set -euo pipefail
+          if [ "${PRE_DEPLOY_RESULT}" != "success" ]; then
+            echo "failed=true" >> "${GITHUB_OUTPUT}"
+            echo "::error::The pre-deploy job did not succeed (result: ${PRE_DEPLOY_RESULT}). Nothing was deployed."
+            exit 1
+          fi
+      - name: Require secrets and inputs
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          set -euo pipefail
+          for name in NETLIFY_BUILD_HOOK_URL NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The ${name} secret is not set. Pass it from the calling workflow with an explicit secrets: block."
+              exit 1
+            fi
+          done
+          if ! [[ "${SCRIPTS_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::scripts-version must be an exact version such as 0.4.0"
+            exit 1
+          fi
+          if ! [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::expected-sha must be a full 40-character commit SHA: pass the sha output of production-deploy-decide.yml"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+      # Installed outside the workspace so the caller's own package.json and
+      # lockfile are never read or changed, and none of its scripts run.
+      - name: Install the deploy bins
+        run: |
+          set -euo pipefail
+          npm install --prefix "${RUNNER_TEMP}/np-scripts" --ignore-scripts --no-audit --no-fund --no-save "@neon-pixels/scripts@${SCRIPTS_VERSION}"
+          echo "${RUNNER_TEMP}/np-scripts/node_modules/.bin" >> "${GITHUB_PATH}"
+      # A build hook cannot pin a commit, so refuse to fire it when main has
+      # moved past the commit that was checked.
+      - name: Require main unchanged since the deploy was decided
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
+          if [ "${remote_sha}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::main moved to ${remote_sha} after the deploy was decided on ${EXPECTED_SHA}. Nothing was deployed. Start a new run (Run workflow): a re-run keeps the old commit."
+            exit 1
+          fi
+      # The hook answers with an empty body, so the verify step finds the deploy
+      # by this title and time. The run id and attempt make the title unique,
+      # and a re-run gets a new attempt number.
+      - name: Trigger the Netlify production deploy
+        id: trigger
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          trigger_title="Production deploy run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
+          triggered_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 -X POST -d '{}' \
+            "${NETLIFY_BUILD_HOOK_URL}?trigger_title=${trigger_title// /+}"
+          echo "trigger_title=${trigger_title}" >> "${GITHUB_OUTPUT}"
+          echo "triggered_at=${triggered_at}" >> "${GITHUB_OUTPUT}"
+      # A 2xx from the hook only means the build was queued. Fail the run when
+      # the build errors, is cancelled, builds another commit, or never finishes.
+      - name: Verify the Netlify production deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_TRIGGER_TITLE: ${{ steps.trigger.outputs.trigger_title }}
+          NETLIFY_TRIGGERED_AT: ${{ steps.trigger.outputs.triggered_at }}
+          EXPECTED_COMMIT_SHA: ${{ inputs.expected-sha }}
+        run: np-verify-netlify-deploy
+
+  # Separate job so `issues: write` stays out of the job that holds the Netlify
+  # secrets. A failed scheduled run only emails whoever last edited the cron, so
+  # keep one durable tracking issue instead.
+  notify-failure:
+    needs: deploy
+    # A run that hits timeout-minutes reports failure, but a cancelled run
+    # reports cancelled, which failure() does not match. A skipped deploy job
+    # (a ref other than main) matches neither result and stays quiet.
+    if: always() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    # Serializes the issue writes so two runs cannot both open one.
+    concurrency:
+      group: np-deploy-failure-issue-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      DEPLOY_RESULT: ${{ needs.deploy.result }}
+      PRE_DEPLOY_FAILED: ${{ needs.deploy.outputs.pre-deploy-failed }}
+      PRE_DEPLOY_RESULT: ${{ inputs.pre-deploy-result }}
+      DEPLOYED_SHA: ${{ inputs.expected-sha }}
+    steps:
+      - name: Open or update the deploy failure issue
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="The production deploy finished as ${DEPLOY_RESULT} on ${DEPLOYED_SHA:-${GITHUB_SHA}}. A cancelled run may only have been replaced by a newer queued run. Run: ${run_url}"
+          if [ "${PRE_DEPLOY_FAILED}" = "true" ]; then
+            body="The pre-deploy job did not succeed (result: ${PRE_DEPLOY_RESULT}), so nothing was deployed on ${DEPLOYED_SHA:-${GITHUB_SHA}}. Run: ${run_url}"
+          fi
+          gh label create "${DEPLOY_FAILURE_LABEL}" --color B60205 --description "A scheduled production deploy failed" --force
+          existing=$(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+            exit 0
+          fi
+          gh issue create --title "${DEPLOY_FAILURE_TITLE}" --label "${DEPLOY_FAILURE_LABEL}" --body "${body}"
+
+  # Only a deploy that was triggered and verified proves production works.
+  close-resolved-failure:
+    needs: deploy
+    if: needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    # Serializes the issue writes so two runs cannot both open one.
+    concurrency:
+      group: np-deploy-failure-issue-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Close the resolved deploy failure issue
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # Assigned first so a failed lookup fails the step instead of looping zero times.
+          open_issues=$(gh issue list --label "${DEPLOY_FAILURE_LABEL}" --state open --json number --jq '.[].number')
+          for number in ${open_issues}; do
+            gh issue close "${number}" --comment "A later production deploy was verified live: ${run_url}"
+          done
