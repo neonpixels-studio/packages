@@ -74,6 +74,12 @@ Four workflows are callable from other repositories with `workflow_call`. All de
 | `config-path`            | no       | Lighthouse CI config in the caller, default `./lighthouserc.cjs`     |
 | `scripts-version`        | yes      | Exact `@neon-pixels/scripts` version for the report bin              |
 
+| Secret (`lighthouse.yml`) | Required | Meaning                                                                                             |
+| ------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `DOTENV_PRIVATE_KEY_E2E`  | no       | dotenvx private key for `.env.e2e`, for a build that decrypts its environment file. Build step only |
+
+`DOTENV_PRIVATE_KEY_E2E` is set as an environment variable on the build step and nowhere else: not the install step, Lighthouse CI, the artifact upload, or the report job. A caller that passes no secret builds exactly as before. Put build variables that are not secret (a server preset, the site URL for the audited port) in the caller's own `package.json` script and point `build-script` at it.
+
 `scripts-version` must be a release that contains the bins the workflow runs (`np-should-deploy` and `np-verify-netlify-deploy` for the deploy, `np-report-lighthouse-failure` for Lighthouse).
 
 A reusable workflow cannot hold more permissions than its caller grants, so the calling job must grant `issues: write` for the failure issues. Pass secrets by name, never with `secrets: inherit`. The deploy call also needs a caller-owned schedule:
@@ -127,6 +133,9 @@ jobs:
       build-script: build
       config-path: ./lighthouserc.cjs
       scripts-version: 0.3.0
+    # Optional: only for a build that decrypts a dotenvx environment file.
+    secrets:
+      DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
 ```
 
 The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, `np-deploy-failure-issue-<owner>/<repo>`, or `np-lighthouse-report-<owner>/<repo>`, which the reusable workflows' jobs use.

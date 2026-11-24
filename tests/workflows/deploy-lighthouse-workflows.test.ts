@@ -44,6 +44,14 @@ function jobBlock(text: string, job: string): string {
   return rest.split(/\n {2}\S/)[0] ?? rest;
 }
 
+// Every step of every job, each cut off where the next job-level key begins.
+function stepBlocks(text: string): string[] {
+  return text
+    .split(/\n(?= {6}- )/)
+    .slice(1)
+    .map((step) => step.split(/\n {0,4}\S/)[0] ?? step);
+}
+
 function stepScript(text: string, stepName: string): string {
   const start = text.indexOf(`      - name: ${stepName}\n`);
   if (start === -1) {
@@ -163,7 +171,7 @@ describe.each([
       .filter(
         (line) =>
           line.includes("${{") &&
-          !/^\s+[A-Z_]+: \$\{\{/.test(line) &&
+          !/^\s+[A-Z0-9_]+: \$\{\{/.test(line) &&
           !/^\s+(node-version-file|node-version|configPath|name|group|skipped|build-outcome):/.test(
             line,
           ),
@@ -414,9 +422,42 @@ describe("reusable lighthouse workflow", () => {
     expect(LIGHTHOUSE).not.toMatch(/minScore|maxNumericValue/i);
   });
 
-  it("declares no secrets", () => {
-    expect(LIGHTHOUSE).not.toMatch(/^ {4}secrets:/m);
-    expect(LIGHTHOUSE).not.toContain("${{ secrets.");
+  it("declares only DOTENV_PRIVATE_KEY_E2E, as an optional secret with a description", () => {
+    const secretsBlock = LIGHTHOUSE.slice(
+      LIGHTHOUSE.indexOf("    secrets:\n"),
+      LIGHTHOUSE.indexOf("\npermissions:"),
+    );
+    const names = [...secretsBlock.matchAll(/^ {6}([A-Z_0-9]+):$/gm)].map(
+      (match) => match[1],
+    );
+    expect(names).toEqual(["DOTENV_PRIVATE_KEY_E2E"]);
+    expect(secretsBlock).toContain("required: false");
+    expect(secretsBlock).not.toContain("required: true");
+    expect(secretsBlock).toMatch(/^ {8}description: ".+"$/m);
+  });
+
+  it("exposes the dotenvx key to the build step and to no other step or scope", () => {
+    const stepsWithKey = stepBlocks(LIGHTHOUSE).filter((step) =>
+      step.includes("DOTENV_PRIVATE_KEY_E2E"),
+    );
+    expect(stepsWithKey).toHaveLength(1);
+    expect(stepsWithKey[0]).toContain("      - name: Build\n");
+    expect(stepsWithKey[0]).toMatch(
+      /^ {8}env:\n {10}DOTENV_PRIVATE_KEY_E2E: \$\{\{ secrets\.DOTENV_PRIVATE_KEY_E2E \}\}$/m,
+    );
+    // Job-level or workflow-level env would reach every step.
+    expect(LIGHTHOUSE.match(/secrets\.DOTENV_PRIVATE_KEY_E2E/g)).toHaveLength(
+      1,
+    );
+    expect(LIGHTHOUSE.match(/^ +DOTENV_PRIVATE_KEY_E2E:/gm)).toHaveLength(2);
+  });
+
+  it("never echoes the dotenvx key", () => {
+    const build = stepBlocks(LIGHTHOUSE).find((step) =>
+      step.includes("      - name: Build\n"),
+    );
+    expect(build).not.toMatch(/echo|GITHUB_STEP_SUMMARY|set -x/);
+    expect(LIGHTHOUSE).not.toContain("secrets: inherit");
   });
 
   it("runs the caller's config through the pinned Lighthouse CI action", () => {
@@ -546,6 +587,14 @@ describe("README", () => {
       );
     },
   );
+
+  it("documents the optional dotenvx secret, passed by name", () => {
+    expect(README).toContain("| `DOTENV_PRIVATE_KEY_E2E`");
+    expect(README).toContain(
+      "DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}",
+    );
+    expect(README).toContain("build variables that are not secret");
+  });
 
   it("passes the Netlify secrets explicitly and never inherits", () => {
     expect(README).toContain("NETLIFY_BUILD_HOOK_URL: ${{ secrets.");
