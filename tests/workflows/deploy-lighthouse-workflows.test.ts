@@ -424,10 +424,11 @@ describe("reusable lighthouse workflow", () => {
   });
 
   it("declares only DOTENV_PRIVATE_KEY_E2E, as an optional secret with a description", () => {
-    const secretsBlock = LIGHTHOUSE.slice(
-      LIGHTHOUSE.indexOf("    secrets:\n"),
-      LIGHTHOUSE.indexOf("\npermissions:"),
-    );
+    const secretsStart = LIGHTHOUSE.indexOf("    secrets:\n");
+    const secretsEnd = LIGHTHOUSE.indexOf("\npermissions:");
+    expect(secretsStart).toBeGreaterThan(-1);
+    expect(secretsEnd).toBeGreaterThan(secretsStart);
+    const secretsBlock = LIGHTHOUSE.slice(secretsStart, secretsEnd);
     const names = [...secretsBlock.matchAll(/^ {6}([A-Z_0-9]+):$/gm)].map(
       (match) => match[1],
     );
@@ -594,7 +595,7 @@ describe("README", () => {
   );
 
   it("documents the optional dotenvx secret, passed by name", () => {
-    expect(README).toContain("| `DOTENV_PRIVATE_KEY_E2E`");
+    expect(README).toMatch(/^\| `DOTENV_PRIVATE_KEY_E2E` +\| no +\|/m);
     expect(README).toContain(
       "DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}",
     );
