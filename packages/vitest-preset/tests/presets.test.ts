@@ -7,9 +7,18 @@ import {
 } from "./helpers/runFixture.ts";
 
 const EXPECTED_FILES: Record<string, string[]> = {
-  node: ["environment.fixture.ts"],
-  vitepress: ["browser.fixture.ts", "Greeting.fixture.ts"],
-  nuxt: ["browser.fixture.ts", "Counter.fixture.ts", "Greeting.fixture.ts"],
+  node: ["environment.fixture.ts", "nested-e2e.fixture.ts"],
+  vitepress: [
+    "browser.fixture.ts",
+    "Greeting.fixture.ts",
+    "nested-e2e.fixture.ts",
+  ],
+  nuxt: [
+    "browser.fixture.ts",
+    "Counter.fixture.ts",
+    "Greeting.fixture.ts",
+    "nested-e2e.fixture.ts",
+  ],
   "nuxt-stubs": ["nuxt.fixture.ts"],
 };
 
@@ -38,7 +47,7 @@ describe.each(Object.keys(EXPECTED_FILES))("%s preset", (name) => {
     expect(result.success).toBe(true);
   });
 
-  it("runs the consumer's include globs and skips e2e directories", () => {
+  it("runs the consumer's include globs and skips the root e2e directory but collects tests/e2e", () => {
     expect(ranFiles(result)).toEqual([...EXPECTED_FILES[name]!].sort());
   });
 });

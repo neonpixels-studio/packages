@@ -6,7 +6,7 @@ import { configDefaults } from "vitest/config";
 // `.netlify/plugins/node_modules`, which a bare "node_modules" would miss.
 export const exclude = [
   ...configDefaults.exclude,
-  "**/e2e/**",
+  "e2e/**",
   "**/.netlify/**",
   "**/.nuxt/**",
   "**/.output/**",

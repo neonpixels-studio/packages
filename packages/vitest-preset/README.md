@@ -49,7 +49,7 @@ The presets take no options. Aliases, `include` globs, and setup files belong to
 
 The `vitepress` and `nuxt` presets already register `@vitejs/plugin-vue`. Do not add it again in your own config, or `.vue` files are transformed twice.
 
-Every preset excludes `**/e2e/**`, `**/.netlify/**`, `**/.nuxt/**`, and `**/.output/**` on top of Vitest's default exclusions.
+Every preset excludes `e2e/**` (the root-level Playwright directory only), `**/.netlify/**`, `**/.nuxt/**`, and `**/.output/**` on top of Vitest's default exclusions. A nested directory such as `tests/e2e/` is still collected, so unit tests that live there run. If your Playwright specs live somewhere other than the root `e2e/` directory, add your own `exclude` entry for them.
 
 ### The `Comment` and `Text` global fix
 
