@@ -85,6 +85,16 @@ describe("formatSummary", () => {
     );
   });
 
+  it("names the audited scope in the heading", () => {
+    const result = evaluateAudit([], [], NOW);
+    expect(formatSummary(result)).toContain(
+      "## Dependency audit (production dependencies)",
+    );
+    expect(formatSummary(result, "all")).toContain(
+      "## Dependency audit (all dependencies)",
+    );
+  });
+
   it("includes counts, accepted advisories, stale entries, and failures", () => {
     const stale = { ...ENTRY, id: "GHSA-old-old-old" };
     const summary = formatSummary(

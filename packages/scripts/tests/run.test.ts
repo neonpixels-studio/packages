@@ -66,6 +66,69 @@ describe("runAuditGate", () => {
     expect(environment.summaries[0]).toContain("## Dependency audit");
   });
 
+  it("names the audited scope in the printed result and the step summary", () => {
+    const production = auditEnvironment();
+    expect(runAuditGate([], production)).toBe(0);
+    expect(logs.join("\n")).toContain("production dependencies");
+    expect(production.summaries[0]).toContain(
+      "## Dependency audit (production dependencies)",
+    );
+
+    logs.length = 0;
+    const all = auditEnvironment();
+    expect(runAuditGate(["--include-dev"], all)).toBe(0);
+    expect(logs.join("\n")).toContain("all dependencies");
+    expect(all.summaries[0]).toContain(
+      "## Dependency audit (all dependencies)",
+    );
+  });
+
+  describe("an advisory that only exists in a dev dependency", () => {
+    // The real audit leaves dev-only packages out of a production report.
+    const devOnlyAudit = (_manager: string, scope: string) =>
+      scope === "all" ? HIGH_REPORT : CLEAN_REPORT;
+
+    it("fails with --include-dev", () => {
+      const environment = auditEnvironment({ runAudit: devOnlyAudit });
+      expect(runAuditGate(["--include-dev"], environment)).toBe(1);
+      expect(errors[0]).toContain("GHSA-aaaa-bbbb-cccc");
+    });
+
+    it("is ignored without the flag", () => {
+      const environment = auditEnvironment({ runAudit: devOnlyAudit });
+      expect(runAuditGate([], environment)).toBe(0);
+      expect(errors).toEqual([]);
+    });
+  });
+
+  it("asks the audit for the scope the flag selects", () => {
+    const scopes: string[] = [];
+    const runAudit = (_manager: string, scope: string) => {
+      scopes.push(scope);
+      return CLEAN_REPORT;
+    };
+    runAuditGate([], auditEnvironment({ runAudit }));
+    runAuditGate(["--include-dev"], auditEnvironment({ runAudit }));
+    expect(scopes).toEqual(["production", "all"]);
+  });
+
+  it("applies the same allowlist rules with --include-dev", () => {
+    const environment = auditEnvironment({
+      runAudit: () => HIGH_REPORT,
+      files: {
+        "audit-allowlist.json": JSON.stringify([
+          {
+            id: "GHSA-aaaa-bbbb-cccc",
+            reason: "No fix",
+            expires: "2026-11-01",
+          },
+        ]),
+      },
+    });
+    expect(runAuditGate(["--include-dev"], environment)).toBe(1);
+    expect(errors[0]).toContain("expired on 2026-11-01");
+  });
+
   it("fails with one line per blocking advisory", () => {
     const environment = auditEnvironment({ runAudit: () => HIGH_REPORT });
     expect(runAuditGate([], environment)).toBe(1);

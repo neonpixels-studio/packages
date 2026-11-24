@@ -46,7 +46,7 @@ describe.each(Object.entries(WORKFLOWS))(
           (line) =>
             line.includes("${{") &&
             !/^\s+[A-Z_]+: \$\{\{/.test(line) &&
-            !/^\s+(node-version-file|if):/.test(line),
+            !/^\s+(node-version-file|if|name):/.test(line),
         );
       expect(scriptLines).toEqual([]);
     });
@@ -68,7 +68,23 @@ describe("reusable dependency-audit workflow inputs", () => {
       "package-manager",
       "node-version-file",
       "scripts-version",
+      "include-dev",
     ]);
+  });
+
+  it("takes include-dev as an optional boolean that defaults to false", () => {
+    expect(text).toMatch(
+      /^ {6}include-dev:\n(?: {8}.*\n)*? {8}type: boolean\n {8}default: false$/m,
+    );
+  });
+
+  it("shows the audited scope in the job name and passes the flag through", () => {
+    expect(text).toMatch(/^ {4}name: Dependency audit \(.*include-dev.*\)$/m);
+    expect(text).toContain("INCLUDE_DEV: ${{ inputs.include-dev }}");
+    expect(text).toContain("gate_flags+=(--include-dev)");
+    expect(text.match(/np-audit-gate "\$\{gate_flags\[@\]\}"/g)).toHaveLength(
+      2,
+    );
   });
 
   it("runs np-audit-gate from the published package at the pinned version", () => {

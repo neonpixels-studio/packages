@@ -1,4 +1,5 @@
-# Reusable production dependency audit. Call it from a job with `uses:` (see
+# Reusable dependency audit (production dependencies by default, all
+# dependencies with `include-dev`). Call it from a job with `uses:` (see
 # README.md).
 #
 # Runs `np-audit-gate` from the published @neon-pixels/scripts package, at the
@@ -22,12 +23,17 @@ on:
         description: "Exact @neon-pixels/scripts version to run np-audit-gate from, such as 0.2.0."
         type: string
         required: true
+      include-dev:
+        description: "Audit all dependencies, dev dependencies included, instead of production dependencies only."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   dependency-audit:
+    name: Dependency audit (${{ inputs.include-dev && 'all dependencies' || 'production dependencies' }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -35,6 +41,7 @@ jobs:
     env:
       PACKAGE_MANAGER: ${{ inputs.package-manager }}
       SCRIPTS_VERSION: ${{ inputs.scripts-version }}
+      INCLUDE_DEV: ${{ inputs.include-dev }}
     steps:
       - name: Validate inputs
         run: |
@@ -72,11 +79,15 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ${{ inputs.node-version-file }}
-      - name: Audit production dependencies (fail on high/critical)
+      - name: Audit dependencies (fail on high/critical)
         run: |
           set -euo pipefail
+          gate_flags=()
+          if [ "${INCLUDE_DEV}" = "true" ]; then
+            gate_flags+=(--include-dev)
+          fi
           if [ "${PACKAGE_MANAGER}" = "pnpm" ]; then
-            pnpm --package="@neon-pixels/scripts@${SCRIPTS_VERSION}" dlx np-audit-gate
+            pnpm --package="@neon-pixels/scripts@${SCRIPTS_VERSION}" dlx np-audit-gate "${gate_flags[@]}"
           else
-            npm exec --yes --ignore-scripts --package "@neon-pixels/scripts@${SCRIPTS_VERSION}" -- np-audit-gate
+            npm exec --yes --ignore-scripts --package "@neon-pixels/scripts@${SCRIPTS_VERSION}" -- np-audit-gate "${gate_flags[@]}"
           fi

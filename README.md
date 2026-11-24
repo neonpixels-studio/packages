@@ -42,13 +42,14 @@ This also installs the Husky git hooks.
 Four workflows are callable from other repositories with `workflow_call`. All declare `contents: read` at the workflow level and add other permissions only on the job that needs them. `gitleaks.yml` and `dependency-audit.yml` need no secrets; `production-deploy.yml` and `lighthouse.yml` are described [below](#production-deploy-and-lighthouse).
 
 - `gitleaks.yml`: scans the pull request commit range (or the full history on any other event) with the caller's `.gitleaks.toml` (required in the repository root), using a pinned, checksum-verified gitleaks. No inputs.
-- `dependency-audit.yml`: runs `np-audit-gate` from the published [`@neon-pixels/scripts`](packages/scripts/README.md) against the caller's lockfile. It does not install the caller's dependencies. The lockfile must match `package-manager`.
+- `dependency-audit.yml`: runs `np-audit-gate` from the published [`@neon-pixels/scripts`](packages/scripts/README.md) against the caller's lockfile. It does not install the caller's dependencies. The lockfile must match `package-manager`. By default it audits production dependencies only; set `include-dev` to audit every dependency (`np-audit-gate --include-dev`). The job name and the step summary name the audited scope.
 
 | Input (`dependency-audit.yml`) | Required | Meaning                                                         |
 | ------------------------------ | -------- | --------------------------------------------------------------- |
 | `package-manager`              | yes      | `npm` or `pnpm` (pnpm needs `packageManager` in `package.json`) |
 | `node-version-file`            | no       | File naming the Node version, default `.nvmrc`                  |
 | `scripts-version`              | yes      | Exact `@neon-pixels/scripts` version the gate runs from         |
+| `include-dev`                  | no       | Boolean, default `false`. `true` audits all dependencies        |
 
 ### Production deploy and Lighthouse
 
@@ -148,6 +149,27 @@ jobs:
       package-manager: pnpm
       node-version-file: .nvmrc
       scripts-version: 0.2.0
+```
+
+To audit production dependencies and all dependencies, call the workflow twice from one caller. Both runs read the same `audit-allowlist.json`, and the job names tell them apart. An allowlist entry for a dev-only advisory shows as stale in the production run, which never sees that advisory; that warning does not fail the run.
+
+```yaml
+dependency-audit-production:
+  uses: neonpixels-studio/packages/.github/workflows/dependency-audit.yml@<full-40-character-commit-sha> # main
+  permissions:
+    contents: read
+  with:
+    package-manager: pnpm
+    scripts-version: 0.4.0
+
+dependency-audit-all:
+  uses: neonpixels-studio/packages/.github/workflows/dependency-audit.yml@<full-40-character-commit-sha> # main
+  permissions:
+    contents: read
+  with:
+    package-manager: pnpm
+    scripts-version: 0.4.0
+    include-dev: true
 ```
 
 To receive updates, enable Dependabot's `github-actions` ecosystem in the consumer's `.github/dependabot.yml`. It treats a reusable workflow `uses:` line like any action and opens a pull request moving the SHA:

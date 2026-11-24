@@ -25,10 +25,26 @@ export function detectPackageManager(fileNames: string[]): PackageManager {
   return [...found][0] as PackageManager;
 }
 
-/** Production dependencies only, JSON output; the gate does its own filtering. */
-export function auditCommandFor(packageManager: PackageManager): AuditCommand {
-  if (packageManager === "pnpm") {
-    return { command: "pnpm", args: ["audit", "--prod", "--json"] };
-  }
-  return { command: "npm", args: ["audit", "--omit=dev", "--json"] };
+/** Which dependencies an audit covers. */
+export type AuditScope = "production" | "all";
+
+export const SCOPE_LABELS: Record<AuditScope, string> = {
+  production: "production dependencies",
+  all: "all dependencies",
+};
+
+// The scope flag each package manager uses to leave dev dependencies out.
+const PRODUCTION_FLAGS: Record<PackageManager, string> = {
+  pnpm: "--prod",
+  npm: "--omit=dev",
+};
+
+/** JSON output; the gate does its own severity filtering. */
+export function auditCommandFor(
+  packageManager: PackageManager,
+  scope: AuditScope = "production",
+): AuditCommand {
+  const scopeFlags =
+    scope === "production" ? [PRODUCTION_FLAGS[packageManager]] : [];
+  return { command: packageManager, args: ["audit", ...scopeFlags, "--json"] };
 }
