@@ -1,0 +1,8 @@
+<script setup lang="ts"></script>
+
+<template>
+  <div>
+    <label for="name">Name</label>
+    <input id="name" type="text" />
+  </div>
+</template>

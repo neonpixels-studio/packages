@@ -1,0 +1,8 @@
+<script setup lang="ts"></script>
+
+<template>
+  <div>
+    <label>Name</label>
+    <input type="text" aria-label="Name" />
+  </div>
+</template>

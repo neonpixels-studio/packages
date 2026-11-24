@@ -32,12 +32,12 @@ pnpm add -D @neon-pixels/eslint-config eslint @eslint/js typescript-eslint eslin
 
 Each entry point default-exports a flat config array. Spread it into your own config, then add your rules and ignores after it.
 
-| Entry point                            | Adds to the base                                                                                                                        |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `@neon-pixels/eslint-config`           | Nothing: the base with no stack assumptions and no globals                                                                              |
-| `@neon-pixels/eslint-config/node`      | Node globals                                                                                                                            |
-| `@neon-pixels/eslint-config/vitepress` | Browser and Node globals, `eslint-plugin-vue` recommended, `eslint-plugin-vuejs-accessibility` recommended, `vue/no-v-html` as an error |
-| `@neon-pixels/eslint-config/nuxt`      | Everything in `vitepress`, single-word names allowed for pages and layouts, plus the Clerk composable restriction                       |
+| Entry point                            | Adds to the base                                                                                                                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@neon-pixels/eslint-config`           | Nothing: the base with no stack assumptions and no globals                                                                                                                                          |
+| `@neon-pixels/eslint-config/node`      | Node globals                                                                                                                                                                                        |
+| `@neon-pixels/eslint-config/vitepress` | Browser and Node globals, `eslint-plugin-vue` recommended, `eslint-plugin-vuejs-accessibility` recommended with `label-has-for` accepting either nesting or `for`/`id`, `vue/no-v-html` as an error |
+| `@neon-pixels/eslint-config/nuxt`      | Everything in `vitepress`, single-word names allowed for pages and layouts, plus the Clerk composable restriction                                                                                   |
 
 ### Node
 

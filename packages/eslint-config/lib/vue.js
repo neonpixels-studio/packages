@@ -21,6 +21,11 @@ export const vueConfigs = [
     rules: {
       // The recommended preset only warns, and a warning does not fail CI.
       "vue/no-v-html": "error",
+      // The recommended preset demands both; either one associates the label. The rule only checks that `for` is present, not that an id matches.
+      "vuejs-accessibility/label-has-for": [
+        "error",
+        { required: { some: ["nesting", "id"] } },
+      ],
     },
   },
 ];
