@@ -53,7 +53,8 @@ Four workflows are callable from other repositories with `workflow_call`. All de
 
 ### Production deploy and Lighthouse
 
-- `production-deploy.yml`: a scheduled Netlify production deploy. It skips when the commit is already live (`np-should-deploy`), calls the site's build hook, and waits for that exact deploy to be `ready` and built from the same commit (`np-verify-netlify-deploy`). It only runs on `main`: a run dispatched from another ref does nothing. Runs of the same repository never overlap: a second run waits for the first, which is never cancelled (GitHub keeps one waiting run, so a third replaces it and the replaced run reports as cancelled). A failed or cancelled deploy opens one `deploy-failure` issue (later failures comment on it), and a later verified deploy closes it. The schedule stays in the caller, because cadence differs by site. Anything that must pass before a deploy (CI, an e2e gate) is a job in the caller that the deploy job `needs`.
+- `production-deploy.yml`: a scheduled Netlify production deploy in one call. It skips when the commit is already live (`np-should-deploy`), calls the site's build hook, and waits for that exact deploy to be `ready` and built from the same commit (`np-verify-netlify-deploy`). It only runs on `main`: a run dispatched from another ref does nothing. The trigger and verify steps never overlap between runs of the same repository: a second run waits for the first, which is never cancelled (GitHub keeps one waiting run, so a third replaces it and the replaced run reports as cancelled). The decision runs before that queue, so two overlapping runs can both decide to deploy the same commit and the second then deploys it again; set a non-cancelling workflow-level `concurrency` in the caller to prevent that. A failed or cancelled deploy opens one `deploy-failure` issue (later failures comment on it), and a later verified deploy closes it. The schedule stays in the caller, because cadence differs by site. Anything that must pass before a deploy (CI, an e2e gate) is a job in the caller that the deploy job `needs`. It is `production-deploy-decide.yml` and `production-deploy-trigger.yml` called back to back, so its calling job (and any existing caller) must also grant `actions: read`, which the decide call requests.
+- `production-deploy-decide.yml` and `production-deploy-trigger.yml`: the two halves of `production-deploy.yml`, for a site that must run its own job between the decision and the deploy (database migrations, for example). The decide workflow runs `np-should-deploy` and, when `require-ci-workflow` is set and the commit will deploy, requires the newest `push` run of that workflow file for the commit to have succeeded (a missing run, a run still in progress, and an API error all fail). A commit that CI never runs on (path filters, `[skip ci]`) has no run, so it blocks the deploy until a later commit does. It outputs `skip` (`true` or `false`) and `sha`; from any ref other than `main` the job does not run and both outputs are empty. The trigger workflow refuses to run unless `main` still points at `expected-sha`, fires the build hook with a title unique to the run, verifies the deploy against `expected-sha`, and manages the failure issue as above. When `pre-deploy-result` is anything but `success` it triggers nothing and counts as a failed deploy: the failure issue says the pre-deploy job did not succeed.
 - `lighthouse.yml`: installs and builds the caller's project, then runs Lighthouse CI with the caller's own config file. Thresholds, URLs, and how the build is served live in that file (the workflow has no threshold inputs). On a scheduled run, or a non-pull-request run on the default branch, a failing audit files one `lighthouse-regression` issue per site and a passing audit closes the open ones (`np-report-lighthouse-failure`).
 
 | Input (`production-deploy.yml`) | Required | Meaning                                                |
@@ -66,6 +67,23 @@ Four workflows are callable from other repositories with `workflow_call`. All de
 | `NETLIFY_BUILD_HOOK_URL`         | Build hook URL for branch `main`                     |
 | `NETLIFY_AUTH_TOKEN`             | Netlify personal access token that can read the site |
 | `NETLIFY_SITE_ID`                | The production site's id                             |
+
+| Input (`production-deploy-decide.yml`) | Required | Meaning                                                                                   |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `scripts-version`                      | yes      | Exact `@neon-pixels/scripts` version the bins run from                                    |
+| `node-version-file`                    | no       | File naming the Node version, default `.nvmrc`                                            |
+| `require-ci-workflow`                  | no       | Bare file name (`ci.yml`) of a workflow whose newest push run for the commit must succeed |
+
+The decide workflow takes the secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`. Its `skip` and `sha` outputs feed the trigger workflow.
+
+| Input (`production-deploy-trigger.yml`) | Required | Meaning                                                                     |
+| --------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| `scripts-version`                       | yes      | Exact `@neon-pixels/scripts` version the bins run from                      |
+| `node-version-file`                     | no       | File naming the Node version, default `.nvmrc`                              |
+| `expected-sha`                          | yes      | The commit to deploy: 40 hex characters, the decide workflow's `sha` output |
+| `pre-deploy-result`                     | no       | `needs.<job>.result` of your job that runs first, default `success`         |
+
+The trigger workflow takes all three secrets above.
 
 | Input (`lighthouse.yml`) | Required | Meaning                                                              |
 | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -110,6 +128,64 @@ jobs:
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 ```
 
+To run your own job between the decision and the deploy, call the two halves yourself:
+
+```yaml
+name: Weekly production deploy
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Your own group, never one of the names listed below. Never cancel: the split
+# run is no longer covered by a single job-level group, so a second run must
+# queue behind the first instead of killing it between the hook and the verify.
+concurrency:
+  group: weekly-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    uses: neonpixels-studio/packages/.github/workflows/production-deploy-decide.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+      actions: read # always required: the decide job requests it, even without require-ci-workflow
+    with:
+      scripts-version: 0.4.0
+      require-ci-workflow: ci.yml
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  migrate:
+    needs: decide
+    if: needs.decide.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    steps: [] # your own work, such as applying database migrations
+
+  deploy:
+    needs: [decide, migrate]
+    if: ${{ !cancelled() && needs.decide.outputs.skip == 'false' }}
+    uses: neonpixels-studio/packages/.github/workflows/production-deploy-trigger.yml@<full-40-character-commit-sha> # main
+    permissions:
+      contents: read
+      issues: write
+    with:
+      scripts-version: 0.4.0
+      expected-sha: ${{ needs.decide.outputs.sha }}
+      pre-deploy-result: ${{ needs.migrate.result }}
+    secrets:
+      NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+```
+
+Two conditions matter. `needs.decide.outputs.skip == 'false'` (not `!= 'true'`) keeps everything from running when the decide job did not run at all (a ref other than `main`), because both outputs are then empty. `!cancelled()` on the deploy job lets it run after a failed `migrate` job so that `pre-deploy-result` reaches the trigger workflow, which then opens the failure issue instead of leaving a red run nobody reads. Without it, a failed migration would silently skip the deploy job. A decide job that fails (a missing secret, a red CI run) leaves `skip` empty, so this example's deploy job is skipped and files no issue; to file one, use `if: ${{ !cancelled() && (needs.decide.result == 'failure' || needs.decide.outputs.skip == 'false') }}` and pass `pre-deploy-result: ${{ needs.decide.result == 'success' && needs.migrate.result || needs.decide.result }}`, as `production-deploy.yml` does. Because decide runs outside the trigger workflow's concurrency group, two overlapping runs can both decide to deploy the same commit; the second then queues behind the first and deploys it again.
+
 ```yaml
 name: Lighthouse
 
@@ -139,7 +215,7 @@ jobs:
       DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
 ```
 
-The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, `np-deploy-failure-issue-<owner>/<repo>`, or `np-lighthouse-report-<owner>/<repo>`, which the reusable workflows' jobs use.
+The calling workflow's own `concurrency` group must not be named `np-production-deploy-<owner>/<repo>`, `np-deploy-failure-issue-<owner>/<repo>`, or `np-lighthouse-report-<owner>/<repo>`, which the reusable workflows' jobs use. The trigger workflow holds the first two (with `cancel-in-progress: false`, so a deploy is never killed between the hook call and the verify step).
 
 Pin the workflow to a full commit SHA of this repository, with the release or date in a trailing comment:
 
