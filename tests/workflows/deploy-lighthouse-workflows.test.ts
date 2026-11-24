@@ -44,12 +44,13 @@ function jobBlock(text: string, job: string): string {
   return rest.split(/\n {2}\S/)[0] ?? rest;
 }
 
-// Every step of every job, each cut off where the next job-level key begins.
+// Every step of every job, each cut off where the next job-level key or a
+// step-level comment begins.
 function stepBlocks(text: string): string[] {
   return text
     .split(/\n(?= {6}- )/)
     .slice(1)
-    .map((step) => step.split(/\n {0,4}\S/)[0] ?? step);
+    .map((step) => step.split(/\n(?: {0,4}\S| {6}#)/)[0] ?? step);
 }
 
 function stepScript(text: string, stepName: string): string {
@@ -456,7 +457,11 @@ describe("reusable lighthouse workflow", () => {
     const build = stepBlocks(LIGHTHOUSE).find((step) =>
       step.includes("      - name: Build\n"),
     );
-    expect(build).not.toMatch(/echo|GITHUB_STEP_SUMMARY|set -x/);
+    expect(build).toBeDefined();
+    expect(build).not.toMatch(
+      /\becho\b|\bprintf\b|\bprintenv\b|\benv\b(?!:)|GITHUB_STEP_SUMMARY|GITHUB_ENV|GITHUB_OUTPUT|set -[a-z]*x/,
+    );
+    expect(LIGHTHOUSE).not.toMatch(/toJSON\(\s*secrets\s*\)|secrets\[/);
     expect(LIGHTHOUSE).not.toContain("secrets: inherit");
   });
 
