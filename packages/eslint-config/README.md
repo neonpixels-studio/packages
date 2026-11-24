@@ -105,10 +105,12 @@ Name your wrappers something other than `useAuth` and `useUser`, or the call che
 Flat config replaces a rule's options instead of merging them, so a block of yours that sets `no-restricted-imports`, `no-restricted-syntax`, or `vue/no-restricted-syntax` drops the Clerk restriction for the files it matches. Use `extendRestrictions()` instead. It returns a block whose three rules hold the preset's Clerk entries followed by yours.
 
 ```js
+// eslint.config.mjs
 import nuxt, {
   allowClerkComposables,
   extendRestrictions,
 } from "@neon-pixels/eslint-config/nuxt";
+import withNuxt from "./.nuxt/eslint.config.mjs";
 
 export default withNuxt(
   ...nuxt,
