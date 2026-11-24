@@ -10,6 +10,7 @@ const UNUSED_VARS = "error:@typescript-eslint/no-unused-vars";
 const NO_V_HTML = "error:vue/no-v-html";
 const NO_UNDEF = "error:no-undef";
 const ALT_TEXT = "error:vuejs-accessibility/alt-text";
+const LABEL_HAS_FOR = "error:vuejs-accessibility/label-has-for";
 const CLERK_SYNTAX = "error:no-restricted-syntax";
 const CLERK_VUE_SYNTAX = "error:vue/no-restricted-syntax";
 const CLERK_IMPORTS = "error:no-restricted-imports";
@@ -290,5 +291,28 @@ describe("nuxt entry point", () => {
         "app/composables/useClerkAuth.ts",
       ),
     ).toEqual([CLERK_IMPORTS]);
+  });
+});
+
+describe.each([
+  ["vitepress", vitepressConfig, "docs/FormField.vue"],
+  ["nuxt", nuxtConfig, "app/components/FormField.vue"],
+])("%s label association", (_name, config, virtualPath) => {
+  it("passes a label wrapping its input", async () => {
+    expect(
+      await lintFixture(config, "vitepress/label-nesting.vue", virtualPath),
+    ).toEqual([]);
+  });
+
+  it("passes a label whose for matches an input id", async () => {
+    expect(
+      await lintFixture(config, "vitepress/label-for-id.vue", virtualPath),
+    ).toEqual([]);
+  });
+
+  it("reports a label with neither association", async () => {
+    expect(
+      await lintFixture(config, "vitepress/label-bare.vue", virtualPath),
+    ).toEqual([LABEL_HAS_FOR]);
   });
 });
