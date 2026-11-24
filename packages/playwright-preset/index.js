@@ -28,7 +28,7 @@ function assertValidCommand(command) {
 
 /**
  * @param {import("./index.js").PlaywrightPresetOptions} options
- * @returns {import("@playwright/test").PlaywrightTestConfig}
+ * @returns {import("./index.js").PlaywrightPresetConfig}
  */
 export function createPlaywrightConfig(options) {
   const { command, port, env } = options;

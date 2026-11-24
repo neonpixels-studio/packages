@@ -45,6 +45,32 @@ export default defineConfig({
 
 The config reuses a running server locally, always starts a fresh one when `CI` is set, retries failed tests twice in CI, and records a trace on the first retry.
 
+### Overriding the web server and base URL
+
+Both `createPlaywrightConfig` and `createClerkPlaywrightConfig` return a config where `webServer` is a single object and `use` is always defined, so you can spread either one to change a single key without restating the rest:
+
+```ts
+const base = createPlaywrightConfig({
+  command: "pnpm dev --port 3000",
+  port: 3000,
+});
+
+export default defineConfig({
+  ...base,
+  webServer: { ...base.webServer, reuseExistingServer: false },
+});
+```
+
+The web server `url` and `baseURL` are always `http://localhost:<port>`. If your server binds only `127.0.0.1` and does not answer on `localhost`, override both so Playwright waits on, and browses to, the same address:
+
+```ts
+export default defineConfig({
+  ...base,
+  use: { ...base.use, baseURL: "http://127.0.0.1:3000" },
+  webServer: { ...base.webServer, url: "http://127.0.0.1:3000" },
+});
+```
+
 ### Clerk
 
 ```ts
@@ -76,7 +102,7 @@ The config adds a `setup` project that runs any file ending in `auth.setup.ts`. 
 
 Building the config also copies `NUXT_CLERK_SECRET_KEY` and `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY` onto the `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` names that `@clerk/testing` reads, without overwriting values already set. `clerkSetup()` runs inside the setup test rather than in `globalSetup`, so the testing token is not inherited by your web server, where it would sign in every request.
 
-To change anything, override it in your own config: spread the result and replace the key.
+To change anything, override it in your own config: spread the result and replace the key. See [Overriding the web server and base URL](#overriding-the-web-server-and-base-url).
 
 ### Consent
 
