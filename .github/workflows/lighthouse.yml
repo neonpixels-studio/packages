@@ -30,6 +30,10 @@ on:
         description: "Exact @neon-pixels/scripts version to run np-report-lighthouse-failure from, such as 0.3.0."
         type: string
         required: true
+    secrets:
+      DOTENV_PRIVATE_KEY_E2E:
+        description: "dotenvx private key for .env.e2e, for a build that decrypts its environment file. Exposed to the build step only."
+        required: false
 
 permissions:
   contents: read
@@ -95,6 +99,8 @@ jobs:
         run: |
           set -euo pipefail
           "${PACKAGE_MANAGER}" run "${BUILD_SCRIPT}"
+        env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
       # Third-party action pinned to a commit SHA. Thresholds come from the
       # caller's config file, never from this workflow.
       - name: Lighthouse CI
