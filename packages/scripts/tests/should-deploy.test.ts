@@ -59,6 +59,44 @@ describe("runShouldDeploy", () => {
     expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
+  it("writes skip=false on a manual run even when the commit is already live", async () => {
+    const getPublishedCommitRef = vi.fn(async () => "abc");
+    const testEnvironment = environment(
+      { ...full, GITHUB_EVENT_NAME: "workflow_dispatch" },
+      getPublishedCommitRef,
+    );
+    expect(await runShouldDeploy([], testEnvironment)).toBe(0);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
+    expect(getPublishedCommitRef).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.log).mock.calls)).toContain(
+      "A manual run always deploys.",
+    );
+  });
+
+  it("writes skip=false on a manual run when the Netlify variables are missing", async () => {
+    const createClient = vi.fn();
+    const testEnvironment = environment(
+      {
+        GITHUB_EVENT_NAME: "workflow_dispatch",
+        GITHUB_OUTPUT: "/tmp/output",
+      },
+      async () => "abc",
+    );
+    testEnvironment.createClient = createClient;
+    expect(await runShouldDeploy([], testEnvironment)).toBe(0);
+    expect(testEnvironment.output).toEqual(["skip=false\n"]);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("still writes skip=true on a scheduled run when the commit is already live", async () => {
+    const testEnvironment = environment(
+      { ...full, GITHUB_EVENT_NAME: "schedule" },
+      async () => "abc",
+    );
+    await runShouldDeploy([], testEnvironment);
+    expect(testEnvironment.output).toEqual(["skip=true\n"]);
+  });
+
   it("writes skip=false on a rolled-back site, where the published deploy is older than main", async () => {
     const testEnvironment = environment(full, async () => "old");
     await runShouldDeploy([], testEnvironment);

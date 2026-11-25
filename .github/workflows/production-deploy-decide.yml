@@ -6,6 +6,10 @@
 # Outputs `skip` ("true" or "false") and `sha` (the commit that was checked).
 # From any ref other than main the job does not run and both outputs are empty,
 # so a caller condition of `skip == 'false'` deploys nothing.
+#
+# A manual run (the caller's `workflow_dispatch`) always deploys: np-should-deploy
+# reads GITHUB_EVENT_NAME, which inside a reusable workflow holds the caller's
+# event, so no input is needed. The require-ci-workflow check still runs then.
 name: Production deploy decide
 
 on:

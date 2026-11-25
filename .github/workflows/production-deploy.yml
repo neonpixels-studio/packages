@@ -9,6 +9,10 @@
 # full commit SHA of this repository: a nested reusable workflow cannot use a
 # relative path, because that resolves in the caller's repository. Bump both
 # pins together when the two workflows change.
+#
+# A manual run (the caller's `workflow_dispatch`) always deploys, even when the
+# commit is already live, with no input needed: the decide step reads the
+# caller's event name from GITHUB_EVENT_NAME.
 name: Production deploy
 
 on:
