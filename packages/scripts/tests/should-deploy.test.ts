@@ -88,25 +88,19 @@ describe("runShouldDeploy", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("still writes skip=true on a scheduled run when the commit is already live", async () => {
-    const testEnvironment = environment(
-      { ...full, GITHUB_EVENT_NAME: "schedule" },
-      async () => "abc",
-    );
-    await runShouldDeploy([], testEnvironment);
-    expect(testEnvironment.output).toEqual(["skip=true\n"]);
-  });
-
-  it("only treats workflow_dispatch as a manual run", async () => {
-    const getPublishedCommitRef = vi.fn(async () => "abc");
-    const testEnvironment = environment(
-      { ...full, GITHUB_EVENT_NAME: "repository_dispatch" },
-      getPublishedCommitRef,
-    );
-    await runShouldDeploy([], testEnvironment);
-    expect(getPublishedCommitRef).toHaveBeenCalled();
-    expect(testEnvironment.output).toEqual(["skip=true\n"]);
-  });
+  it.each(["schedule", "push", "repository_dispatch"])(
+    "still writes skip=true on a %s run when the commit is already live",
+    async (eventName) => {
+      const getPublishedCommitRef = vi.fn(async () => "abc");
+      const testEnvironment = environment(
+        { ...full, GITHUB_EVENT_NAME: eventName },
+        getPublishedCommitRef,
+      );
+      await runShouldDeploy([], testEnvironment);
+      expect(getPublishedCommitRef).toHaveBeenCalled();
+      expect(testEnvironment.output).toEqual(["skip=true\n"]);
+    },
+  );
 
   it("writes skip=false on a rolled-back site, where the published deploy is older than main", async () => {
     const testEnvironment = environment(full, async () => "old");

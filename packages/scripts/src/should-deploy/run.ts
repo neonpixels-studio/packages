@@ -20,6 +20,9 @@ export const systemEnvironment: ShouldDeployEnvironment = {
   appendOutput: (path, text) => appendFileSync(path, text),
 };
 
+const MANUAL_RUN_EVENT = "workflow_dispatch";
+const MANUAL_RUN_REASON = "A manual run always deploys.";
+
 function log(message: string): void {
   console.log(`np-should-deploy: ${escapeWorkflowCommand(message)}`);
 }
@@ -43,9 +46,6 @@ async function lookUpPublishedSha(
     return null;
   }
 }
-
-const MANUAL_RUN_EVENT = "workflow_dispatch";
-const MANUAL_RUN_REASON = "A manual run always deploys.";
 
 function isManualRun(environment: ShouldDeployEnvironment): boolean {
   return environment.variables["GITHUB_EVENT_NAME"] === MANUAL_RUN_EVENT;

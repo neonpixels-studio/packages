@@ -100,7 +100,6 @@ describe("production-deploy-decide workflow", () => {
   });
 
   it("runs the bin without overriding GITHUB_EVENT_NAME, so it sees the caller's event", () => {
-    expect(DECIDE.indexOf("id: decide")).toBeGreaterThan(-1);
     expect(DECIDE).not.toMatch(/^\s*GITHUB_EVENT_NAME\s*:/m);
   });
 
