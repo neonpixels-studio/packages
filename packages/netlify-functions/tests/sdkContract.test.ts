@@ -35,8 +35,9 @@ describe("dotenvx contract", () => {
   it("throws in strict mode when a value cannot be decrypted", () => {
     const path = join(directory, ".env.undecryptable");
     writeFileSync(path, 'FUNCTION_TEST_SECRET="encrypted:AAAA"\n');
-    expect(() => dotenvx.config({ path, strict: true, quiet: true })).toThrow();
-    delete process.env.FUNCTION_TEST_SECRET;
+    expect(() => dotenvx.config({ path, strict: true, quiet: true })).toThrow(
+      expect.objectContaining({ code: "DECRYPTION_FAILED" }),
+    );
   });
 
   it("loads a plain file in strict mode", () => {
@@ -54,6 +55,7 @@ describe("@sentry/node contract", () => {
     // A recording transport keeps the SDK API real without any network I/O.
     Sentry.init({
       dsn: FAKE_DSN,
+      defaultIntegrations: false,
       transport: () => ({
         send: async (envelope) => {
           sentEnvelopes.push(envelope);
@@ -83,17 +85,18 @@ describe("@sentry/node contract", () => {
     expect(sent).toContain('"checkin_margin":5');
   });
 
-  it("closes a check-in by id", () => {
+  it("closes a check-in by id", async () => {
     const checkInId = Sentry.captureCheckIn(
       { monitorSlug: "contract", status: "in_progress" },
       MONITOR_CONFIG,
     );
-    const finishedId = Sentry.captureCheckIn({
-      monitorSlug: "contract",
-      status: "ok",
-      checkInId,
-    });
-    expect(finishedId).toBe(checkInId);
+    await Sentry.flush(FLUSH_TIMEOUT_MS);
+    sentEnvelopes.length = 0;
+    Sentry.captureCheckIn({ monitorSlug: "contract", status: "ok", checkInId });
+    await Sentry.flush(FLUSH_TIMEOUT_MS);
+    const sent = JSON.stringify(sentEnvelopes);
+    expect(sent).toContain('"status":"ok"');
+    expect(sent).toContain(`"check_in_id":"${checkInId}"`);
   });
 
   it("exposes the client DSN and a boolean flush", async () => {

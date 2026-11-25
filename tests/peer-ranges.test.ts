@@ -23,7 +23,8 @@ function readManifests(): Manifest[] {
 }
 
 // Protocol ranges (workspace:, catalog:, npm:) are not semver, so they are
-// skipped rather than compared.
+// skipped rather than compared; a dev dependency moved to a catalog is not
+// checked until this learns to resolve it.
 function describeMismatch(
   name: string,
   peerRange: string,
