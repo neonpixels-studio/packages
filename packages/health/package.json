@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/health",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Health endpoint logic: a timed, cached, single-flight probe that never rejects, with a minimal public response.",
   "license": "MIT",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/rate-limit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Fixed-window rate limiting on Postgres with a memory store, fail-open wrapper, hashed client keys, and RateLimit headers.",
   "license": "MIT",
   "type": "module",
