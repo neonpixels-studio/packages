@@ -50,9 +50,11 @@ describe("startSentryReplay", () => {
     vi.unstubAllEnvs();
   });
 
-  it("does nothing when there is no client", async () => {
+  it("warns and does nothing when there is no client", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     sentry.getClient.mockReturnValue(undefined);
     await startSentryReplay();
+    expect(warn).toHaveBeenCalledTimes(1);
     expect(sentry.addIntegration).not.toHaveBeenCalled();
   });
 

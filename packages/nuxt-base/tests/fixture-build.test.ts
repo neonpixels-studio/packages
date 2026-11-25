@@ -6,6 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   FIXTURE_DIRECTORIES,
   LAYER_DIRECTORY,
+  LAYER_ENVIRONMENT_NAMES,
   cleanFixtureOutput,
 } from "./helpers.ts";
 
@@ -24,12 +25,22 @@ function listFiles(directory: string): string[] {
     .map((entry) => join(entry.parentPath, entry.name));
 }
 
+function withoutLayerEnvironment(
+  environment: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  const remaining = { ...environment };
+  for (const name of LAYER_ENVIRONMENT_NAMES) {
+    delete remaining[name];
+  }
+  return remaining;
+}
+
 function runNuxtBuild(cwd: string): void {
   execFileSync(resolve(LAYER_DIRECTORY, "node_modules/.bin/nuxt"), ["build"], {
     cwd,
     stdio: "pipe",
     env: {
-      ...process.env,
+      ...withoutLayerEnvironment(process.env),
       NITRO_PRESET: "node-server",
       SENTRY_DSN: FAKE_DSN,
       SENTRY_ORG: "fixture-org",

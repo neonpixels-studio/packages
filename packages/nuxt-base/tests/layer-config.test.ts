@@ -1,8 +1,14 @@
 import { loadNuxt, loadNuxtConfig } from "@nuxt/kit";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { FIXTURE_DIRECTORIES } from "./helpers.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FIXTURE_DIRECTORIES, LAYER_ENVIRONMENT_NAMES } from "./helpers.ts";
 
 const CONFIG_LOAD_TIMEOUT_MS = 60_000;
+
+beforeEach(() => {
+  for (const name of LAYER_ENVIRONMENT_NAMES) {
+    vi.stubEnv(name, undefined);
+  }
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -52,7 +58,7 @@ describe("the merged config of an app that extends the layer", () => {
       vi.stubEnv("SENTRY_ORG", "fixture-org");
       vi.stubEnv("SENTRY_PROJECT", "fixture-project");
       vi.stubEnv("SENTRY_AUTH_TOKEN", "fixture-token");
-      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.app);
+      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);
       expect(config.compatibilityDate).toBe("2024-11-01");
       expect(config.future.compatibilityVersion).toBe(4);
       expect(config.modules).toContain("@sentry/nuxt/module");
@@ -76,7 +82,7 @@ describe("the merged config of an app that extends the layer", () => {
       vi.stubEnv("CONTEXT", "deploy-preview");
       vi.stubEnv("DATABASE_URL", "fixture-database");
       vi.stubEnv("NUXT_PUBLIC_SITE_URL", "https://example.com");
-      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.app);
+      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);
       expect(config.runtimeConfig).toMatchObject({
         databaseUrl: "fixture-database",
         public: {
@@ -100,9 +106,10 @@ describe("the merged config of an app that extends the layer", () => {
     async (dev) => {
       vi.stubEnv("NUXT_SITE_URL", "https://example.com");
       vi.stubEnv("NUXT_DATABASE_URL", "fixture-database");
-      const error = await loadFixtureConfig(FIXTURE_DIRECTORIES.app, dev).catch(
-        (caught: Error) => caught,
-      );
+      const error = await loadFixtureConfig(
+        FIXTURE_DIRECTORIES.configOnly,
+        dev,
+      ).catch((caught: Error) => caught);
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toContain("NUXT_SITE_URL");
       expect((error as Error).message).toContain("NUXT_DATABASE_URL");
@@ -120,7 +127,10 @@ describe("the merged config of an app that extends the layer", () => {
       vi.stubEnv("NODE_ENV", "production");
       vi.stubEnv("NUXT_PUBLIC_SITE_URL", siteUrl);
       await expect(
-        loadNuxtReady(FIXTURE_DIRECTORIES.app, { dev: false, _prepare: false }),
+        loadNuxtReady(FIXTURE_DIRECTORIES.configOnly, {
+          dev: false,
+          _prepare: false,
+        }),
       ).rejects.toThrow(expectedMessage);
     },
     CONFIG_LOAD_TIMEOUT_MS,
@@ -135,7 +145,7 @@ describe("the merged config of an app that extends the layer", () => {
       vi.stubEnv("NODE_ENV", "production");
       vi.stubEnv("NUXT_PUBLIC_SITE_URL", "http://localhost:3000");
       await expect(
-        loadNuxtReady(FIXTURE_DIRECTORIES.app, overrides),
+        loadNuxtReady(FIXTURE_DIRECTORIES.configOnly, overrides),
       ).resolves.toBeUndefined();
     },
     CONFIG_LOAD_TIMEOUT_MS,

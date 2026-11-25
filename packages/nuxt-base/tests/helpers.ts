@@ -9,9 +9,29 @@ const FIXTURES_DIRECTORY = resolve(testsDirectory, "fixtures");
 
 export const FIXTURE_DIRECTORIES = {
   app: resolve(FIXTURES_DIRECTORY, "app"),
+  configOnly: resolve(FIXTURES_DIRECTORY, "config-only"),
   overrides: resolve(FIXTURES_DIRECTORY, "overrides"),
   ownStartup: resolve(FIXTURES_DIRECTORY, "own-startup"),
 };
+
+// Every variable the layer reads or retires, so a test never depends on the
+// environment it runs in.
+export const LAYER_ENVIRONMENT_NAMES = [
+  "CONTEXT",
+  "DATABASE_URL",
+  "E2E_DATABASE_URL",
+  "NITRO_PRESET",
+  "NUXT_DATABASE_URL",
+  "NUXT_PUBLIC_APP_URL",
+  "NUXT_PUBLIC_SENTRY_DSN",
+  "NUXT_PUBLIC_SITE_ORIGIN",
+  "NUXT_PUBLIC_SITE_URL",
+  "NUXT_SITE_URL",
+  "SENTRY_AUTH_TOKEN",
+  "SENTRY_DSN",
+  "SENTRY_ORG",
+  "SENTRY_PROJECT",
+];
 
 const FIXTURE_GENERATED = [".nuxt", ".output", "dist", "node_modules"];
 

@@ -73,6 +73,12 @@ function startReplayNow(): void {
  * of the `@sentry/nuxt` client bundle; it is only started here.
  */
 export function startSentryReplay(): Promise<void> {
+  if (!Sentry.getClient()) {
+    console.warn(
+      "[sentry-replay] Sentry client not initialised; replay not started",
+    );
+    return Promise.resolve();
+  }
   if (!isSentryEnabled()) {
     return Promise.resolve();
   }
