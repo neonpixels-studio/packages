@@ -23,6 +23,8 @@ const TEMPLATES_ROOT = join(
   "..",
   "templates",
 );
+const SYNCED_ENGINES_RANGE = "^22.18.0 || ^24.0.0 || >=26.0.0";
+const PREVIOUS_ENGINES_RANGE = "^22.17.0 || ^24.0.0 || >=26.0.0";
 const PACKAGE_JSON = `${JSON.stringify(
   { name: "app", version: "1.2.3", scripts: { test: "vitest" } },
   null,
@@ -186,7 +188,7 @@ describe("package.json fields", () => {
       name: "app",
       version: "1.2.3",
       scripts: { test: "vitest" },
-      engines: { node: "^22.17.0 || ^24.0.0 || >=26.0.0" },
+      engines: { node: SYNCED_ENGINES_RANGE },
     });
   });
 
@@ -214,6 +216,19 @@ describe("package.json fields", () => {
     expect(() => applyPackageFields("{nope", "{}")).toThrow("not valid JSON");
   });
 
+  it("pins the exact range, with the Node 22 floor at 22.18.0", () => {
+    const range = JSON.parse(
+      readFileSync(join(TEMPLATES_ROOT, "base/package-fields.json"), "utf8"),
+    ).engines.node as string;
+    expect(range).toBe(SYNCED_ENGINES_RANGE);
+    expect(rangeAccepts(range, [22, 17, 0])).toBe(false);
+    expect(rangeAccepts(range, [22, 18, 0])).toBe(true);
+    expect(rangeAccepts(range, [23, 0, 0])).toBe(false);
+    expect(rangeAccepts(range, [25, 0, 0])).toBe(false);
+    expect(rangeAccepts(range, [26, 0, 0])).toBe(true);
+    expect(rangeAccepts(range, [27, 0, 0])).toBe(true);
+  });
+
   it("pins an engines range that accepts the pinned .nvmrc version", () => {
     const pinned = readFileSync(join(TEMPLATES_ROOT, "base/.nvmrc"), "utf8")
       .trim()
@@ -222,11 +237,13 @@ describe("package.json fields", () => {
     const range = JSON.parse(
       readFileSync(join(TEMPLATES_ROOT, "base/package-fields.json"), "utf8"),
     ).engines.node as string;
-    expect(range.split("||").some((part) => accepts(part.trim(), pinned))).toBe(
-      true,
-    );
+    expect(rangeAccepts(range, pinned)).toBe(true);
   });
 });
+
+function rangeAccepts(range: string, version: number[]): boolean {
+  return range.split("||").some((part) => accepts(part.trim(), version));
+}
 
 /** Understands only the `^x.y.z` and `>=x.y.z` forms the template uses. */
 function accepts(alternative: string, version: number[]): boolean {
@@ -252,6 +269,31 @@ function compareVersions(left: number[], right: number[]): number {
 }
 
 describe("--check", () => {
+  it("reports a repository on the old engines range, and a sync changes only engines.node", () => {
+    const oldRepository = `${JSON.stringify(
+      {
+        name: "app",
+        version: "1.2.3",
+        scripts: { test: "vitest" },
+        engines: { node: PREVIOUS_ENGINES_RANGE },
+      },
+      null,
+      2,
+    )}\n`;
+    sync(["--stack", "node"]);
+    put("package.json", oldRepository);
+    expect(sync(["--stack", "node", "--check"])).toBe(1);
+    const printed = errors.join("\n");
+    expect(printed).toContain("package.json differs");
+    expect(printed).toContain(`-     "node": "${PREVIOUS_ENGINES_RANGE}"`);
+    expect(printed).toContain(`+     "node": "${SYNCED_ENGINES_RANGE}"`);
+    expect(read("package.json")).toBe(oldRepository);
+    sync(["--stack", "node"]);
+    expect(read("package.json")).toBe(
+      oldRepository.replace(PREVIOUS_ENGINES_RANGE, SYNCED_ENGINES_RANGE),
+    );
+  });
+
   it("exits 0 for a synced repository", () => {
     sync(["--stack", "node"]);
     expect(sync(["--stack", "node", "--check"])).toBe(0);
