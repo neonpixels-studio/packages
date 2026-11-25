@@ -10,6 +10,7 @@
 # A manual run (the caller's `workflow_dispatch`) always deploys: np-should-deploy
 # reads GITHUB_EVENT_NAME, which inside a reusable workflow holds the caller's
 # event, so no input is needed. The require-ci-workflow check still runs then.
+# Needs a scripts-version that includes this change; older versions still skip.
 name: Production deploy decide
 
 on:

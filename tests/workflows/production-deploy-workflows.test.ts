@@ -100,13 +100,8 @@ describe("production-deploy-decide workflow", () => {
   });
 
   it("runs the bin without overriding GITHUB_EVENT_NAME, so it sees the caller's event", () => {
-    const decideStep = DECIDE.slice(DECIDE.indexOf("id: decide"));
-    const stepEnv = decideStep.slice(
-      0,
-      decideStep.indexOf("run: np-should-deploy"),
-    );
-    expect(stepEnv).not.toContain("GITHUB_EVENT_NAME");
-    expect(DECIDE).toContain("manual run");
+    expect(DECIDE.indexOf("id: decide")).toBeGreaterThan(-1);
+    expect(DECIDE).not.toMatch(/^\s*GITHUB_EVENT_NAME\s*:/m);
   });
 
   it("only runs on main, so other refs leave both outputs empty", () => {

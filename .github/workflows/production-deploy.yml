@@ -13,6 +13,7 @@
 # A manual run (the caller's `workflow_dispatch`) always deploys, even when the
 # commit is already live, with no input needed: the decide step reads the
 # caller's event name from GITHUB_EVENT_NAME.
+# Needs a scripts-version that includes this change; older versions still skip.
 name: Production deploy
 
 on:

@@ -99,7 +99,7 @@ Environment variables, all passed by the workflow:
 - `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`: the site and a Netlify personal access token that can read it.
 - `GITHUB_EVENT_NAME`: set by GitHub on every step. Inside a reusable workflow it holds the caller's event, so no input is needed.
 
-A manual run (`GITHUB_EVENT_NAME` of `workflow_dispatch`) always deploys: it writes `skip=false`, prints that a manual run always deploys, and never calls Netlify. This covers a rebuild after a Netlify environment variable change, which does not change the commit. Every other event, and an unset `GITHUB_EVENT_NAME`, is decided as described below. In `production-deploy-decide.yml` the `require-ci-workflow` check still runs on a manual run, because a manual run forces the deploy decision, not the CI gate.
+A manual run (`GITHUB_EVENT_NAME` of `workflow_dispatch`) always deploys: it writes `skip=false`, prints that a manual run always deploys, and never calls Netlify. This covers a rebuild after a Netlify environment variable change, which does not change the commit. Every other event, and an unset `GITHUB_EVENT_NAME`, is decided as described below. In `production-deploy-decide.yml` the `require-ci-workflow` check still runs on a manual run, because a manual run forces the deploy decision, not the CI gate. Requires a `scripts-version` that includes this change; older versions still skip a manual run when the commit is already live.
 
 The live commit is the one the site's published deploy was built from (`published_deploy.commit_ref` from `GET /sites/{id}`), so a manual rollback or locked auto-publishing is compared against what visitors are served, not the newest ready deploy.
 

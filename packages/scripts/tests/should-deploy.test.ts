@@ -97,6 +97,17 @@ describe("runShouldDeploy", () => {
     expect(testEnvironment.output).toEqual(["skip=true\n"]);
   });
 
+  it("only treats workflow_dispatch as a manual run", async () => {
+    const getPublishedCommitRef = vi.fn(async () => "abc");
+    const testEnvironment = environment(
+      { ...full, GITHUB_EVENT_NAME: "repository_dispatch" },
+      getPublishedCommitRef,
+    );
+    await runShouldDeploy([], testEnvironment);
+    expect(getPublishedCommitRef).toHaveBeenCalled();
+    expect(testEnvironment.output).toEqual(["skip=true\n"]);
+  });
+
   it("writes skip=false on a rolled-back site, where the published deploy is older than main", async () => {
     const testEnvironment = environment(full, async () => "old");
     await runShouldDeploy([], testEnvironment);
