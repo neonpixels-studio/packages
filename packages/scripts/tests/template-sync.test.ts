@@ -226,6 +226,7 @@ describe("package.json fields", () => {
     expect(rangeAccepts(range, [23, 0, 0])).toBe(false);
     expect(rangeAccepts(range, [25, 0, 0])).toBe(false);
     expect(rangeAccepts(range, [26, 0, 0])).toBe(true);
+    expect(rangeAccepts(range, [27, 0, 0])).toBe(true);
   });
 
   it("pins an engines range that accepts the pinned .nvmrc version", () => {
