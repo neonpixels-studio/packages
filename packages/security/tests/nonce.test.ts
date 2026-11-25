@@ -26,6 +26,12 @@ describe("addNonceToScripts", () => {
     );
   });
 
+  it("is not thrown off by a quote inside an unquoted attribute value", () => {
+    expect(
+      addNonceToScripts("<div data-x=it's><script src=a></script>", NONCE),
+    ).toBe(`<div data-x=it's><script nonce="${NONCE}" src=a></script>`);
+  });
+
   it("matches the tag name case-insensitively", () => {
     expect(addNonceToScripts("<SCRIPT src=x></SCRIPT>", NONCE)).toBe(
       `<script nonce="${NONCE}" src=x></SCRIPT>`,
@@ -77,12 +83,12 @@ describe("addNonceToScripts", () => {
     );
   });
 
-  it.each(["", 'a"b', "a b", "a>b", "a;b", "<x>", "a'b"])(
+  it.each(["", 'a"b', "a b", "a>b", "a;b", "<x>", "a'b", null, undefined])(
     "rejects the nonce %j",
     (nonce) => {
-      expect(() => addNonceToScripts("<script></script>", nonce)).toThrow(
-        TypeError,
-      );
+      expect(() =>
+        addNonceToScripts("<script></script>", nonce as string),
+      ).toThrow(TypeError);
     },
   );
 });
@@ -154,7 +160,9 @@ describe("edge runtime safety", () => {
         "utf8",
       );
       expect(source).not.toMatch(/["']node:|require\(|\bBuffer\b|\bprocess\./);
-      expect(source).not.toMatch(/from "(nuxt|nitropack|nitro|h3|unhead)/);
+      expect(source).not.toMatch(
+        /(?:from\s*|import\s*\()["'](?:nuxt|nitropack|nitro|h3|unhead)/,
+      );
     },
   );
 

@@ -65,7 +65,7 @@ export function nonceSource(nonce: string): string {
 
 /** True when the value is base64 (standard or URL-safe alphabet), so it cannot break out of a header or an attribute. */
 export function isValidCspNonce(nonce: string): boolean {
-  return NONCE_PATTERN.test(nonce);
+  return typeof nonce === "string" && NONCE_PATTERN.test(nonce);
 }
 
 function unique(sources: readonly string[]): string[] {
@@ -111,7 +111,10 @@ function serializeDirective(name: string, sources: readonly string[]): string {
 
 // A script-src that did not exist would fall back to default-src, so the
 // nonce must not replace those sources.
-function addNonce(directives: CspDirectives, nonce: string): CspDirectives {
+export function addNonce(
+  directives: CspDirectives,
+  nonce: string,
+): CspDirectives {
   const source = nonceSource(nonce);
   const inherited = directives[SCRIPT_SRC] ?? directives[DEFAULT_SRC] ?? [];
   const withNonce: CspDirectives = {

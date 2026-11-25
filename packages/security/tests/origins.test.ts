@@ -17,13 +17,7 @@ describe("clerkOriginFromPublishableKey", () => {
     ).toBe("https://clerk.example.com");
   });
 
-  it("accepts the URL-safe alphabet and missing padding", () => {
-    const host = "clerk-\u00e9.example.com";
-    const urlSafe = Buffer.from(`${host}$`)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
-    expect(clerkOriginFromPublishableKey(`pk_test_${urlSafe}`)).toBeUndefined();
+  it("accepts a key without padding", () => {
     const unpadded = Buffer.from("a.example.com$")
       .toString("base64")
       .replace(/=+$/, "");

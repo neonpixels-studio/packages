@@ -4,8 +4,7 @@ import {
   SELF_SOURCE,
   UNSAFE_INLINE_SOURCE,
   buildContentSecurityPolicy,
-  mergeCspDirectives,
-  nonceSource,
+  addNonce,
 } from "./csp.ts";
 import {
   clerkOriginFromPublishableKey,
@@ -134,7 +133,7 @@ function enforcedDirectives(options: NuxtPolicyOptions): CspDirectives {
     "object-src": [NONE_SOURCE],
     "frame-ancestors": [NONE_SOURCE],
     "form-action": [SELF_SOURCE],
-    // The nonce is added by withNonce; there is no
+    // The nonce is added by addNonce; there is no
     // 'unsafe-inline' here.
     "script-src": [
       SELF_SOURCE,
@@ -194,16 +193,6 @@ export function nuxtReportOnlyPolicy(
   return withHeaders(policy, REPORT_ONLY_HEADER, options.reportEndpoint);
 }
 
-function withNonce(
-  directives: CspDirectives,
-  nonce: string | undefined,
-): CspDirectives {
-  if (nonce === undefined) {
-    return directives;
-  }
-  return mergeCspDirectives(directives, { "script-src": [nonceSource(nonce)] });
-}
-
 /**
  * An enforced policy for a Nuxt app using Clerk, Sentry, and Google Analytics.
  * Inline scripts need the response's nonce (no `'unsafe-inline'`); without a
@@ -211,7 +200,9 @@ function withNonce(
  * rendered pages. Throws a `TypeError` for a nonce that is not base64.
  */
 export function nuxtPolicy(options: NuxtPolicyOptions = {}): NuxtPolicy {
-  const directives = withNonce(enforcedDirectives(options), options.nonce);
+  const base = enforcedDirectives(options);
+  const directives =
+    options.nonce === undefined ? base : addNonce(base, options.nonce);
   const policy = buildContentSecurityPolicy(directives);
   return {
     directives,

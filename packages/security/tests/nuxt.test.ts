@@ -139,12 +139,19 @@ describe("nuxtPolicy", () => {
     expect(policy).not.toMatch(/junk|undefined|sentry|clerk\.example/);
   });
 
-  it.each(["", "abc def", "abc;def", "a'b", 'a"b', "a,b", "<b>", "abc\n"])(
-    "rejects the nonce %j",
-    (nonce) => {
-      expect(() => nuxtPolicy({ nonce })).toThrow(TypeError);
-    },
-  );
+  it.each([
+    "",
+    "abc def",
+    "abc;def",
+    "a'b",
+    'a"b',
+    "a,b",
+    "<b>",
+    "abc\n",
+    null,
+  ])("rejects the nonce %j", (nonce) => {
+    expect(() => nuxtPolicy({ nonce: nonce as string })).toThrow(TypeError);
+  });
 });
 
 describe("nuxtPolicy in development", () => {

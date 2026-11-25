@@ -19,26 +19,29 @@ const RAW_TEXT_ELEMENTS = new Set([
   "textarea",
   "title",
 ]);
+// How far past "<" the tag name is looked for.
+const TAG_NAME_LOOKAHEAD = 64;
 const COMMENT_START = "<!--";
 const COMMENT_END = "-->";
 
 // Index of the ">" that closes the tag starting at `start`, skipping any ">"
-// inside a quoted attribute value. -1 when the tag never closes.
+// inside a quoted attribute value. A quote only starts a value right after "=",
+// as in browsers, so an apostrophe in an unquoted value does not hide the rest. -1 when the tag never closes.
 function findTagEnd(html: string, start: number): number {
   let quote = "";
+  let previous = "";
   for (let index = start; index < html.length; index += 1) {
-    const character = html[index];
-    if (quote) {
-      quote = character === quote ? "" : quote;
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      continue;
-    }
-    if (character === ">") {
+    const character = html[index] ?? "";
+    const closesQuote = quote !== "" && character === quote;
+    const opensQuote =
+      quote === "" &&
+      previous === "=" &&
+      (character === '"' || character === "'");
+    if (character === ">" && quote === "") {
       return index;
     }
+    quote = closesQuote ? "" : opensQuote ? character : quote;
+    previous = /\s/.test(character) ? previous : character;
   }
   return -1;
 }
@@ -93,7 +96,9 @@ function readMarkup(html: string, start: number, nonce: string): MarkupStep {
     const next = end === -1 ? html.length : end + COMMENT_END.length;
     return { text: html.slice(start, next), next };
   }
-  const tagName = TAG_NAME_PATTERN.exec(html.slice(start, start + 64))?.[1];
+  const tagName = TAG_NAME_PATTERN.exec(
+    html.slice(start, start + TAG_NAME_LOOKAHEAD),
+  )?.[1];
   if (!tagName) {
     return { text: "<", next: start + 1 };
   }

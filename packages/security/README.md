@@ -182,6 +182,8 @@ export default defineNuxtPlugin((nuxtApp) => {
 });
 ```
 
+Scripts that unhead adds in the browser after a client-side navigation get no nonce, so register inline head scripts during the server render, and merge the hosts of any external script into `script-src`. If you add a `script-src-elem` directive of your own, add the nonce to it too, because it takes precedence over `script-src` for `<script>` elements.
+
 A nonce only works when every HTML response is rendered per request. With `prerender`, or with `swr`, `isr`, or `cache` route rules, the HTML and its header are reused, so a nonce is either shared between visitors or missing from the page; keep those routes on `nuxtReportOnlyPolicy` or serve them a hash-based policy.
 
 Anything passed to a `useHead` script, especially `innerHTML`, must be developer-controlled, never user input.
