@@ -77,6 +77,7 @@ describe("runShouldDeploy", () => {
     const createClient = vi.fn();
     const testEnvironment = environment(
       {
+        CURRENT_SHA: "abc",
         GITHUB_EVENT_NAME: "workflow_dispatch",
         GITHUB_OUTPUT: "/tmp/output",
       },
@@ -96,7 +97,7 @@ describe("runShouldDeploy", () => {
         { ...full, GITHUB_EVENT_NAME: eventName },
         getPublishedCommitRef,
       );
-      await runShouldDeploy([], testEnvironment);
+      expect(await runShouldDeploy([], testEnvironment)).toBe(0);
       expect(getPublishedCommitRef).toHaveBeenCalled();
       expect(testEnvironment.output).toEqual(["skip=true\n"]);
     },

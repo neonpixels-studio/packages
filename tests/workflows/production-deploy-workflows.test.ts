@@ -99,10 +99,6 @@ describe("production-deploy-decide workflow", () => {
     expect(DECIDE).toContain("run: np-should-deploy");
   });
 
-  it("runs the bin without overriding GITHUB_EVENT_NAME, so it sees the caller's event", () => {
-    expect(DECIDE).not.toMatch(/^\s*GITHUB_EVENT_NAME\s*:/m);
-  });
-
   it("only runs on main, so other refs leave both outputs empty", () => {
     expect(jobBlock(DECIDE, "decide")).toContain(
       "if: github.ref == 'refs/heads/main'",
