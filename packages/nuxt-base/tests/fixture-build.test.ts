@@ -2,12 +2,11 @@ import { loadNuxt, buildNuxt } from "@nuxt/kit";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   FIXTURE_DIRECTORIES,
   LAYER_DIRECTORY,
   cleanFixtureOutput,
-  ensureSentryPackageBuilt,
 } from "./helpers.ts";
 
 const BUILD_TIMEOUT_MS = 240_000;
@@ -17,7 +16,6 @@ const UNREACHABLE_SENTRY_URL = "http://127.0.0.1:9";
 const CLIENT_CONFIG_TEMPLATE = "#build/sentry-client-config.mjs";
 const SERVER_CONFIG_TEMPLATE = "#build/sentry-server-config-plugin.mjs";
 
-beforeAll(ensureSentryPackageBuilt);
 afterAll(cleanFixtureOutput);
 
 function listFiles(directory: string): string[] {

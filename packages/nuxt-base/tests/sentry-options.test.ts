@@ -102,6 +102,12 @@ describe("buildClientSentryOptions", () => {
     );
   });
 
+  it("falls back to development for an empty environment", () => {
+    expect(
+      buildClientSentryOptions({ ...production, environment: "" }).environment,
+    ).toBe("development");
+  });
+
   it("treats an empty DSN as disabled", () => {
     expect(buildClientSentryOptions({ ...production, dsn: "" }).dsn).toBe(
       undefined,

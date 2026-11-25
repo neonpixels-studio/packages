@@ -33,20 +33,20 @@ Every value the layer sets can still be overridden in your own `nuxt.config.ts`.
 
 ## What the layer sets
 
-| Setting                                                                           | Value                                                                                     |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `compatibilityDate`, `future.compatibilityVersion`                                | `"2024-11-01"`, `4`                                                                       |
-| `modules`                                                                         | `["@sentry/nuxt/module"]`                                                                 |
-| `sourcemap.client`                                                                | `"hidden"`                                                                                |
-| `app.head.htmlAttrs.lang`                                                         | `"en"`                                                                                    |
-| `nitro.preset`                                                                    | `"netlify"`; a `NITRO_PRESET` environment variable still wins                             |
-| `sentry.org`, `sentry.project`, `sentry.authToken`                                | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`                                       |
-| `sentry.sourcemaps.filesToDeleteAfterUpload`                                      | `["dist/**/*.map"]`, so a failed upload never leaves source maps in the publish directory |
-| `runtimeConfig.databaseUrl`                                                       | `E2E_DATABASE_URL`, else `DATABASE_URL`, else `""`                                        |
-| `runtimeConfig.public.siteUrl`                                                    | `NUXT_PUBLIC_SITE_URL`, else `""`                                                         |
-| `runtimeConfig.public.sentry.dsn`                                                 | `SENTRY_DSN`, else `""`                                                                   |
-| `runtimeConfig.public.sentry.environment`                                         | `resolveSentryEnvironment()` from `@neon-pixels/sentry`, using Netlify's `CONTEXT`        |
-| `nitro.replace` for `process.env.SENTRY_DSN` and `process.env.SENTRY_ENVIRONMENT` | The same two values, as string literals                                                   |
+| Setting                                                                           | Value                                                                                                    |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `compatibilityDate`, `future.compatibilityVersion`                                | `"2024-11-01"`, `4`                                                                                      |
+| `modules`                                                                         | `["@sentry/nuxt/module"]`                                                                                |
+| `sourcemap.client`                                                                | `"hidden"`                                                                                               |
+| `app.head.htmlAttrs.lang`                                                         | `"en"`                                                                                                   |
+| `nitro.preset`                                                                    | `"netlify"`; a `NITRO_PRESET` environment variable still wins                                            |
+| `sentry.org`, `sentry.project`, `sentry.authToken`                                | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`                                                      |
+| `sentry.sourcemaps.filesToDeleteAfterUpload`                                      | `["dist/**/*.map"]`, so a failed upload never leaves source maps in Netlify's publish directory (`dist`) |
+| `runtimeConfig.databaseUrl`                                                       | `E2E_DATABASE_URL`, else `DATABASE_URL`, else `""`                                                       |
+| `runtimeConfig.public.siteUrl`                                                    | `NUXT_PUBLIC_SITE_URL`, else `""`                                                                        |
+| `runtimeConfig.public.sentry.dsn`                                                 | `SENTRY_DSN`, else `""`                                                                                  |
+| `runtimeConfig.public.sentry.environment`                                         | `resolveSentryEnvironment()` from `@neon-pixels/sentry`, using Netlify's `CONTEXT`                       |
+| `nitro.replace` for `process.env.SENTRY_DSN` and `process.env.SENTRY_ENVIRONMENT` | The same two values, as string literals                                                                  |
 
 These values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time. The server start-up file runs before `useRuntimeConfig()` exists, which is why it reads `process.env` and why `nitro.replace` swaps those two reads for literals.
 
@@ -106,12 +106,12 @@ The layer ships `sentry.client.config.ts` and `sentry.server.config.ts`.
 
 The layer never starts Replay by itself. It auto-imports two functions for client code:
 
-- `startSentryReplay()` adds the Replay integration on first call, with masking on and `beforeAddRecordingEvent: scrubRecordingEvent`. It is safe to call twice.
+- `startSentryReplay()` adds the Replay integration on first call, with masking on and `beforeAddRecordingEvent: scrubRecordingEvent`. It is safe to call twice. After a stop, a start resumes the same recording, applying the session sample rate again.
 - `stopSentryReplay()` stops recording. It is safe to call when Replay never started.
 
 Both do nothing when the DSN is empty.
 
-`startSentryReplay()` imports `@sentry/nuxt` on first call, but that module is already part of the initial bundle, so the Replay code is not split into its own chunk. `@sentry/nuxt` 11 does not offer a way to load Replay from a separate chunk without a CDN script.
+The Replay code is part of the `@sentry/nuxt` client bundle and is not split into its own chunk: `@sentry/nuxt` 11 offers no way to load Replay from a separate chunk without a CDN script. Calling `startSentryReplay()` only starts it.
 
 An app with a consent banner starts Replay when analytics consent is granted and stops it when consent is withdrawn:
 

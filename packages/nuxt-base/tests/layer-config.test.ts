@@ -1,23 +1,9 @@
 import { loadNuxtConfig } from "@nuxt/kit";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import {
-  FIXTURE_DIRECTORIES,
-  cleanFixtureOutput,
-  ensureSentryPackageBuilt,
-} from "./helpers.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FIXTURE_DIRECTORIES } from "./helpers.ts";
 
 const CONFIG_LOAD_TIMEOUT_MS = 60_000;
 
-beforeAll(ensureSentryPackageBuilt);
-afterAll(cleanFixtureOutput);
 afterEach(() => {
   vi.unstubAllEnvs();
 });

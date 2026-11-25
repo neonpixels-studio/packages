@@ -33,6 +33,7 @@ function buildSharedOptions(input: SentryOptionsInput) {
   return {
     // An empty DSN disables the SDK, so nothing is sent and nothing throws.
     dsn: input.dsn || undefined,
+    environment: input.environment || SENTRY_ENVIRONMENT_DEVELOPMENT,
     tracesSampleRate: pickRate(
       input.isProduction,
       PRODUCTION_TRACES_SAMPLE_RATE,
@@ -51,7 +52,6 @@ function buildSharedOptions(input: SentryOptionsInput) {
 export function buildServerSentryOptions(input: SentryOptionsInput) {
   return {
     ...buildSharedOptions(input),
-    environment: input.environment || SENTRY_ENVIRONMENT_DEVELOPMENT,
     beforeSend: (event: ErrorEvent, hint: EventHint) => {
       const kept = dropExpectedClientErrors(event, hint);
       return kept ? scrubEvent(kept) : null;
@@ -67,7 +67,6 @@ export function buildServerSentryOptions(input: SentryOptionsInput) {
 export function buildClientSentryOptions(input: SentryOptionsInput) {
   return {
     ...buildSharedOptions(input),
-    environment: input.environment,
     beforeSend: scrubEvent,
     ignoreErrors: [...IGNORED_ERRORS],
     denyUrls: [...DENIED_URLS],

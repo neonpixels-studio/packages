@@ -25,6 +25,7 @@ export default defineConfig({
     ],
   },
   test: {
+    globalSetup: ["packages/nuxt-base/tests/global-setup.ts"],
     include: ["tests/**/*.test.ts", "packages/*/{src,tests}/**/*.test.ts"],
   },
 });
