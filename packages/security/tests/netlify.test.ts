@@ -306,6 +306,7 @@ describe("writeHeadersFile in report-only mode", () => {
 
   it.each([
     ["spaces", "/csp report"],
+    ["a tab", "/csp\treport"],
     ["commas", "/csp,report"],
     ["semicolons", "/csp;script-src *"],
     ["a quote", '/csp"'],
@@ -328,6 +329,21 @@ describe("writeHeadersFile in report-only mode", () => {
     );
     expect(error.code).toBe("invalid-report-endpoint");
     await expect(readFile(join(outDir, "_headers"))).rejects.toThrow();
+  });
+
+  it("treats an empty endpoint as missing and accepts an uppercase scheme", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    const error = await failure(
+      writeHeadersFile(outDir, { reportOnly: true, reportEndpoint: "" }),
+    );
+    expect(error.code).toBe("report-endpoint-required");
+    await writeHeadersFile(outDir, {
+      reportOnly: true,
+      reportEndpoint: "HTTPS://R.EXAMPLE/csp",
+    });
+    expect(await readFile(join(outDir, "_headers"), "utf8")).toContain(
+      "report-uri HTTPS://R.EXAMPLE/csp",
+    );
   });
 
   it("appends next to an existing enforced policy", async () => {

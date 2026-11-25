@@ -95,7 +95,7 @@ It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 - `header-already-present`: with `append`, the existing file already sets one of the headers being written (`Content-Security-Policy` for example). Two values would both apply.
 - `unsafe-inline-directive`: `directives` allows `'unsafe-inline'` for scripts or styles.
 - `report-endpoint-required`: `reportOnly` is set without `reportEndpoint`. A report-only policy that reports nowhere does nothing.
-- `invalid-report-endpoint`: with `reportOnly`, `reportEndpoint` is not a same-origin path (`/csp-report`) or an absolute `https` URL, or it contains spaces, commas, semicolons, double quotes, backslashes, or credentials.
+- `invalid-report-endpoint`: with `reportOnly`, `reportEndpoint` is not a same-origin path (`/csp-report`) or an absolute `https` URL, or it contains spaces, commas, semicolons, double quotes, backslashes, non-ASCII characters, or credentials.
 
 #### Rolling out a hashed policy with `reportOnly`
 
@@ -108,11 +108,11 @@ await writeHeadersFile("dist", {
 });
 ```
 
-`reportOnly: true` writes the same policy under `Content-Security-Policy-Report-Only` and writes no `Content-Security-Policy`. It also leaves out `X-Content-Type-Options` and the other security headers, so the file can be appended (`append: true`) next to a site's existing headers without setting any header twice. The policy string is identical to the enforced one for the same input. Inline `style` attributes, event handlers, and `javascript:` URLs do not throw in this mode; they come back as `unhashable: [{ file, attributes }]` so the build can print them.
+`reportOnly: true` writes the same policy under `Content-Security-Policy-Report-Only` and writes no `Content-Security-Policy`. It also leaves out `X-Content-Type-Options` and the other security headers, so the file can be appended (`append: true`) next to a site's existing headers without setting any header twice. `production`, `hstsPreload`, and `extraDeniedFeatures` have no effect in this mode, because no security headers are written. The policy string is identical to the enforced one for the same input. Inline `style` attributes, event handlers, and `javascript:` URLs do not throw in this mode; they come back as `unhashable: [{ file, attributes }]` so the build can print them.
 
 1. Publish report-only next to the existing policy.
 2. Fix what the reports show and what `unhashable` lists.
-3. Drop `reportOnly`, then remove the old policy from the existing headers. Enforced mode again throws on unhashable markup and writes the other security headers.
+3. In one change, drop `reportOnly` and remove the old `Content-Security-Policy`, `Reporting-Endpoints`, and security headers from the existing headers, because enforced mode writes them again and `append` refuses duplicates. Enforced mode also throws on unhashable markup again.
 
 A cross-origin `reportEndpoint` (a hosted collector) receives every report unfiltered, including the blocked and document URLs. Reports are only as private as the collector. With `append`, the `Reporting-Endpoints` header this writes must not already be set in the existing file, or `header-already-present` is thrown.
 
