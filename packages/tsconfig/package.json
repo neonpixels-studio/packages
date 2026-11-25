@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/tsconfig",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shared TypeScript configuration bases for Neon Pixels projects.",
   "license": "MIT",
   "type": "module",

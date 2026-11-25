@@ -1,5 +1,17 @@
 # @neon-pixels/scripts
 
+## 0.4.0
+
+### Minor Changes
+
+- 2b259ab: `np-audit-gate --include-dev` audits all dependencies, not just production ones, and the printed result and step summary name the audited scope.
+- 5a279b9: The synced Dependabot template groups every `@neon-pixels/*` update into its own pull request, listed ahead of `minor-and-patch` in the base and vitepress variants.
+- 5ae85ef: `np-should-deploy` now always deploys on a manual run (`workflow_dispatch`), without calling Netlify, so a rebuild after a Netlify environment change is no longer skipped. Callers must bump `scripts-version` to pick this up.
+
+### Patch Changes
+
+- 207bf8c: `np-sync-templates` raises the Node 22 floor in the synced `engines.node` range from 22.17.0 to 22.18.0, the first release that runs `.ts` files without a flag.
+
 ## 0.3.0
 
 ### Minor Changes

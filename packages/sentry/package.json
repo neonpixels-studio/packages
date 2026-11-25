@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/sentry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Sentry event scrubbing, expected-error filtering, filter lists, and environment naming as plain functions for any Sentry SDK.",
   "license": "MIT",
   "type": "module",
