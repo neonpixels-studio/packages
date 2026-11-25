@@ -8,7 +8,7 @@ Helpers for scheduled and background Netlify functions, which run outside the se
 pnpm add @neon-pixels/netlify-functions @dotenvx/dotenvx @sentry/node
 ```
 
-`@dotenvx/dotenvx` and `@sentry/node` are peer dependencies, so your app controls their versions. The package does not import `@neon-pixels/sentry`; the scrubber and environment name are arguments.
+`@dotenvx/dotenvx` and `@sentry/node` are peer dependencies, so your app controls their versions. Supported majors: `@dotenvx/dotenvx` 2 and `@sentry/node` 11. Install `@sentry/node` at the same version as your project's other Sentry SDKs (`@sentry/nuxt`, `@sentry/vue`, and so on) so one copy is installed and they share a client. The package does not import `@neon-pixels/sentry`; the scrubber and environment name are arguments.
 
 ## Usage
 
