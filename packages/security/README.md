@@ -95,7 +95,7 @@ It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 - `header-already-present`: with `append`, the existing file already sets one of the headers being written (`Content-Security-Policy` for example). Two values would both apply.
 - `unsafe-inline-directive`: `directives` allows `'unsafe-inline'` for scripts or styles.
 - `report-endpoint-required`: `reportOnly` is set without `reportEndpoint`. A report-only policy that reports nowhere does nothing.
-- `invalid-report-endpoint`: with `reportOnly`, `reportEndpoint` is not a same-origin path (`/csp-report`) or an absolute `https` URL, or it contains spaces, commas, semicolons, quotes, or credentials.
+- `invalid-report-endpoint`: with `reportOnly`, `reportEndpoint` is not a same-origin path (`/csp-report`) or an absolute `https` URL, or it contains spaces, commas, semicolons, double quotes, backslashes, or credentials.
 
 #### Rolling out a hashed policy with `reportOnly`
 

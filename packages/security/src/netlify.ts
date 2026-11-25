@@ -11,7 +11,11 @@ import {
 } from "./csp.ts";
 import { securityHeaders, type SecurityHeadersOptions } from "./headers.ts";
 import { findInlineSources } from "./inline.ts";
-import { REPORTING_ENDPOINTS_HEADER, withReporting } from "./reporting.ts";
+import {
+  FORBIDDEN_ENDPOINT_PATTERN,
+  REPORTING_ENDPOINTS_HEADER,
+  withReporting,
+} from "./reporting.ts";
 
 const HEADERS_FILENAME = "_headers";
 const HTML_EXTENSION = ".html";
@@ -19,8 +23,8 @@ const HEADER_INDENT = "  ";
 const CSP_HEADER_NAME = "Content-Security-Policy";
 const CSP_REPORT_ONLY_HEADER_NAME = "Content-Security-Policy-Report-Only";
 const HTTPS_PROTOCOL = "https:";
-// Anything that could end the header value or a directive early.
-const UNSAFE_ENDPOINT_PATTERN = /["\s;,\\]|[^\x20-\x7e]/;
+// new URL accepts "https:host/path", which a browser reads as a relative path.
+const HTTPS_PREFIX = "https://";
 
 // Directives that govern inline elements and so carry the hashes.
 const SCRIPT_HASH_DIRECTIVES = ["script-src", "script-src-elem"] as const;
@@ -140,7 +144,12 @@ function assertNoUnsafeInline(directives: CspDirectives): void {
 
 function isSafeHttpsUrl(endpoint: string): boolean {
   const url = URL.canParse(endpoint) ? new URL(endpoint) : undefined;
-  return url?.protocol === HTTPS_PROTOCOL && !url.username && !url.password;
+  return (
+    url?.protocol === HTTPS_PROTOCOL &&
+    endpoint.toLowerCase().startsWith(HTTPS_PREFIX) &&
+    !url.username &&
+    !url.password
+  );
 }
 
 // A path starting with // would be read as another origin without a scheme.
@@ -156,12 +165,12 @@ function assertReportOnlyEndpoint(endpoint: string | undefined): void {
     );
   }
   const isValid =
-    !UNSAFE_ENDPOINT_PATTERN.test(endpoint) &&
+    !FORBIDDEN_ENDPOINT_PATTERN.test(endpoint) &&
     (isSameOriginPath(endpoint) || isSafeHttpsUrl(endpoint));
   if (!isValid) {
     throw new HeadersFileError(
       "invalid-report-endpoint",
-      `reportEndpoint must be a same-origin path or an absolute https URL with no spaces, commas, semicolons, quotes, backslashes, non-ASCII characters, or credentials: ${JSON.stringify(endpoint)}`,
+      `reportEndpoint must be a same-origin path or an absolute https URL with no spaces, commas, semicolons, double quotes, backslashes, non-ASCII characters, or credentials: ${JSON.stringify(endpoint)}`,
     );
   }
 }
@@ -258,7 +267,9 @@ async function persistBlock(
   await appendFile(headersPath, `\n${block}`);
 }
 
-function unhashableError(unhashable: readonly UnhashableFile[]) {
+function unhashableError(
+  unhashable: readonly UnhashableFile[],
+): HeadersFileError {
   const details = unhashable.flatMap(({ file, attributes }) =>
     attributes.map((attribute) => `${file}: ${attribute}`),
   );

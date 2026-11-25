@@ -310,6 +310,8 @@ describe("writeHeadersFile in report-only mode", () => {
     ["semicolons", "/csp;script-src *"],
     ["a quote", '/csp"'],
     ["http", "http://r.example/csp"],
+    ["a single-slash https URL", "https:/r.example/csp"],
+    ["an https URL with no slashes", "https:r.example/csp"],
     ["a scheme-relative URL", "//r.example/csp"],
     ["a relative path", "csp-report"],
     ["another scheme", "javascript:alert(1)"],
@@ -341,6 +343,21 @@ describe("writeHeadersFile in report-only mode", () => {
     expect(file.startsWith(existing)).toBe(true);
     expect(file).toContain("  Content-Security-Policy-Report-Only: ");
     expect(file.match(/^\s+X-Content-Type-Options:/gm)).toHaveLength(1);
+  });
+
+  it("refuses to append when the existing file already sets Reporting-Endpoints", async () => {
+    const existing =
+      "/*\n  Reporting-Endpoints: csp-endpoint=\"/old\"\n  Content-Security-Policy: default-src 'self'\n";
+    await writeSite({ "index.html": page("<p>x</p>"), _headers: existing });
+    const error = await failure(
+      writeHeadersFile(outDir, {
+        append: true,
+        reportOnly: true,
+        reportEndpoint: "/csp-report",
+      }),
+    );
+    expect(error.code).toBe("header-already-present");
+    expect(await readFile(join(outDir, "_headers"), "utf8")).toBe(existing);
   });
 
   it("still refuses to append a second report-only policy", async () => {
