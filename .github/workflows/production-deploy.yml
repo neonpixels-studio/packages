@@ -8,7 +8,9 @@
 # verify, and failure-issue logic exists once. Each call below is pinned to a
 # full commit SHA of this repository: a nested reusable workflow cannot use a
 # relative path, because that resolves in the caller's repository. Bump both
-# pins together when the two workflows change.
+# pins together when the two workflows change, and pin a commit that is on
+# main: a squash merge orphans the PR branch commits, and Actions cannot
+# resolve an orphaned SHA ("workflow was not found").
 #
 # A manual run (the caller's `workflow_dispatch`) always deploys, even when the
 # commit is already live, with no input needed: the decide step reads the
@@ -43,7 +45,7 @@ permissions:
 
 jobs:
   decide:
-    uses: neonpixels-studio/packages/.github/workflows/production-deploy-decide.yml@883685addd20ddd458f933df2e6900984d183441 # 2026-11-23 split deploy
+    uses: neonpixels-studio/packages/.github/workflows/production-deploy-decide.yml@207bf8c40464e1445afcc8cff451d24e5c5d26fa # 2026-11-25 main
     permissions:
       contents: read
       actions: read
@@ -61,7 +63,7 @@ jobs:
     # job (a ref other than main) runs it too; the trigger workflow does
     # nothing there. A commit that is already live (skip == 'true') deploys nothing.
     if: ${{ !cancelled() && (needs.decide.result != 'success' || needs.decide.outputs.skip == 'false') }}
-    uses: neonpixels-studio/packages/.github/workflows/production-deploy-trigger.yml@883685addd20ddd458f933df2e6900984d183441 # 2026-11-23 split deploy
+    uses: neonpixels-studio/packages/.github/workflows/production-deploy-trigger.yml@207bf8c40464e1445afcc8cff451d24e5c5d26fa # 2026-11-25 main
     permissions:
       contents: read
       issues: write
