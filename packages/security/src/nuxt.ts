@@ -124,6 +124,11 @@ function nuxtDirectives(options: NuxtReportOnlyPolicyOptions): CspDirectives {
   };
 }
 
+// Sources only the Nuxt dev server needs.
+function devOnly(development: boolean, sources: string[]): string[] {
+  return development ? sources : [];
+}
+
 function enforcedDirectives(options: NuxtPolicyOptions): CspDirectives {
   const shared = sharedSources(options);
   const development = options.development ?? false;
@@ -137,7 +142,7 @@ function enforcedDirectives(options: NuxtPolicyOptions): CspDirectives {
     // 'unsafe-inline' here.
     "script-src": [
       SELF_SOURCE,
-      ...(development ? [UNSAFE_EVAL_SOURCE] : []),
+      ...devOnly(development, [UNSAFE_EVAL_SOURCE]),
       ...shared.clerk,
       TURNSTILE_ORIGIN,
       ...shared.analyticsScripts,
@@ -157,10 +162,10 @@ function enforcedDirectives(options: NuxtPolicyOptions): CspDirectives {
       CLERK_TELEMETRY_ORIGIN,
       ...shared.sentry,
       ...shared.analyticsConnections,
-      ...(development ? ["ws:", "wss:"] : []),
+      ...devOnly(development, ["ws:", "wss:"]),
     ],
     "worker-src": [SELF_SOURCE, "blob:"],
-    "frame-src": [...(development ? [SELF_SOURCE] : []), TURNSTILE_ORIGIN],
+    "frame-src": [...devOnly(development, [SELF_SOURCE]), TURNSTILE_ORIGIN],
   };
 }
 

@@ -40,7 +40,11 @@ function findTagEnd(html: string, start: number): number {
     if (character === ">" && quote === "") {
       return index;
     }
-    quote = closesQuote ? "" : opensQuote ? character : quote;
+    if (closesQuote) {
+      quote = "";
+    } else if (opensQuote) {
+      quote = character;
+    }
     previous = /\s/.test(character) ? previous : character;
   }
   return -1;
