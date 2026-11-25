@@ -313,6 +313,9 @@ describe("writeHeadersFile in report-only mode", () => {
     ["a scheme-relative URL", "//r.example/csp"],
     ["a relative path", "csp-report"],
     ["another scheme", "javascript:alert(1)"],
+    ["a backslash", "/\\evil.example/csp"],
+    ["a newline", "/csp\nX-Injected: 1"],
+    ["non-ASCII characters", "/csp-r\u00e9port"],
     ["credentials", "https://user:pass@r.example/csp"],
     ["spaces in a URL", "https://r.example/a b"],
     ["a semicolon in a URL", "https://r.example/a;b"],
@@ -369,7 +372,9 @@ describe("writeHeadersFile in report-only mode", () => {
       },
       { file: "index.html", attributes: ["<p style>"] },
     ]);
-    await readFile(join(outDir, "_headers"), "utf8");
+    expect(await readFile(join(outDir, "_headers"), "utf8")).toContain(
+      "  Content-Security-Policy-Report-Only: ",
+    );
   });
 
   it("leaves enforced mode unchanged: unhashable markup still throws and the result is empty", async () => {

@@ -161,7 +161,7 @@ function assertReportOnlyEndpoint(endpoint: string | undefined): void {
   if (!isValid) {
     throw new HeadersFileError(
       "invalid-report-endpoint",
-      `reportEndpoint must be a same-origin path or an absolute https URL without spaces, commas, or semicolons: ${JSON.stringify(endpoint)}`,
+      `reportEndpoint must be a same-origin path or an absolute https URL with no spaces, commas, semicolons, quotes, backslashes, non-ASCII characters, or credentials: ${JSON.stringify(endpoint)}`,
     );
   }
 }
@@ -334,6 +334,6 @@ export async function writeHeadersFile(
     path: headersPath,
     scriptHashes: site.scriptHashes,
     styleHashes: site.styleHashes,
-    unhashable: options.reportOnly ? site.unhashable : [],
+    unhashable: site.unhashable,
   };
 }
