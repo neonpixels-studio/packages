@@ -11,12 +11,20 @@ import {
 } from "./csp.ts";
 import { securityHeaders, type SecurityHeadersOptions } from "./headers.ts";
 import { findInlineSources } from "./inline.ts";
-import { REPORTING_ENDPOINTS_HEADER, withReporting } from "./reporting.ts";
+import {
+  FORBIDDEN_ENDPOINT_PATTERN,
+  REPORTING_ENDPOINTS_HEADER,
+  withReporting,
+} from "./reporting.ts";
 
 const HEADERS_FILENAME = "_headers";
 const HTML_EXTENSION = ".html";
 const HEADER_INDENT = "  ";
 const CSP_HEADER_NAME = "Content-Security-Policy";
+const CSP_REPORT_ONLY_HEADER_NAME = "Content-Security-Policy-Report-Only";
+const HTTPS_PROTOCOL = "https:";
+// new URL accepts "https:host/path", which a browser reads as a relative path.
+const HTTPS_PREFIX = "https://";
 
 // Directives that govern inline elements and so carry the hashes.
 const SCRIPT_HASH_DIRECTIVES = ["script-src", "script-src-elem"] as const;
@@ -43,18 +51,38 @@ export interface WriteHeadersFileOptions extends Omit<
 > {
   /** Sources added to the built-in first-party policy. Must not allow `'unsafe-inline'` for scripts or styles. */
   directives?: CspDirectives;
-  /** Where violation reports are sent. Adds `report-uri`, `report-to`, and `Reporting-Endpoints`. */
+  /**
+   * Where violation reports are sent. Adds `report-uri`, `report-to`, and `Reporting-Endpoints`.
+   * With `reportOnly`, must be a same-origin path (`/csp-report`) or an absolute `https` URL;
+   * a collector on another origin receives every report unfiltered.
+   */
   reportEndpoint?: string;
+  /**
+   * Write the policy as `Content-Security-Policy-Report-Only` and skip the other security
+   * headers, so the file can sit next to an enforced policy with `append`. Requires
+   * `reportEndpoint`. Inline style attributes, event handlers, and `javascript:` URLs are
+   * listed in the result's `unhashable` instead of throwing.
+   */
+  reportOnly?: boolean;
   /** Add to an existing `_headers` file instead of refusing to overwrite it. */
   append?: boolean;
   /** Include the production-only headers (HSTS, X-Frame-Options). Defaults to true: the file is for a deployed build. */
   production?: boolean;
 }
 
+/** A page's inline markup that no hash can cover, such as `<p style>` or `<button onclick>`. */
+export interface UnhashableFile {
+  /** Path relative to the output directory. */
+  file: string;
+  attributes: string[];
+}
+
 export interface WriteHeadersFileResult {
   path: string;
   scriptHashes: string[];
   styleHashes: string[];
+  /** What must be fixed before enforcing. Always empty when enforcing, because that throws instead. */
+  unhashable: UnhashableFile[];
 }
 
 export type HeadersFileErrorCode =
@@ -62,7 +90,9 @@ export type HeadersFileErrorCode =
   | "unhashable-inline"
   | "headers-file-exists"
   | "header-already-present"
-  | "unsafe-inline-directive";
+  | "unsafe-inline-directive"
+  | "report-endpoint-required"
+  | "invalid-report-endpoint";
 
 /** Thrown for every way writeHeadersFile refuses to write. `files` lists the offending paths. */
 export class HeadersFileError extends Error {
@@ -112,6 +142,39 @@ function assertNoUnsafeInline(directives: CspDirectives): void {
   );
 }
 
+function isSafeHttpsUrl(endpoint: string): boolean {
+  const url = URL.canParse(endpoint) ? new URL(endpoint) : undefined;
+  return (
+    url?.protocol === HTTPS_PROTOCOL &&
+    endpoint.toLowerCase().startsWith(HTTPS_PREFIX) &&
+    !url.username &&
+    !url.password
+  );
+}
+
+// A path starting with // would be read as another origin without a scheme.
+function isSameOriginPath(endpoint: string): boolean {
+  return endpoint.startsWith("/") && !endpoint.startsWith("//");
+}
+
+function assertReportOnlyEndpoint(endpoint: string | undefined): void {
+  if (!endpoint) {
+    throw new HeadersFileError(
+      "report-endpoint-required",
+      "reportOnly needs a reportEndpoint: a report-only policy that reports nowhere does nothing",
+    );
+  }
+  const isValid =
+    !FORBIDDEN_ENDPOINT_PATTERN.test(endpoint) &&
+    (isSameOriginPath(endpoint) || isSafeHttpsUrl(endpoint));
+  if (!isValid) {
+    throw new HeadersFileError(
+      "invalid-report-endpoint",
+      `reportEndpoint must be a same-origin path or an absolute https URL with no spaces, commas, semicolons, double quotes, backslashes, non-ASCII characters, or credentials: ${JSON.stringify(endpoint)}`,
+    );
+  }
+}
+
 function formatHeadersBlock(headers: Record<string, string>): string {
   const lines = Object.entries(headers).map(
     ([name, value]) => `${HEADER_INDENT}${name}: ${value}`,
@@ -150,18 +213,23 @@ function buildHeaders(
     hashDirectives(options.directives ?? {}, scriptHashes, styleHashes),
   );
   const policy = buildContentSecurityPolicy(directives);
-  const headers = securityHeaders({
-    production: options.production ?? true,
-    hstsPreload: options.hstsPreload,
-    extraDeniedFeatures: options.extraDeniedFeatures,
-  });
+  const policyHeaderName = options.reportOnly
+    ? CSP_REPORT_ONLY_HEADER_NAME
+    : CSP_HEADER_NAME;
+  const headers = options.reportOnly
+    ? {}
+    : securityHeaders({
+        production: options.production ?? true,
+        hstsPreload: options.hstsPreload,
+        extraDeniedFeatures: options.extraDeniedFeatures,
+      });
   if (!options.reportEndpoint) {
-    return { ...headers, [CSP_HEADER_NAME]: policy };
+    return { ...headers, [policyHeaderName]: policy };
   }
   const reporting = withReporting(policy, { endpoint: options.reportEndpoint });
   return {
     ...headers,
-    [CSP_HEADER_NAME]: reporting.policy,
+    [policyHeaderName]: reporting.policy,
     [REPORTING_ENDPOINTS_HEADER]: reporting.reportingEndpoints,
   };
 }
@@ -199,6 +267,19 @@ async function persistBlock(
   await appendFile(headersPath, `\n${block}`);
 }
 
+function unhashableError(
+  unhashable: readonly UnhashableFile[],
+): HeadersFileError {
+  const details = unhashable.flatMap(({ file, attributes }) =>
+    attributes.map((attribute) => `${file}: ${attribute}`),
+  );
+  return new HeadersFileError(
+    "unhashable-inline",
+    `Inline style attributes, event handlers, and javascript: URLs cannot be covered by a hash. Move them out of the markup:\n${details.join("\n")}`,
+    unhashable.map(({ file }) => file),
+  );
+}
+
 async function scanSite(outDir: string) {
   const htmlFiles = await findHtmlFiles(outDir);
   if (htmlFiles.length === 0) {
@@ -206,25 +287,22 @@ async function scanSite(outDir: string) {
   }
   const scriptHashes = new Set<string>();
   const styleHashes = new Set<string>();
-  const unhashableFiles = new Set<string>();
-  const unhashableDetails: string[] = [];
+  const unhashable: UnhashableFile[] = [];
   for (const file of htmlFiles) {
     const findings = findInlineSources(await readFile(file, "utf8"));
     findings.scriptHashes.forEach((hash) => scriptHashes.add(hash));
     findings.styleHashes.forEach((hash) => styleHashes.add(hash));
-    const relativePath = relative(outDir, file);
     if (findings.unhashable.length > 0) {
-      unhashableFiles.add(relativePath);
+      unhashable.push({
+        file: relative(outDir, file),
+        attributes: findings.unhashable,
+      });
     }
-    unhashableDetails.push(
-      ...findings.unhashable.map((entry) => `${relativePath}: ${entry}`),
-    );
   }
   return {
     scriptHashes: [...scriptHashes].sort(),
     styleHashes: [...styleHashes].sort(),
-    unhashableFiles: [...unhashableFiles],
-    unhashableDetails,
+    unhashable,
   };
 }
 
@@ -233,13 +311,18 @@ async function scanSite(outDir: string) {
  * `<script>` and `<style>` element is hashed (SHA-256), so the policy needs no
  * `'unsafe-inline'`. Fails, naming the files, when the site has inline style
  * attributes or event handlers; fails when there is no HTML; refuses to
- * overwrite an existing `_headers` file unless `append` is set.
+ * overwrite an existing `_headers` file unless `append` is set. With
+ * `reportOnly` it writes `Content-Security-Policy-Report-Only` instead and
+ * lists the unhashable markup in the result rather than failing.
  */
 export async function writeHeadersFile(
   outDir: string,
   options: WriteHeadersFileOptions = {},
 ): Promise<WriteHeadersFileResult> {
   assertNoUnsafeInline(options.directives ?? {});
+  if (options.reportOnly) {
+    assertReportOnlyEndpoint(options.reportEndpoint);
+  }
   const headersPath = join(outDir, HEADERS_FILENAME);
   if (existsSync(headersPath) && !options.append) {
     throw new HeadersFileError(
@@ -249,12 +332,8 @@ export async function writeHeadersFile(
     );
   }
   const site = await scanSite(outDir);
-  if (site.unhashableFiles.length > 0) {
-    throw new HeadersFileError(
-      "unhashable-inline",
-      `Inline style attributes, event handlers, and javascript: URLs cannot be covered by a hash. Move them out of the markup:\n${site.unhashableDetails.join("\n")}`,
-      site.unhashableFiles,
-    );
+  if (site.unhashable.length > 0 && !options.reportOnly) {
+    throw unhashableError(site.unhashable);
   }
   const headers = buildHeaders(options, site.scriptHashes, site.styleHashes);
   await persistBlock(
@@ -266,5 +345,6 @@ export async function writeHeadersFile(
     path: headersPath,
     scriptHashes: site.scriptHashes,
     styleHashes: site.styleHashes,
+    unhashable: site.unhashable,
   };
 }
