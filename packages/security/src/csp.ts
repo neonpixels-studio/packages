@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 const NONCE_BYTE_LENGTH = 16;
 const SCRIPT_SRC = "script-src";
 const DEFAULT_SRC = "default-src";
@@ -44,9 +42,17 @@ export interface BuildContentSecurityPolicyOptions {
   nonce?: string;
 }
 
-/** Returns a fresh nonce: 16 random bytes, base64 encoded. */
+/** Returns a fresh nonce: 16 random bytes, base64 encoded. Uses Web Crypto, so it also runs in edge runtimes. */
 export function generateCspNonce(): string {
-  return randomBytes(NONCE_BYTE_LENGTH).toString("base64");
+  const bytes = globalThis.crypto.getRandomValues(
+    new Uint8Array(NONCE_BYTE_LENGTH),
+  );
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/** True when the value is base64 (standard or URL-safe alphabet), so it cannot break out of a header or an attribute. */
+export function isValidCspNonce(nonce: string): boolean {
+  return NONCE_PATTERN.test(nonce);
 }
 
 function unique(sources: readonly string[]): string[] {
@@ -93,7 +99,7 @@ function serializeDirective(name: string, sources: readonly string[]): string {
 // A script-src that did not exist would fall back to default-src, so the
 // nonce must not replace those sources.
 function addNonce(directives: CspDirectives, nonce: string): CspDirectives {
-  if (!NONCE_PATTERN.test(nonce)) {
+  if (!isValidCspNonce(nonce)) {
     throw new TypeError("Invalid CSP nonce");
   }
   const nonceSource = `'nonce-${nonce}'`;
