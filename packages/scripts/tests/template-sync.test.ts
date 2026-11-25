@@ -223,6 +223,9 @@ describe("package.json fields", () => {
     expect(range).toBe(SYNCED_ENGINES_RANGE);
     expect(rangeAccepts(range, [22, 17, 0])).toBe(false);
     expect(rangeAccepts(range, [22, 18, 0])).toBe(true);
+    expect(rangeAccepts(range, [23, 0, 0])).toBe(false);
+    expect(rangeAccepts(range, [25, 0, 0])).toBe(false);
+    expect(rangeAccepts(range, [26, 0, 0])).toBe(true);
   });
 
   it("pins an engines range that accepts the pinned .nvmrc version", () => {
@@ -281,16 +284,12 @@ describe("--check", () => {
     expect(sync(["--stack", "node", "--check"])).toBe(1);
     const printed = errors.join("\n");
     expect(printed).toContain("package.json differs");
-    expect(printed).toContain(
-      "- " + '    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"',
-    );
-    expect(printed).toContain(
-      "+ " + '    "node": "^22.18.0 || ^24.0.0 || >=26.0.0"',
-    );
+    expect(printed).toContain(`-     "node": "${PREVIOUS_ENGINES_RANGE}"`);
+    expect(printed).toContain(`+     "node": "${SYNCED_ENGINES_RANGE}"`);
     expect(read("package.json")).toBe(oldRepository);
     sync(["--stack", "node"]);
     expect(read("package.json")).toBe(
-      oldRepository.replace("^22.17.0", "^22.18.0"),
+      oldRepository.replace(PREVIOUS_ENGINES_RANGE, SYNCED_ENGINES_RANGE),
     );
   });
 
