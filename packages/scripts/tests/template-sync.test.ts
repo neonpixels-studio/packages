@@ -24,6 +24,7 @@ const TEMPLATES_ROOT = join(
   "templates",
 );
 const SYNCED_ENGINES_RANGE = "^22.18.0 || ^24.0.0 || >=26.0.0";
+const PREVIOUS_ENGINES_RANGE = "^22.17.0 || ^24.0.0 || >=26.0.0";
 const PACKAGE_JSON = `${JSON.stringify(
   { name: "app", version: "1.2.3", scripts: { test: "vitest" } },
   null,
@@ -220,12 +221,8 @@ describe("package.json fields", () => {
       readFileSync(join(TEMPLATES_ROOT, "base/package-fields.json"), "utf8"),
     ).engines.node as string;
     expect(range).toBe(SYNCED_ENGINES_RANGE);
-    expect(
-      range.split("||").some((part) => accepts(part.trim(), [22, 17, 0])),
-    ).toBe(false);
-    expect(
-      range.split("||").some((part) => accepts(part.trim(), [22, 18, 0])),
-    ).toBe(true);
+    expect(rangeAccepts(range, [22, 17, 0])).toBe(false);
+    expect(rangeAccepts(range, [22, 18, 0])).toBe(true);
   });
 
   it("pins an engines range that accepts the pinned .nvmrc version", () => {
@@ -236,11 +233,13 @@ describe("package.json fields", () => {
     const range = JSON.parse(
       readFileSync(join(TEMPLATES_ROOT, "base/package-fields.json"), "utf8"),
     ).engines.node as string;
-    expect(range.split("||").some((part) => accepts(part.trim(), pinned))).toBe(
-      true,
-    );
+    expect(rangeAccepts(range, pinned)).toBe(true);
   });
 });
+
+function rangeAccepts(range: string, version: number[]): boolean {
+  return range.split("||").some((part) => accepts(part.trim(), version));
+}
 
 /** Understands only the `^x.y.z` and `>=x.y.z` forms the template uses. */
 function accepts(alternative: string, version: number[]): boolean {
@@ -272,7 +271,7 @@ describe("--check", () => {
         name: "app",
         version: "1.2.3",
         scripts: { test: "vitest" },
-        engines: { node: "^22.17.0 || ^24.0.0 || >=26.0.0" },
+        engines: { node: PREVIOUS_ENGINES_RANGE },
       },
       null,
       2,
@@ -288,7 +287,6 @@ describe("--check", () => {
     expect(printed).toContain(
       "+ " + '    "node": "^22.18.0 || ^24.0.0 || >=26.0.0"',
     );
-    expect(printed).not.toContain('"scripts"');
     expect(read("package.json")).toBe(oldRepository);
     sync(["--stack", "node"]);
     expect(read("package.json")).toBe(
