@@ -48,11 +48,19 @@ describe("dotenvx contract", () => {
 });
 
 describe("@sentry/node contract", () => {
+  const sentEnvelopes: unknown[] = [];
+
   beforeAll(() => {
-    // A no-op transport keeps the SDK API real without any network I/O.
+    // A recording transport keeps the SDK API real without any network I/O.
     Sentry.init({
       dsn: FAKE_DSN,
-      transport: () => ({ send: async () => ({}), flush: async () => true }),
+      transport: () => ({
+        send: async (envelope) => {
+          sentEnvelopes.push(envelope);
+          return {};
+        },
+        flush: async () => true,
+      }),
     });
   });
 
@@ -60,13 +68,19 @@ describe("@sentry/node contract", () => {
     await Sentry.close(FLUSH_TIMEOUT_MS);
   });
 
-  it("returns a check-in id for an in_progress check-in", () => {
+  it("returns a check-in id for an in_progress check-in", async () => {
     const checkInId = Sentry.captureCheckIn(
       { monitorSlug: "contract", status: "in_progress" },
       MONITOR_CONFIG,
     );
     expect(Sentry.getClient()).toBeDefined();
     expect(checkInId).toMatch(/^[0-9a-f]{32}$/);
+    await Sentry.flush(FLUSH_TIMEOUT_MS);
+    const sent = JSON.stringify(sentEnvelopes);
+    expect(sent).toContain('"check_in"');
+    expect(sent).toContain(checkInId);
+    expect(sent).toContain('"monitor_slug":"contract"');
+    expect(sent).toContain('"checkin_margin":5');
   });
 
   it("closes a check-in by id", () => {

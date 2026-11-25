@@ -36,14 +36,13 @@ function describeMismatch(
   ) {
     return undefined;
   }
-  const devVersion = semver.minVersion(devRange);
-  if (devVersion && semver.satisfies(devVersion, peerRange)) {
+  if (semver.subset(devRange, peerRange)) {
     return undefined;
   }
   return `${name}: "${peerRange}" does not include "${devRange}"`;
 }
 
-// Peers whose range excludes the lowest version of the same dependency's
+// Peers whose range does not fully contain the same dependency's
 // devDependencies range.
 function peerRangeMismatches(manifest: Manifest): string[] {
   return Object.entries(manifest.peerDependencies ?? {})
@@ -69,6 +68,22 @@ describe("peer ranges", () => {
         devDependencies: { "@sentry/node": "^11.0.0", tool: "^2.0.0" },
       }),
     ).toEqual(['@sentry/node: "^10.0.0" does not include "^11.0.0"']);
+  });
+
+  it("finds the package manifests", () => {
+    expect(readManifests().map((manifest) => manifest.name)).toContain(
+      "@neon-pixels/netlify-functions",
+    );
+  });
+
+  it("reports a dev range that is only partly inside the peer range", () => {
+    expect(
+      peerRangeMismatches({
+        name: "example",
+        peerDependencies: { tool: "~11.0.0" },
+        devDependencies: { tool: "^11.0.0" },
+      }),
+    ).toHaveLength(1);
   });
 
   it("skips protocol ranges instead of throwing", () => {
