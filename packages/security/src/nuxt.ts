@@ -4,8 +4,8 @@ import {
   SELF_SOURCE,
   UNSAFE_INLINE_SOURCE,
   buildContentSecurityPolicy,
-  isValidCspNonce,
   mergeCspDirectives,
+  nonceSource,
 } from "./csp.ts";
 import {
   clerkOriginFromPublishableKey,
@@ -134,7 +134,7 @@ function enforcedDirectives(options: NuxtPolicyOptions): CspDirectives {
     "object-src": [NONE_SOURCE],
     "frame-ancestors": [NONE_SOURCE],
     "form-action": [SELF_SOURCE],
-    // The nonce is added by buildContentSecurityPolicy; there is no
+    // The nonce is added by withNonce; there is no
     // 'unsafe-inline' here.
     "script-src": [
       SELF_SOURCE,
@@ -201,7 +201,7 @@ function withNonce(
   if (nonce === undefined) {
     return directives;
   }
-  return mergeCspDirectives(directives, { "script-src": [`'nonce-${nonce}'`] });
+  return mergeCspDirectives(directives, { "script-src": [nonceSource(nonce)] });
 }
 
 /**
@@ -211,9 +211,6 @@ function withNonce(
  * rendered pages. Throws a `TypeError` for a nonce that is not base64.
  */
 export function nuxtPolicy(options: NuxtPolicyOptions = {}): NuxtPolicy {
-  if (options.nonce !== undefined && !isValidCspNonce(options.nonce)) {
-    throw new TypeError("Invalid CSP nonce");
-  }
   const directives = withNonce(enforcedDirectives(options), options.nonce);
   const policy = buildContentSecurityPolicy(directives);
   return {

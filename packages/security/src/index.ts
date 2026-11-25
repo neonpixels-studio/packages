@@ -2,7 +2,9 @@ export { securityHeaders, type SecurityHeadersOptions } from "./headers.ts";
 export {
   buildContentSecurityPolicy,
   generateCspNonce,
+  assertValidCspNonce,
   isValidCspNonce,
+  nonceSource,
   mergeCspDirectives,
   type BuildContentSecurityPolicyOptions,
   type CspDirectiveName,

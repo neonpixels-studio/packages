@@ -1,4 +1,8 @@
-import { generateCspNonce, isValidCspNonce } from "./csp.ts";
+import {
+  assertValidCspNonce,
+  generateCspNonce,
+  isValidCspNonce,
+} from "./csp.ts";
 
 // No Nuxt, Nitro, h3, or Node built-in imports in this file or the modules it
 // uses: these functions run in a server runtime and in an edge runtime.
@@ -17,12 +21,6 @@ const RAW_TEXT_ELEMENTS = new Set([
 ]);
 const COMMENT_START = "<!--";
 const COMMENT_END = "-->";
-
-function assertValidNonce(nonce: string): void {
-  if (!isValidCspNonce(nonce)) {
-    throw new TypeError("Invalid CSP nonce");
-  }
-}
 
 // Index of the ">" that closes the tag starting at `start`, skipping any ">"
 // inside a quoted attribute value. -1 when the tag never closes.
@@ -68,7 +66,7 @@ function withNonceAttribute(tag: string, nonce: string): string {
  * Throws a `TypeError` for a nonce that is not base64.
  */
 export function addNonceToScripts(html: string, nonce: string): string {
-  assertValidNonce(nonce);
+  assertValidCspNonce(nonce);
   let output = "";
   let position = 0;
   while (position < html.length) {
@@ -130,11 +128,12 @@ export function addNonceToScriptTags(
   tags: ResolvedHeadTag[],
   nonce: string,
 ): void {
-  assertValidNonce(nonce);
+  assertValidCspNonce(nonce);
   for (const entry of tags) {
-    if (entry.tag === SCRIPT_TAG_NAME) {
-      entry.props.nonce = nonce;
+    if (entry.tag !== SCRIPT_TAG_NAME) {
+      continue;
     }
+    entry.props.nonce = nonce;
   }
 }
 

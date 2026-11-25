@@ -139,6 +139,7 @@ describe("nonceForContext", () => {
 describe("edge runtime safety", () => {
   const edgeSafeModules = [
     "csp.ts",
+    "headers.ts",
     "nonce.ts",
     "nuxt.ts",
     "origins.ts",
@@ -152,7 +153,7 @@ describe("edge runtime safety", () => {
         new URL(`../src/${file}`, import.meta.url),
         "utf8",
       );
-      expect(source).not.toMatch(/from "node:|require\(|\bBuffer\b/);
+      expect(source).not.toMatch(/["']node:|require\(|\bBuffer\b|\bprocess\./);
       expect(source).not.toMatch(/from "(nuxt|nitropack|nitro|h3|unhead)/);
     },
   );

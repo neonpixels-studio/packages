@@ -17,6 +17,25 @@ describe("clerkOriginFromPublishableKey", () => {
     ).toBe("https://clerk.example.com");
   });
 
+  it("accepts the URL-safe alphabet and missing padding", () => {
+    const host = "clerk-\u00e9.example.com";
+    const urlSafe = Buffer.from(`${host}$`)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+    expect(clerkOriginFromPublishableKey(`pk_test_${urlSafe}`)).toBeUndefined();
+    const unpadded = Buffer.from("a.example.com$")
+      .toString("base64")
+      .replace(/=+$/, "");
+    expect(clerkOriginFromPublishableKey(`pk_live_${unpadded}`)).toBe(
+      "https://a.example.com",
+    );
+  });
+
+  it("returns undefined, not an error, for a payload of impossible length", () => {
+    expect(clerkOriginFromPublishableKey("pk_test_abcde")).toBeUndefined();
+  });
+
   it.each([
     undefined,
     null,

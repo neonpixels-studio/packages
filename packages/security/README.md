@@ -74,7 +74,7 @@ Returns `{ policy, headers }`. `headers` holds `Content-Security-Policy-Report-O
 
 ### Enforcing in Nuxt
 
-`nuxtPolicy` is the enforced counterpart of the report-only preset. It is built from the same source lists, but scripts need a per-response nonce instead of `'unsafe-inline'`, and it has no `'unsafe-eval'`.
+`nuxtPolicy` is the enforced counterpart of the report-only preset. It shares its Clerk, Sentry, Turnstile, and Google Analytics source lists with the report-only preset, but scripts need a per-response nonce instead of `'unsafe-inline'`, and it has no `'unsafe-eval'`. It is narrower than the report-only preset: it has no `blob:` script source, no Clerk bot-protection origins, and no `manifest-src`.
 
 ```ts
 import { nuxtPolicy } from "@neon-pixels/security";
@@ -89,7 +89,7 @@ const { policy, headers } = nuxtPolicy({
 });
 ```
 
-Returns `{ policy, directives, headers }`. `headers` holds `Content-Security-Policy` (and `Reporting-Endpoints` when `reportEndpoint` is set). Without a `nonce` the policy is still valid and allows no inline script, which is the right policy for responses that are not rendered pages. `development: true` also allows `'unsafe-eval'` scripts, `ws:` and `wss:` connections, and `'self'` frames for the Nuxt dev server, and nothing else. A `nonce` or `nuxtPolicy` call with a nonce that is not base64 throws a `TypeError`.
+Returns `{ policy, directives, headers }`. `headers` holds `Content-Security-Policy` (and `Reporting-Endpoints` when `reportEndpoint` is set). Without a `nonce` the policy is still valid and allows no inline script, which is the right policy for responses that are not rendered pages. `development: true` also allows `'unsafe-eval'` scripts, `ws:` and `wss:` connections, and `'self'` frames for the Nuxt dev server, and nothing else. `nuxtPolicy`, `addNonceToScripts`, and `addNonceToScriptTags` throw a `TypeError` for a nonce that is not base64.
 
 To add your own sources, pass the result's `directives` (nonce included) through `mergeCspDirectives` and build the header from the merged map. `nuxtPolicy` has no options for individual services beyond the ones above.
 
@@ -118,6 +118,7 @@ The nonce helpers run in a server runtime and in an edge runtime. They import no
 Two plugins connect them to Nuxt. A Nitro plugin, `server/plugins/csp.ts`:
 
 ```ts
+import type { H3Event } from "h3";
 import {
   addNonceToScripts,
   nonceForContext,
@@ -180,6 +181,8 @@ export default defineNuxtPlugin((nuxtApp) => {
   });
 });
 ```
+
+A nonce only works when every HTML response is rendered per request. With `prerender`, or with `swr`, `isr`, or `cache` route rules, the HTML and its header are reused, so a nonce is either shared between visitors or missing from the page; keep those routes on `nuxtReportOnlyPolicy` or serve them a hash-based policy.
 
 Anything passed to a `useHead` script, especially `innerHTML`, must be developer-controlled, never user input.
 
