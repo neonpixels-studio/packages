@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 const NONCE_BYTE_LENGTH = 16;
 const SCRIPT_SRC = "script-src";
 const DEFAULT_SRC = "default-src";
@@ -44,9 +42,30 @@ export interface BuildContentSecurityPolicyOptions {
   nonce?: string;
 }
 
-/** Returns a fresh nonce: 16 random bytes, base64 encoded. */
+/** Returns a fresh nonce: 16 random bytes, base64 encoded. Uses Web Crypto, so it also runs in edge runtimes. */
 export function generateCspNonce(): string {
-  return randomBytes(NONCE_BYTE_LENGTH).toString("base64");
+  const bytes = globalThis.crypto.getRandomValues(
+    new Uint8Array(NONCE_BYTE_LENGTH),
+  );
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/** Throws a `TypeError` unless the value is a base64 nonce. */
+export function assertValidCspNonce(nonce: string): void {
+  if (!isValidCspNonce(nonce)) {
+    throw new TypeError("Invalid CSP nonce");
+  }
+}
+
+/** The `script-src` source for a nonce, such as `'nonce-abc='`. Validates the nonce. */
+export function nonceSource(nonce: string): string {
+  assertValidCspNonce(nonce);
+  return `'nonce-${nonce}'`;
+}
+
+/** True when the value is base64 (standard or URL-safe alphabet), so it cannot break out of a header or an attribute. */
+export function isValidCspNonce(nonce: string): boolean {
+  return typeof nonce === "string" && NONCE_PATTERN.test(nonce);
 }
 
 function unique(sources: readonly string[]): string[] {
@@ -92,20 +111,20 @@ function serializeDirective(name: string, sources: readonly string[]): string {
 
 // A script-src that did not exist would fall back to default-src, so the
 // nonce must not replace those sources.
-function addNonce(directives: CspDirectives, nonce: string): CspDirectives {
-  if (!NONCE_PATTERN.test(nonce)) {
-    throw new TypeError("Invalid CSP nonce");
-  }
-  const nonceSource = `'nonce-${nonce}'`;
+export function addNonce(
+  directives: CspDirectives,
+  nonce: string,
+): CspDirectives {
+  const source = nonceSource(nonce);
   const inherited = directives[SCRIPT_SRC] ?? directives[DEFAULT_SRC] ?? [];
   const withNonce: CspDirectives = {
     ...directives,
-    [SCRIPT_SRC]: [...inherited, nonceSource],
+    [SCRIPT_SRC]: [...inherited, source],
   };
   // script-src-elem takes precedence over script-src for <script> elements.
   const elementSources = directives[SCRIPT_SRC_ELEM];
   if (elementSources) {
-    withNonce[SCRIPT_SRC_ELEM] = [...elementSources, nonceSource];
+    withNonce[SCRIPT_SRC_ELEM] = [...elementSources, source];
   }
   return withNonce;
 }

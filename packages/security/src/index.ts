@@ -17,7 +17,16 @@ export {
   type ReportingOptions,
 } from "./reporting.ts";
 export {
+  addNonceToScriptTags,
+  addNonceToScripts,
+  nonceForContext,
+  type ResolvedHeadTag,
+} from "./nonce.ts";
+export {
+  nuxtPolicy,
   nuxtReportOnlyPolicy,
+  type NuxtPolicy,
+  type NuxtPolicyOptions,
   type NuxtReportOnlyPolicy,
   type NuxtReportOnlyPolicyOptions,
 } from "./nuxt.ts";

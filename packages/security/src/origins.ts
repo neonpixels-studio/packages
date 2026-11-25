@@ -2,6 +2,19 @@ const HOSTNAME_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 const PUBLISHABLE_KEY_PATTERN = /^pk_(?:test|live)_([A-Za-z0-9+/_-]+={0,2})$/;
 
+// Accepts the URL-safe alphabet and missing padding, and uses no Node globals so it
+// runs in edge runtimes. Returns undefined for input that is not valid base64.
+function decodeBase64(encoded: string): string | undefined {
+  try {
+    const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
+    return new TextDecoder().decode(
+      Uint8Array.from(binary, (character) => character.charCodeAt(0)),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Derives the Clerk Frontend API origin from a publishable key (`pk_<env>_` plus
  * the base64 of the host and a trailing `$`). Returns undefined for a missing
@@ -14,8 +27,8 @@ export function clerkOriginFromPublishableKey(
   if (!encoded) {
     return undefined;
   }
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
-  if (!decoded.endsWith("$")) {
+  const decoded = decodeBase64(encoded);
+  if (!decoded?.endsWith("$")) {
     return undefined;
   }
   const host = decoded.slice(0, -1);
