@@ -17,6 +17,19 @@ describe("clerkOriginFromPublishableKey", () => {
     ).toBe("https://clerk.example.com");
   });
 
+  it("accepts a key without padding", () => {
+    const unpadded = Buffer.from("a.example.com$")
+      .toString("base64")
+      .replace(/=+$/, "");
+    expect(clerkOriginFromPublishableKey(`pk_live_${unpadded}`)).toBe(
+      "https://a.example.com",
+    );
+  });
+
+  it("returns undefined, not an error, for a payload of impossible length", () => {
+    expect(clerkOriginFromPublishableKey("pk_test_abcde")).toBeUndefined();
+  });
+
   it.each([
     undefined,
     null,
