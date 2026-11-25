@@ -25,7 +25,13 @@ function fakeReplay(replayId: string | undefined) {
 }
 
 function enableSentry(dsn = "https://fixture@example.invalid/1") {
-  sentry.getClient.mockReturnValue({ getOptions: () => ({ dsn }) });
+  sentry.getClient.mockReturnValue({
+    getOptions: () => ({
+      dsn,
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1,
+    }),
+  });
 }
 
 function resetSentryMocks() {
@@ -41,6 +47,7 @@ describe("startSentryReplay", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("does nothing when there is no client", async () => {
@@ -104,14 +111,12 @@ describe("startSentryReplay", () => {
 
   it("buffers for error replays when the restart is sampled out", async () => {
     enableSentry();
-    vi.stubEnv("NODE_ENV", "production");
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const replay = fakeReplay(undefined);
     sentry.getReplay.mockReturnValue(replay);
     await startSentryReplay();
     expect(replay.start).not.toHaveBeenCalled();
     expect(replay.startBuffering).toHaveBeenCalledTimes(1);
-    vi.unstubAllEnvs();
   });
 
   it("warns instead of rejecting when the SDK throws, and keeps working", async () => {

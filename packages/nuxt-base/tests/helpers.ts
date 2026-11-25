@@ -16,9 +16,10 @@ export const FIXTURE_DIRECTORIES = {
 const FIXTURE_GENERATED = [".nuxt", ".output", "dist", "node_modules"];
 
 export function cleanFixtureOutput(): void {
-  for (const directory of Object.values(FIXTURE_DIRECTORIES)) {
-    for (const name of FIXTURE_GENERATED) {
-      rmSync(resolve(directory, name), { recursive: true, force: true });
-    }
+  const generatedPaths = Object.values(FIXTURE_DIRECTORIES).flatMap(
+    (directory) => FIXTURE_GENERATED.map((name) => resolve(directory, name)),
+  );
+  for (const generatedPath of generatedPaths) {
+    rmSync(generatedPath, { recursive: true, force: true });
   }
 }

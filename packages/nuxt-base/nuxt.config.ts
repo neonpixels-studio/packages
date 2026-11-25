@@ -8,9 +8,21 @@ import { assertSiteUrlForBuild } from "./shared/lib/site-url.ts";
 
 // Runs in every Nuxt command (dev, build, prepare) because the config loads in all of them.
 assertNoRetiredEnv(process.env);
-assertSiteUrlForBuild(process.env);
 
 const runtimeConfig = buildRuntimeConfig(process.env);
+
+interface CommandInfo {
+  options: { dev: boolean; _prepare: boolean };
+}
+
+// `nuxt prepare` (often a postinstall step) and `nuxt dev` are not builds, so
+// a local http site URL must not fail them.
+function checkSiteUrlForBuild(nuxt: CommandInfo): void {
+  if (nuxt.options.dev || nuxt.options._prepare) {
+    return;
+  }
+  assertSiteUrlForBuild(process.env);
+}
 
 const nitro: Record<string, unknown> = {
   preset: "netlify",
@@ -18,6 +30,7 @@ const nitro: Record<string, unknown> = {
 };
 
 export default defineNuxtConfig({
+  hooks: { ready: checkSiteUrlForBuild },
   compatibilityDate: "2024-11-01",
   future: { compatibilityVersion: 4 },
   modules: ["@sentry/nuxt/module"],

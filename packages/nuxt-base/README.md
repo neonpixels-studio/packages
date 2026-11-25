@@ -29,7 +29,7 @@ Peer dependencies: `nuxt` 4 and `@sentry/nuxt` 11. `@neon-pixels/sentry` is inst
 4. Delete your own site URL helpers and use `useSiteUrl()` (below).
 5. Rename any retired environment variable (below).
 
-Every value the layer sets can still be overridden in your own `nuxt.config.ts`. Arrays merge instead of being replaced, so a `modules` or `filesToDeleteAfterUpload` entry in your config is added to the layer's.
+Every value the layer sets can still be overridden in your own `nuxt.config.ts`. The server start-up file reads the DSN and environment from the `nitro.replace` literals, not from the runtime config, so an app that overrides `runtimeConfig.public.sentry` must override those two `nitro.replace` entries as well. Arrays merge instead of being replaced, so a `modules` or `filesToDeleteAfterUpload` entry in your config is added to the layer's.
 
 ## What the layer sets
 
@@ -83,7 +83,7 @@ const siteUrl = useSiteUrl(); // "https://example.com"
 
 The value must be an absolute `http` or `https` URL that is a bare origin: no path other than `/`, no query, no fragment, no credentials. A missing or invalid value throws a 500 error whose message names the problem and never contains the value. It never falls back to the request `Host` header or to a hardcoded origin.
 
-A production build (`NODE_ENV=production`) fails when `NUXT_PUBLIC_SITE_URL` is set and invalid, or is not `https`. An unset value does not fail the build, because not every app has a public site URL; `useSiteUrl()` fails on first use instead. An app that wants a missing value to fail its production build adds one line to its own config:
+A production build (`NODE_ENV=production`, not `nuxt dev` or `nuxt prepare`) fails when `NUXT_PUBLIC_SITE_URL` is set and invalid, or is not `https`. An unset value does not fail the build, because not every app has a public site URL; `useSiteUrl()` fails on first use instead. An app that wants a missing value to fail its production build adds one line to its own config (it also runs under `nuxt prepare`, so guard it if `prepare` runs without the variable set):
 
 ```ts
 import { requireSiteUrlForBuild } from "@neon-pixels/nuxt-base/build";

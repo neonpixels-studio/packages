@@ -1,10 +1,5 @@
 import * as Sentry from "@sentry/nuxt";
 import { scrubRecordingEvent } from "@neon-pixels/sentry";
-import {
-  REPLAY_ON_ERROR_SAMPLE_RATE,
-  PRODUCTION_REPLAY_SESSION_SAMPLE_RATE,
-  DEVELOPMENT_REPLAY_SESSION_SAMPLE_RATE,
-} from "../../shared/lib/sentry-options.ts";
 
 // Defaults are already true in the SDK; kept explicit so a future SDK default
 // change cannot weaken privacy.
@@ -30,10 +25,13 @@ function isSentryEnabled(): boolean {
   return Boolean(Sentry.getClient()?.getOptions().dsn);
 }
 
-function sessionSampleRate(): number {
-  return process.env.NODE_ENV === "production"
-    ? PRODUCTION_REPLAY_SESSION_SAMPLE_RATE
-    : DEVELOPMENT_REPLAY_SESSION_SAMPLE_RATE;
+// Read from the client so a restart samples with the same rates as the first start.
+function readSampleRates() {
+  const options = Sentry.getClient<Sentry.BrowserClient>()?.getOptions();
+  return {
+    session: options?.replaysSessionSampleRate ?? 0,
+    onError: options?.replaysOnErrorSampleRate ?? 0,
+  };
 }
 
 // start() ignores sampling, so reapply the session sample decision on a
@@ -44,11 +42,13 @@ function restartReplay(
   if (replay.getReplayId()) {
     return;
   }
-  if (Math.random() < sessionSampleRate()) {
+  const rates = readSampleRates();
+  if (Math.random() < rates.session) {
     replay.start();
     return;
   }
-  if (REPLAY_ON_ERROR_SAMPLE_RATE > 0) {
+  // The SDK rolls the on-error rate itself when an error occurs while buffering.
+  if (rates.onError > 0) {
     replay.startBuffering();
   }
 }

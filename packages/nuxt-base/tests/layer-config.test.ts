@@ -1,4 +1,4 @@
-import { loadNuxtConfig } from "@nuxt/kit";
+import { loadNuxt, loadNuxtConfig } from "@nuxt/kit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FIXTURE_DIRECTORIES } from "./helpers.ts";
 
@@ -30,6 +30,19 @@ async function loadFixtureConfig(
 ): Promise<LoadedConfig> {
   const config = await loadNuxtConfig({ cwd, overrides: { dev } });
   return config as unknown as LoadedConfig;
+}
+
+async function loadNuxtReady(
+  cwd: string,
+  overrides: { dev: boolean; _prepare: boolean },
+): Promise<void> {
+  const nuxt = await loadNuxt({
+    cwd,
+    ready: true,
+    dev: overrides.dev,
+    overrides: { _prepare: overrides._prepare, telemetry: false },
+  });
+  await nuxt.close();
 }
 
 describe("the merged config of an app that extends the layer", () => {
@@ -98,14 +111,32 @@ describe("the merged config of an app that extends the layer", () => {
     CONFIG_LOAD_TIMEOUT_MS,
   );
 
-  it(
-    "fails a production build with an invalid site URL",
-    async () => {
+  it.each([
+    ["http://example.com", "https"],
+    ["https://example.com/path", "NUXT_PUBLIC_SITE_URL"],
+  ])(
+    "fails a production build with the site URL %s",
+    async (siteUrl, expectedMessage) => {
       vi.stubEnv("NODE_ENV", "production");
-      vi.stubEnv("NUXT_PUBLIC_SITE_URL", "http://example.com");
-      await expect(loadFixtureConfig(FIXTURE_DIRECTORIES.app)).rejects.toThrow(
-        "NUXT_PUBLIC_SITE_URL",
-      );
+      vi.stubEnv("NUXT_PUBLIC_SITE_URL", siteUrl);
+      await expect(
+        loadNuxtReady(FIXTURE_DIRECTORIES.app, { dev: false, _prepare: false }),
+      ).rejects.toThrow(expectedMessage);
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+
+  it.each([
+    ["nuxt dev", { dev: true, _prepare: false }],
+    ["nuxt prepare", { dev: false, _prepare: true }],
+  ])(
+    "does not fail %s with a local http site URL",
+    async (_command, overrides) => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("NUXT_PUBLIC_SITE_URL", "http://localhost:3000");
+      await expect(
+        loadNuxtReady(FIXTURE_DIRECTORIES.app, overrides),
+      ).resolves.toBeUndefined();
     },
     CONFIG_LOAD_TIMEOUT_MS,
   );
