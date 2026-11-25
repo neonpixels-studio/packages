@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import dotenvx from "@dotenvx/dotenvx";
 import * as Sentry from "@sentry/node";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 // These run against the real SDKs (the other tests mock them), so a major
 // bump that renames or reshapes an API the package calls fails here.
@@ -23,6 +23,11 @@ describe("dotenvx contract", () => {
     directory = mkdtempSync(join(tmpdir(), "netlify-functions-env-"));
   });
 
+  afterEach(() => {
+    delete process.env.FUNCTION_TEST_SECRET;
+    delete process.env.FUNCTION_TEST_PLAIN;
+  });
+
   afterAll(() => {
     rmSync(directory, { recursive: true, force: true });
   });
@@ -39,13 +44,16 @@ describe("dotenvx contract", () => {
     writeFileSync(path, "FUNCTION_TEST_PLAIN=value\n");
     dotenvx.config({ path, strict: true, quiet: true });
     expect(process.env.FUNCTION_TEST_PLAIN).toBe("value");
-    delete process.env.FUNCTION_TEST_PLAIN;
   });
 });
 
 describe("@sentry/node contract", () => {
   beforeAll(() => {
-    Sentry.init({ dsn: FAKE_DSN });
+    // A no-op transport keeps the SDK API real without any network I/O.
+    Sentry.init({
+      dsn: FAKE_DSN,
+      transport: () => ({ send: async () => ({}), flush: async () => true }),
+    });
   });
 
   afterAll(async () => {
@@ -57,7 +65,8 @@ describe("@sentry/node contract", () => {
       { monitorSlug: "contract", status: "in_progress" },
       MONITOR_CONFIG,
     );
-    expect(checkInId).toEqual(expect.any(String));
+    expect(Sentry.getClient()).toBeDefined();
+    expect(checkInId).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("closes a check-in by id", () => {

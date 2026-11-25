@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import semver from "semver";
 import { describe, expect, it } from "vitest";
@@ -12,40 +13,51 @@ type Manifest = {
 const PACKAGES_DIRECTORY = fileURLToPath(
   new URL("../packages", import.meta.url),
 );
-const WORKSPACE_PROTOCOL = "workspace:";
 
 function readManifests(): Manifest[] {
-  return readdirSync(PACKAGES_DIRECTORY).map((directory) =>
-    JSON.parse(
-      readFileSync(`${PACKAGES_DIRECTORY}/${directory}/package.json`, "utf-8"),
-    ),
-  );
+  return readdirSync(PACKAGES_DIRECTORY, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(PACKAGES_DIRECTORY, entry.name, "package.json"))
+    .filter((path) => existsSync(path))
+    .map((path) => JSON.parse(readFileSync(path, "utf-8")));
 }
 
-// Returns the peers whose range does not include the dev dependency's lowest
-// version, as "name: range does not include dev range" lines.
-function peerRangeMismatches(manifest: Manifest): string[] {
-  const mismatches: string[] = [];
-  for (const [name, peerRange] of Object.entries(
-    manifest.peerDependencies ?? {},
-  )) {
-    const devRange = manifest.devDependencies?.[name];
-    if (!devRange || devRange.startsWith(WORKSPACE_PROTOCOL)) {
-      continue;
-    }
-    const devVersion = semver.minVersion(devRange);
-    if (!devVersion || !semver.satisfies(devVersion, peerRange)) {
-      mismatches.push(`${name}: "${peerRange}" does not include "${devRange}"`);
-    }
+// Protocol ranges (workspace:, catalog:, npm:) are not semver, so they are
+// skipped rather than compared.
+function describeMismatch(
+  name: string,
+  peerRange: string,
+  devRange: string | undefined,
+): string | undefined {
+  if (
+    !devRange ||
+    !semver.validRange(devRange) ||
+    !semver.validRange(peerRange)
+  ) {
+    return undefined;
   }
-  return mismatches;
+  const devVersion = semver.minVersion(devRange);
+  if (devVersion && semver.satisfies(devVersion, peerRange)) {
+    return undefined;
+  }
+  return `${name}: "${peerRange}" does not include "${devRange}"`;
+}
+
+// Peers whose range excludes the lowest version of the same dependency's
+// devDependencies range.
+function peerRangeMismatches(manifest: Manifest): string[] {
+  return Object.entries(manifest.peerDependencies ?? {})
+    .map(([name, peerRange]) =>
+      describeMismatch(name, peerRange, manifest.devDependencies?.[name]),
+    )
+    .filter((mismatch) => mismatch !== undefined);
 }
 
 describe("peer ranges", () => {
-  it.each(readManifests().map((manifest) => [manifest.name, manifest]))(
-    "%s peer ranges include its own dev dependency versions",
-    (_name, manifest) => {
-      expect(peerRangeMismatches(manifest as Manifest)).toEqual([]);
+  it.each(readManifests())(
+    "$name peer ranges include its own dev dependency versions",
+    (manifest) => {
+      expect(peerRangeMismatches(manifest)).toEqual([]);
     },
   );
 
@@ -57,5 +69,15 @@ describe("peer ranges", () => {
         devDependencies: { "@sentry/node": "^11.0.0", tool: "^2.0.0" },
       }),
     ).toEqual(['@sentry/node: "^10.0.0" does not include "^11.0.0"']);
+  });
+
+  it("skips protocol ranges instead of throwing", () => {
+    expect(
+      peerRangeMismatches({
+        name: "example",
+        peerDependencies: { a: "workspace:^", b: "^1.0.0" },
+        devDependencies: { a: "workspace:*", b: "catalog:" },
+      }),
+    ).toEqual([]);
   });
 });
