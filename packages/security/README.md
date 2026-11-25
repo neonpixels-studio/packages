@@ -85,7 +85,7 @@ await writeHeadersFile("dist", {
 
 Run it after the site is built. It reads every `.html` file under the output directory, hashes each inline `<script>` and `<style>` element (SHA-256), and writes Netlify's `_headers` file for `/*` with the security headers and a policy that carries those hashes and no `'unsafe-inline'` in `script-src` or `style-src`. The built-in policy is first-party only (`default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`); `directives` adds sources to it.
 
-Options: `directives`, `reportEndpoint`, `production` (default `true`), `hstsPreload`, `extraDeniedFeatures`, and `append`. It returns `{ path, scriptHashes, styleHashes }`.
+Options: `directives`, `reportEndpoint`, `reportOnly`, `production` (default `true`), `hstsPreload`, `extraDeniedFeatures`, and `append`. It returns `{ path, scriptHashes, styleHashes, unhashable }`; `unhashable` is always empty unless `reportOnly` is set.
 
 It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 
@@ -94,6 +94,27 @@ It throws `HeadersFileError` (check `error.code` and `error.files`) when:
 - `headers-file-exists`: a `_headers` file is already there. Pass `append: true` to add to it.
 - `header-already-present`: with `append`, the existing file already sets one of the headers being written (`Content-Security-Policy` for example). Two values would both apply.
 - `unsafe-inline-directive`: `directives` allows `'unsafe-inline'` for scripts or styles.
+- `report-endpoint-required`: `reportOnly` is set without `reportEndpoint`. A report-only policy that reports nowhere does nothing.
+- `invalid-report-endpoint`: with `reportOnly`, `reportEndpoint` is not a same-origin path (`/csp-report`) or an absolute `https` URL, or it contains spaces, commas, semicolons, quotes, or credentials.
+
+#### Rolling out a hashed policy with `reportOnly`
+
+```ts
+await writeHeadersFile("dist", {
+  reportOnly: true,
+  append: true,
+  reportEndpoint:
+    "https://o123.ingest.us.sentry.io/api/456/security/?sentry_key=abc",
+});
+```
+
+`reportOnly: true` writes the same policy under `Content-Security-Policy-Report-Only` and writes no `Content-Security-Policy`. It also leaves out `X-Content-Type-Options` and the other security headers, so the file can be appended (`append: true`) next to a site's existing headers without setting any header twice. The policy string is identical to the enforced one for the same input. Inline `style` attributes, event handlers, and `javascript:` URLs do not throw in this mode; they come back as `unhashable: [{ file, attributes }]` so the build can print them.
+
+1. Publish report-only next to the existing policy.
+2. Fix what the reports show and what `unhashable` lists.
+3. Drop `reportOnly`, then remove the old policy from the existing headers. Enforced mode again throws on unhashable markup and writes the other security headers.
+
+A cross-origin `reportEndpoint` (a hosted collector) receives every report unfiltered, including the blocked and document URLs. Reports are only as private as the collector. With `append`, the `Reporting-Endpoints` header this writes must not already be set in the existing file, or `header-already-present` is thrown.
 
 ### CSP reports
 

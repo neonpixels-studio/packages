@@ -232,6 +232,157 @@ describe("writeHeadersFile", () => {
   });
 });
 
+describe("writeHeadersFile in report-only mode", () => {
+  const SENTRY_ENDPOINT =
+    "https://o123.ingest.us.sentry.io/api/456/security/?sentry_key=abc&sentry_environment=preview";
+  const policyValue = (file: string, header: string) =>
+    file
+      .split("\n")
+      .find((line) => line.trim().startsWith(`${header}:`))
+      ?.split(": ")
+      .slice(1)
+      .join(": ");
+
+  it("writes only the report-only policy and the reporting endpoint", async () => {
+    await writeSite({
+      "index.html": page(`<script>${BOOTSTRAP_SCRIPT}</script>`),
+    });
+    await writeHeadersFile(outDir, {
+      reportOnly: true,
+      reportEndpoint: "/csp-report",
+    });
+    const file = await readFile(join(outDir, "_headers"), "utf8");
+    expect(file).toContain("  Content-Security-Policy-Report-Only: ");
+    expect(file).toContain(sha256(BOOTSTRAP_SCRIPT));
+    expect(file).toContain('  Reporting-Endpoints: csp-endpoint="/csp-report"');
+    expect(file).not.toMatch(/^\s+Content-Security-Policy:/m);
+    expect(file).not.toContain("X-Content-Type-Options");
+    expect(file).not.toContain("Strict-Transport-Security");
+    expect(file).not.toContain("Permissions-Policy");
+  });
+
+  it("writes the same policy string as enforced mode", async () => {
+    await writeSite({
+      "index.html": page(
+        `<script>${BOOTSTRAP_SCRIPT}</script><style>${INLINE_STYLE}</style>`,
+      ),
+    });
+    const options = {
+      directives: { "img-src": ["'self'", "data:"] },
+      reportEndpoint: "/csp-report",
+    };
+    await writeHeadersFile(outDir, options);
+    const enforced = policyValue(
+      await readFile(join(outDir, "_headers"), "utf8"),
+      "Content-Security-Policy",
+    );
+    await rm(join(outDir, "_headers"));
+    await writeHeadersFile(outDir, { ...options, reportOnly: true });
+    const reportOnly = policyValue(
+      await readFile(join(outDir, "_headers"), "utf8"),
+      "Content-Security-Policy-Report-Only",
+    );
+    expect(enforced).toContain(sha256(BOOTSTRAP_SCRIPT));
+    expect(reportOnly).toBe(enforced);
+  });
+
+  it("requires a report endpoint", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    const error = await failure(writeHeadersFile(outDir, { reportOnly: true }));
+    expect(error.code).toBe("report-endpoint-required");
+    await expect(readFile(join(outDir, "_headers"))).rejects.toThrow();
+  });
+
+  it("accepts an https collector on another origin", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    await writeHeadersFile(outDir, {
+      reportOnly: true,
+      reportEndpoint: SENTRY_ENDPOINT,
+    });
+    const file = await readFile(join(outDir, "_headers"), "utf8");
+    expect(file).toContain(`report-uri ${SENTRY_ENDPOINT}; report-to`);
+    expect(file).toContain(`csp-endpoint="${SENTRY_ENDPOINT}"`);
+  });
+
+  it.each([
+    ["spaces", "/csp report"],
+    ["commas", "/csp,report"],
+    ["semicolons", "/csp;script-src *"],
+    ["a quote", '/csp"'],
+    ["http", "http://r.example/csp"],
+    ["a scheme-relative URL", "//r.example/csp"],
+    ["a relative path", "csp-report"],
+    ["another scheme", "javascript:alert(1)"],
+    ["credentials", "https://user:pass@r.example/csp"],
+    ["spaces in a URL", "https://r.example/a b"],
+    ["a semicolon in a URL", "https://r.example/a;b"],
+  ])("rejects an endpoint with %s", async (_label, reportEndpoint) => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    const error = await failure(
+      writeHeadersFile(outDir, { reportOnly: true, reportEndpoint }),
+    );
+    expect(error.code).toBe("invalid-report-endpoint");
+    await expect(readFile(join(outDir, "_headers"))).rejects.toThrow();
+  });
+
+  it("appends next to an existing enforced policy", async () => {
+    const existing =
+      "/*\n  Content-Security-Policy: default-src 'self'\n  X-Content-Type-Options: nosniff\n";
+    await writeSite({ "index.html": page("<p>x</p>"), _headers: existing });
+    await writeHeadersFile(outDir, {
+      append: true,
+      reportOnly: true,
+      reportEndpoint: SENTRY_ENDPOINT,
+    });
+    const file = await readFile(join(outDir, "_headers"), "utf8");
+    expect(file.startsWith(existing)).toBe(true);
+    expect(file).toContain("  Content-Security-Policy-Report-Only: ");
+    expect(file.match(/^\s+X-Content-Type-Options:/gm)).toHaveLength(1);
+  });
+
+  it("still refuses to append a second report-only policy", async () => {
+    await writeSite({ "index.html": page("<p>x</p>") });
+    const options = { reportOnly: true, reportEndpoint: "/csp-report" };
+    await writeHeadersFile(outDir, options);
+    const error = await failure(
+      writeHeadersFile(outDir, { ...options, append: true }),
+    );
+    expect(error.code).toBe("header-already-present");
+  });
+
+  it("lists unhashable markup instead of throwing", async () => {
+    await writeSite({
+      "index.html": page('<p style="color:red">x</p>'),
+      "about/index.html": page(
+        '<button onclick="go()">x</button><a href="javascript:void(0)">y</a>',
+      ),
+      "clean.html": page("<p>ok</p>"),
+    });
+    const result = await writeHeadersFile(outDir, {
+      reportOnly: true,
+      reportEndpoint: "/csp-report",
+    });
+    expect(result.unhashable).toEqual([
+      {
+        file: "about/index.html",
+        attributes: ["<a href>", "<button onclick>"],
+      },
+      { file: "index.html", attributes: ["<p style>"] },
+    ]);
+    await readFile(join(outDir, "_headers"), "utf8");
+  });
+
+  it("leaves enforced mode unchanged: unhashable markup still throws and the result is empty", async () => {
+    await writeSite({ "index.html": page('<p style="a">x</p>') });
+    const error = await failure(writeHeadersFile(outDir));
+    expect(error.code).toBe("unhashable-inline");
+    await rm(join(outDir, "index.html"));
+    await writeSite({ "index.html": page("<p>x</p>") });
+    const result = await writeHeadersFile(outDir);
+    expect(result.unhashable).toEqual([]);
+  });
+});
+
 describe("findInlineSources", () => {
   it("hashes text as the browser sees it: CRLF becomes LF", () => {
     expect(
