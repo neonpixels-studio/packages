@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2024", "DOM"],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@neon-pixels/sentry": ["../sentry/src/index.ts"]
+    }
+  },
+  "include": ["*.ts", "app", "server", "shared", "tests/*.ts"],
+  "exclude": ["tests/fixtures"]
+}

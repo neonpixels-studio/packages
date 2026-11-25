@@ -1,0 +1,5 @@
+{
+  "name": "nuxt-base-overrides-fixture",
+  "private": true,
+  "type": "module"
+}
