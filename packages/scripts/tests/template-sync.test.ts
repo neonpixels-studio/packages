@@ -23,6 +23,7 @@ const TEMPLATES_ROOT = join(
   "..",
   "templates",
 );
+const SYNCED_ENGINES_RANGE = "^22.18.0 || ^24.0.0 || >=26.0.0";
 const PACKAGE_JSON = `${JSON.stringify(
   { name: "app", version: "1.2.3", scripts: { test: "vitest" } },
   null,
@@ -186,7 +187,7 @@ describe("package.json fields", () => {
       name: "app",
       version: "1.2.3",
       scripts: { test: "vitest" },
-      engines: { node: "^22.17.0 || ^24.0.0 || >=26.0.0" },
+      engines: { node: SYNCED_ENGINES_RANGE },
     });
   });
 
@@ -212,6 +213,19 @@ describe("package.json fields", () => {
 
   it("fails loudly on invalid JSON", () => {
     expect(() => applyPackageFields("{nope", "{}")).toThrow("not valid JSON");
+  });
+
+  it("pins the exact range, with the Node 22 floor at 22.18.0", () => {
+    const range = JSON.parse(
+      readFileSync(join(TEMPLATES_ROOT, "base/package-fields.json"), "utf8"),
+    ).engines.node as string;
+    expect(range).toBe(SYNCED_ENGINES_RANGE);
+    expect(
+      range.split("||").some((part) => accepts(part.trim(), [22, 17, 0])),
+    ).toBe(false);
+    expect(
+      range.split("||").some((part) => accepts(part.trim(), [22, 18, 0])),
+    ).toBe(true);
   });
 
   it("pins an engines range that accepts the pinned .nvmrc version", () => {
@@ -252,6 +266,36 @@ function compareVersions(left: number[], right: number[]): number {
 }
 
 describe("--check", () => {
+  it("reports a repository on the old engines range, and a sync changes only engines.node", () => {
+    const oldRepository = `${JSON.stringify(
+      {
+        name: "app",
+        version: "1.2.3",
+        scripts: { test: "vitest" },
+        engines: { node: "^22.17.0 || ^24.0.0 || >=26.0.0" },
+      },
+      null,
+      2,
+    )}\n`;
+    sync(["--stack", "node"]);
+    put("package.json", oldRepository);
+    expect(sync(["--stack", "node", "--check"])).toBe(1);
+    const printed = errors.join("\n");
+    expect(printed).toContain("package.json differs");
+    expect(printed).toContain(
+      "- " + '    "node": "^22.17.0 || ^24.0.0 || >=26.0.0"',
+    );
+    expect(printed).toContain(
+      "+ " + '    "node": "^22.18.0 || ^24.0.0 || >=26.0.0"',
+    );
+    expect(printed).not.toContain('"scripts"');
+    expect(read("package.json")).toBe(oldRepository);
+    sync(["--stack", "node"]);
+    expect(read("package.json")).toBe(
+      oldRepository.replace("^22.17.0", "^22.18.0"),
+    );
+  });
+
   it("exits 0 for a synced repository", () => {
     sync(["--stack", "node"]);
     expect(sync(["--stack", "node", "--check"])).toBe(0);
