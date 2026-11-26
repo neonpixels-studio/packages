@@ -9,8 +9,24 @@ export const LOGIN_PATH = "/login";
 // compared back against this same value.
 const VALIDATION_ORIGIN = "https://return-path-validation.invalid";
 
+function decodeOrNull(pathname: string): string | null {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+}
+
+// vue-router decodes the path before matching, so "/%6Cogin" reaches the login
+// route even though the URL parser keeps it encoded. A path that does not
+// decode cannot be matched, so it is not treated as the login path.
 function isLoginPath(pathname: string): boolean {
-  return pathname.replace(/\/+$/, "").toLowerCase() === LOGIN_PATH;
+  const decoded = decodeOrNull(pathname);
+  if (decoded === null) {
+    return false;
+  }
+  const collapsed = decoded.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
+  return collapsed.toLowerCase() === LOGIN_PATH;
 }
 
 // "//host" or "/\host": a browser treats both as another host.

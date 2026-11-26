@@ -78,8 +78,15 @@ describe("getSafeReturnPath", () => {
     ["the login path with a query", "/login?return_to=%2Fx"],
     ["the login path with a hash", "/login#x"],
     ["the login path reached by dot segments", "/a/../login"],
+    ["the login path with an encoded letter", "/%6Cogin"],
+    ["the login path with a lowercase encoded letter", "/log%69n/"],
+    ["the login path behind an encoded slash", "/%2Flogin"],
   ])("returns null for %s", (_name, value) => {
     expect(getSafeReturnPath(value)).toBeNull();
+  });
+
+  it("does not treat a path that cannot be decoded as the login path", () => {
+    expect(getSafeReturnPath("/%E0%A4%A")).toBe("/%E0%A4%A");
   });
 
   it.each([[undefined], [null], [42], [{}], [["/trips"]], [true]])(

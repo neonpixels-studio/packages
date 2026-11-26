@@ -133,6 +133,18 @@ describe("assertSingleClerkVue", () => {
     expect(() => assertSingleClerkVue(APP, APP, VERSION)).not.toThrow();
   });
 
+  it("fails the build for two different copies outside node_modules", () => {
+    expect(() =>
+      assertSingleClerkVue("/src/a/index.js", "/src/b/index.js", VERSION),
+    ).toThrow("two copies");
+  });
+
+  it("passes for one copy outside node_modules", () => {
+    expect(() =>
+      assertSingleClerkVue("/src/a/index.js", "/src/a/index.js", VERSION),
+    ).not.toThrow();
+  });
+
   it("fails the build, naming the version, when there are two copies", () => {
     expect(() => assertSingleClerkVue(APP, CLERK_NUXT, VERSION)).toThrow(
       /two copies of @clerk\/vue.*@clerk\/nuxt 9\.9\.9/,

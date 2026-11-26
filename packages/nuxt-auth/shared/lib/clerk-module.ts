@@ -91,8 +91,10 @@ export function assertSingleClerkVue(
   clerkNuxtEntry: string,
   clerkVersion: string,
 ): void {
-  const appRoot = packageRootOf(appEntry, CLERK_VUE_PACKAGE);
-  const clerkNuxtRoot = packageRootOf(clerkNuxtEntry, CLERK_VUE_PACKAGE);
+  // Outside node_modules (a linked source copy), the entry itself identifies it.
+  const appRoot = packageRootOf(appEntry, CLERK_VUE_PACKAGE) ?? appEntry;
+  const clerkNuxtRoot =
+    packageRootOf(clerkNuxtEntry, CLERK_VUE_PACKAGE) ?? clerkNuxtEntry;
   if (appRoot === clerkNuxtRoot) {
     return;
   }
