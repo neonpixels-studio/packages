@@ -1,15 +1,28 @@
-import { chromium, type Browser, type Page } from "@playwright/test";
+import {
+  chromium,
+  type Browser,
+  type LaunchOptions,
+  type Page,
+} from "@playwright/test";
 
 // The bundled Chromium when it is installed, else the Chrome of the machine
 // (CI runners ship one), so the tests need no browser download step.
+async function tryLaunch(options: LaunchOptions): Promise<Browser | string> {
+  try {
+    return await chromium.launch(options);
+  } catch (error) {
+    return String(error).split("\n")[0] ?? "";
+  }
+}
+
 export async function launchBrowser(): Promise<Browser> {
   const failures: string[] = [];
   for (const options of [{}, { channel: "chrome" }]) {
-    try {
-      return await chromium.launch(options);
-    } catch (error) {
-      failures.push(String(error).split("\n")[0] ?? "");
+    const attempt = await tryLaunch(options);
+    if (typeof attempt !== "string") {
+      return attempt;
     }
+    failures.push(attempt);
   }
   throw new Error(`no browser could be launched: ${failures.join(" | ")}`);
 }

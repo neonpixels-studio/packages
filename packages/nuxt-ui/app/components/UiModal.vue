@@ -129,7 +129,8 @@ function onKeydown(event: KeyboardEvent): void {
 // A dialog closed by the browser (for example a `method="dialog"` form). When
 // the parent keeps `open` true, the dialog is shown again so the two agree.
 async function onNativeClose(): Promise<void> {
-  if (!handle) {
+  // The event of our own close() arrives later, possibly after a reopen.
+  if (!handle || dialogRef.value?.open) {
     return;
   }
   pendingReason ??= "programmatic";

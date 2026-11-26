@@ -237,6 +237,19 @@ describe("UiModal", () => {
     expect(document.documentElement.style.overflow).toBe("hidden");
   });
 
+  it("ignores the close event of its own close() once it has been reopened", async () => {
+    const { dialog, mounted, closes } = mountModal();
+    await settle();
+    mounted.rerender({ open: false });
+    await settle();
+    mounted.rerender({ open: true });
+    await settle();
+    dialog.dispatchEvent(new Event("close"));
+    await settle();
+    expect(dialog.open).toBe(true);
+    expect(closes).toEqual(["programmatic"]);
+  });
+
   it("closes with reason programmatic when the browser closes it and the parent accepts", async () => {
     const { dialog, closes } = mountModal();
     await settle();

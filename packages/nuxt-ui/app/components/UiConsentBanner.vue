@@ -26,7 +26,12 @@ async function moveFocusIn(): Promise<void> {
 async function giveFocusBack(): Promise<void> {
   const target = returnTarget;
   returnTarget = null;
+  // Not when the visitor has already moved on to something else on the page.
+  const focusIsInBanner = bannerRef.value?.contains(document.activeElement);
   await nextTick();
+  if (!focusIsInBanner) {
+    return;
+  }
   if (target?.isConnected) {
     target.focus();
   }

@@ -40,6 +40,13 @@ describe("findInitialFocus", () => {
     expect(findInitialFocus(dialog)?.id).toBe("a");
   });
 
+  it("skips controls disabled by a disabled fieldset", () => {
+    const dialog = buildDialog(
+      '<fieldset disabled><button></button></fieldset><button id="a"></button>',
+    );
+    expect(findInitialFocus(dialog)?.id).toBe("a");
+  });
+
   it("returns null with nothing focusable", () => {
     expect(findInitialFocus(buildDialog("<p>text</p>"))).toBeNull();
   });
@@ -126,6 +133,24 @@ describe("createModalStack", () => {
     first.release();
     second.release();
     expect(document.activeElement).toBe(outer);
+  });
+
+  it("pads for the scrollbar while locked and restores the padding after", () => {
+    const view = document.defaultView as Window;
+    Object.defineProperty(view, "innerWidth", {
+      value: 1024,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      value: 1009,
+      configurable: true,
+    });
+    document.documentElement.style.paddingRight = "4px";
+    const stack = createModalStack(document);
+    const handle = stack.enter(buildDialog(""));
+    expect(document.documentElement.style.paddingRight).toContain("15px");
+    handle.release();
+    expect(document.documentElement.style.paddingRight).toBe("4px");
   });
 
   it("does not move focus when a modal below the top closes", () => {

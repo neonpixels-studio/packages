@@ -17,7 +17,7 @@ function isFocusable(element: HTMLElement): boolean {
   ) {
     return false;
   }
-  if (element.closest("[hidden], [inert]")) {
+  if (element.closest("[hidden], [inert], fieldset[disabled]")) {
     return false;
   }
   return element.checkVisibility?.() !== false;

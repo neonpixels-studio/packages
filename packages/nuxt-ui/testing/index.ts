@@ -24,6 +24,19 @@ function slotOrNothing(slots: Slots, name = "default") {
   return slots[name]?.() ?? [];
 }
 
+// The ids the real field puts on its hint and error, and the order it lists them in.
+function describeField(id: string, hint?: string, error?: string) {
+  const ids = [error ? `${id}-error` : "", hint ? `${id}-hint` : ""].filter(
+    Boolean,
+  );
+  return {
+    hintId: `${id}-hint`,
+    errorId: `${id}-error`,
+    describedBy: ids.length > 0 ? ids.join(" ") : undefined,
+    invalid: Boolean(error),
+  };
+}
+
 export const UiModal = defineComponent({
   name: "UiModal",
   props: {
@@ -59,17 +72,19 @@ export const UiField = defineComponent({
   },
   setup(props, context) {
     const id = nextStubId("UiField");
-    return () =>
-      h("div", [
+    return () => {
+      const field = describeField(id, props.hint, props.error);
+      return h("div", [
         h("label", { for: id }, props.label),
         ...(context.slots.default?.({
           id,
-          describedBy: undefined,
-          invalid: Boolean(props.error),
+          describedBy: field.describedBy,
+          invalid: field.invalid,
         }) ?? []),
-        props.hint ? h("p", props.hint) : null,
-        props.error ? h("p", props.error) : null,
+        props.hint ? h("p", { id: field.hintId }, props.hint) : null,
+        props.error ? h("p", { id: field.errorId }, props.error) : null,
       ]);
+    };
   },
 });
 
@@ -95,8 +110,9 @@ function createControlStub(name: string, tag: "input" | "textarea") {
     emits: ["update:modelValue"],
     setup(props, context) {
       const id = nextStubId(name);
-      return () =>
-        h("div", [
+      return () => {
+        const field = describeField(id, props.hint, props.error);
+        return h("div", [
           h("label", { for: id }, props.label),
           h(
             tag,
@@ -105,13 +121,16 @@ function createControlStub(name: string, tag: "input" | "textarea") {
               value: props.modelValue,
               required: props.required,
               disabled: props.disabled,
+              "aria-describedby": field.describedBy,
+              "aria-invalid": field.invalid ? "true" : undefined,
               onInput: (event: Event) =>
                 context.emit("update:modelValue", readControlValue(event)),
             }),
           ),
-          props.hint ? h("p", props.hint) : null,
-          props.error ? h("p", props.error) : null,
+          props.hint ? h("p", { id: field.hintId }, props.hint) : null,
+          props.error ? h("p", { id: field.errorId }, props.error) : null,
         ]);
+      };
     },
   });
 }

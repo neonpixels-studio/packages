@@ -70,6 +70,23 @@ describe("the testing stubs", () => {
     }
   });
 
+  it("ties hint and error to the control and marks it invalid, like the component", () => {
+    const container = mountPage(() =>
+      h(uiStubs.UiInput!, {
+        label: "Email",
+        hint: "A hint",
+        error: "An error",
+      }),
+    );
+    const input = container.querySelector("input") as HTMLInputElement;
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    const [first, second] = (
+      input.getAttribute("aria-describedby") ?? ""
+    ).split(" ");
+    expect(container.querySelector(`#${first}`)?.textContent).toBe("An error");
+    expect(container.querySelector(`#${second}`)?.textContent).toBe("A hint");
+  });
+
   it("renders a disabled link like the component does, and marks a loading button busy", () => {
     const container = mountPage(() =>
       h("div", [

@@ -142,7 +142,7 @@ describe("UiConsentBanner", () => {
     const harness = installConsent();
     const container = mountBanner();
     await startBrowser(harness);
-    const [decline, allow] = Array.from(container.querySelectorAll("button"));
+    const [decline] = Array.from(container.querySelectorAll("button"));
     decline?.click();
     await settle();
     expect(harness.state.status.value).toBe("denied");
@@ -152,7 +152,6 @@ describe("UiConsentBanner", () => {
     (container.querySelectorAll("button")[1] as HTMLElement).click();
     await settle();
     expect(harness.state.status.value).toBe("granted");
-    expect(allow).toBeDefined();
   });
 
   it("is a region labelled by its heading", async () => {
