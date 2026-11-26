@@ -78,6 +78,17 @@ describe("buildCspHeaders", () => {
     expect(policy).toContain("https://frames.example.invalid");
   });
 
+  it("rejects unsafe script sources that arrive through the runtime config", () => {
+    expect(() =>
+      buildCspHeaders(
+        config({ directives: { "script-src": ["'unsafe-eval'"] } }),
+        {
+          development: false,
+        },
+      ),
+    ).toThrow("script-src allows 'unsafe-eval'");
+  });
+
   it("adds reporting only when an endpoint is set", () => {
     const withEndpoint = buildCspHeaders(
       config({ reportEndpoint: "/csp-report" }),
@@ -99,6 +110,7 @@ describe("assertNoUnsafeScriptSources", () => {
     ["script-src", "'unsafe-inline'"],
     ["script-src", "'unsafe-eval'"],
     ["script-src-elem", "'unsafe-inline'"],
+    ["script-src-attr", "'unsafe-inline'"],
     ["SCRIPT-SRC", "'UNSAFE-INLINE'"],
   ])("throws naming %s when it allows %s", (directive, source) => {
     expect(() =>

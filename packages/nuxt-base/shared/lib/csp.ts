@@ -9,8 +9,8 @@ import {
 export const CSP_HEADER = "Content-Security-Policy";
 export const REPORTING_ENDPOINTS_HEADER = "Reporting-Endpoints";
 
-// Both directives govern `<script>` elements, so either one can open the page to injected script.
-const SCRIPT_DIRECTIVES = ["script-src", "script-src-elem"];
+// Each of these governs inline script (elements or event-handler attributes), so any one can open the page to injected script.
+const SCRIPT_DIRECTIVES = ["script-src", "script-src-elem", "script-src-attr"];
 const FORBIDDEN_SCRIPT_SOURCES = ["'unsafe-inline'", "'unsafe-eval'"];
 
 export type LayerCspConfig = {
@@ -82,6 +82,8 @@ export function buildCspHeaders(
   config: RuntimeConfigShape,
   options: CspHeaderOptions,
 ): Record<string, string> {
+  // The runtime config can be overridden by the server environment after the build check ran.
+  assertNoUnsafeScriptSources(config.csp?.directives);
   const base = nuxtPolicy({
     clerkPublishableKey: optionalString(
       config.public,

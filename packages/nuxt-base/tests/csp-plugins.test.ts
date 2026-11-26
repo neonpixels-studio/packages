@@ -30,7 +30,6 @@ function stubNitro() {
     "getResponseHeader",
     (_event: unknown, name: string) => headers[name],
   );
-  vi.stubGlobal("import", undefined);
   return { handlers, headers };
 }
 

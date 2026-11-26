@@ -58,8 +58,8 @@ These values are read from `process.env` when the config loads, so they are fixe
 
 An app that extends the layer sends an enforced `Content-Security-Policy` on every response and the static security headers on every route, with no code of its own. Everything comes from `@neon-pixels/security`.
 
-- **Rendered pages** get a new nonce per response. A Nitro plugin (`server/plugins/cspNonce.ts`) creates it, sends the header with it, and stamps the `head` and `bodyAppend` script tags. A server-only Nuxt plugin (`app/plugins/cspNonce.server.ts`) stamps every script tag unhead resolves, in every position. `body` and `bodyPrepend` are never stamped, because they can hold untrusted markup. There is no `'unsafe-inline'` in `script-src`.
-- **Every other response** (API routes, redirects, error fallbacks) gets the same policy with no nonce, so no inline script is allowed.
+- **Rendered pages** get a new nonce per response. A Nitro plugin (`server/plugins/cspNonce.ts`) creates it, sends the header with it, and stamps the `head` and `bodyAppend` script tags. A server-only Nuxt plugin (`app/plugins/cspNonce.server.ts`) stamps every script tag unhead resolves, in every position. `body` and `bodyPrepend` are never stamped, because they can hold untrusted markup. There is no `'unsafe-inline'` in `script-src`. The nonce is per response, so a route that is prerendered or cached (`prerender`, `swr`, `isr`, or `cache` route rules) would share one nonce between visitors or send none: keep nonce-based pages server-rendered on every request.
+- **Every other response** (API routes, redirects) gets the same policy with no nonce, so no inline script is allowed. Nitro's own error responses keep Nitro's policy, which allows no script at all.
 - **The policy** is `nuxtPolicy` fed from the runtime config: `public.clerk.publishableKey` (what `@clerk/nuxt` reads) when set, `public.sentry.dsn`, `public.analytics.measurementId` when set (this allows Google Analytics), and `development` on the development server.
 - **Static headers:** `securityHeaders({ production })` is added as a route rule for `/**`. `production` is false only on the development server. A header you set yourself for `/**` in `routeRules` or `nitro.routeRules` wins.
 
@@ -81,7 +81,7 @@ export default defineNuxtConfig({
 });
 ```
 
-An app directive that allows `'unsafe-inline'` or `'unsafe-eval'` in `script-src` (or `script-src-elem`) fails the build with a message naming the directive. `style-src` is not checked.
+An app directive that allows `'unsafe-inline'` or `'unsafe-eval'` in `script-src` (or `script-src-elem` or `script-src-attr`) fails the build with a message naming the directive. `style-src` is not checked.
 
 Set `runtimeConfig.csp.reportEndpoint` to a path or https URL to turn reporting on. It adds `report-uri`, `report-to`, and the `Reporting-Endpoints` header. The layer ships no report route: the app keeps its own.
 

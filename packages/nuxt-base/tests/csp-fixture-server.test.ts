@@ -51,8 +51,11 @@ function freePort(): Promise<number> {
   });
 }
 
-async function waitForServer(): Promise<void> {
+async function waitForServer(child: ChildProcess): Promise<void> {
   for (let attempt = 0; attempt < STARTUP_ATTEMPTS; attempt += 1) {
+    if (child.exitCode !== null) {
+      throw new Error(`the built fixture server exited with ${child.exitCode}`);
+    }
     const reachable = await fetch(`${origin}/api/ping`).then(
       () => true,
       () => false,
@@ -80,7 +83,7 @@ async function startServer(): Promise<void> {
       stdio: "ignore",
     },
   );
-  await waitForServer();
+  await waitForServer(server);
 }
 
 function nonceOf(policy: string | null): string {
@@ -159,6 +162,17 @@ describe("a response that is not a rendered page", () => {
   });
 });
 
+describe("an error response", () => {
+  // Nitro's error handler sets its own policy, which already allows no script.
+  it("is sent with a policy that allows no script and has no nonce", async () => {
+    const response = await fetch(`${origin}/api/boom`);
+    const policy = response.headers.get("content-security-policy") ?? "";
+    expect(response.status).toBe(500);
+    expect(policy).toContain("script-src 'none'");
+    expect(policy).not.toContain("nonce-");
+  });
+});
+
 describe("the static security headers", () => {
   it.each(["/", "/api/ping"])("are set on %s", async (path) => {
     const response = await fetch(`${origin}${path}`);
@@ -169,6 +183,7 @@ describe("the static security headers", () => {
     expect(response.headers.get("strict-transport-security")).toContain(
       "max-age=",
     );
-    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    // The fixture sets its own value for this header, and it wins over the layer.
+    expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
   });
 });

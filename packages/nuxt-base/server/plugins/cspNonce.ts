@@ -7,6 +7,8 @@ import { CSP_HEADER, buildCspHeaders } from "../../shared/lib/csp.ts";
 // bodyOpen scripts are stamped at the tag level by the Nuxt plugin instead.
 const SCRIPT_SECTIONS = ["head", "bodyAppend"] as const;
 
+type ServerEvent = Parameters<typeof setResponseHeader>[0];
+
 type ScriptSections = Record<(typeof SCRIPT_SECTIONS)[number], string[]>;
 
 function stampNonceOnScripts(html: ScriptSections, nonce: string): void {
