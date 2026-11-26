@@ -11,10 +11,16 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 
 function isFocusable(element: HTMLElement): boolean {
-  if (element.hasAttribute("disabled") || element.closest("[hidden]")) {
+  if (
+    element.hasAttribute("disabled") ||
+    element.getAttribute("tabindex") === "-1"
+  ) {
     return false;
   }
-  return element.getAttribute("tabindex") !== "-1";
+  if (element.closest("[hidden], [inert]")) {
+    return false;
+  }
+  return element.checkVisibility?.() !== false;
 }
 
 export function listFocusable(root: HTMLElement): HTMLElement[] {

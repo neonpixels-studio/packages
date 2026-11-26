@@ -1,4 +1,10 @@
-import { defineComponent, h, type Component, type Slots } from "vue";
+import {
+  defineComponent,
+  h,
+  mergeProps,
+  type Component,
+  type Slots,
+} from "vue";
 
 // Plain stand-ins for the layer's components, for an app's unit tests that
 // mount a page without Nuxt's auto-imports. They render the same labels, slots,
@@ -67,6 +73,13 @@ export const UiField = defineComponent({
   },
 });
 
+// Like the real controls: a number input reports a number, or "" when empty.
+function readControlValue(event: Event): string | number {
+  const control = event.target as HTMLInputElement;
+  const isNumber = control.type === "number" && control.value !== "";
+  return isNumber ? control.valueAsNumber : control.value;
+}
+
 function createControlStub(name: string, tag: "input" | "textarea") {
   return defineComponent({
     name,
@@ -85,18 +98,18 @@ function createControlStub(name: string, tag: "input" | "textarea") {
       return () =>
         h("div", [
           h("label", { for: id }, props.label),
-          h(tag, {
-            ...context.attrs,
-            id,
-            value: props.modelValue,
-            required: props.required,
-            disabled: props.disabled,
-            onInput: (event: Event) =>
-              context.emit(
-                "update:modelValue",
-                (event.target as HTMLInputElement).value,
-              ),
-          }),
+          h(
+            tag,
+            mergeProps(context.attrs, {
+              id,
+              value: props.modelValue,
+              required: props.required,
+              disabled: props.disabled,
+              onInput: (event: Event) =>
+                context.emit("update:modelValue", readControlValue(event)),
+            }),
+          ),
+          props.hint ? h("p", props.hint) : null,
           props.error ? h("p", props.error) : null,
         ]);
     },
@@ -128,7 +141,14 @@ export const UiButton = defineComponent({
         );
       }
       if (props.to) {
-        return h("a", { href: props.to }, content);
+        return h(
+          "a",
+          {
+            href: props.to,
+            onClick: (event: MouseEvent) => context.emit("click", event),
+          },
+          content,
+        );
       }
       return h(
         "button",
@@ -149,7 +169,11 @@ export const UiConsentBanner = defineComponent({
   props: { privacyHref: { type: String, default: undefined } },
   setup(_props, context) {
     return () =>
-      h("section", { "aria-label": "Consent" }, slotOrNothing(context.slots));
+      h(
+        "section",
+        { "aria-label": "Consent" },
+        context.slots.default?.({ services: [] }) ?? [],
+      );
   },
 });
 

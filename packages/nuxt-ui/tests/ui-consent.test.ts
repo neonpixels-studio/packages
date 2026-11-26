@@ -105,6 +105,8 @@ describe("UiConsentBanner", () => {
     expect(container.querySelector("a")?.getAttribute("href")).toBe("/privacy");
     mounted?.unmount();
     const without = mountBanner();
+    await startBrowser(harness);
+    expect(without.querySelector("section")).not.toBeNull();
     expect(without.querySelector("a")).toBeNull();
   });
 
@@ -185,6 +187,24 @@ describe("UiConsentBanner", () => {
     await settle();
     const region = container.querySelector("section") as HTMLElement;
     expect(document.activeElement).toBe(region);
+  });
+
+  it("gives focus back to where it was when a choice closes a reopened banner", async () => {
+    const harness = installConsent();
+    const settingsLink = mountComponent(UiCookieSettingsLink);
+    const container = mountBanner();
+    await startBrowser(harness);
+    harness.controller.deny();
+    await settle();
+    const link = settingsLink.container.querySelector("button") as HTMLElement;
+    link.focus();
+    link.click();
+    await settle();
+    expect(document.activeElement?.tagName).toBe("SECTION");
+    (container.querySelectorAll("button")[0] as HTMLElement).click();
+    await settle();
+    expect(document.activeElement).toBe(link);
+    settingsLink.unmount();
   });
 });
 

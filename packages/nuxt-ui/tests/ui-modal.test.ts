@@ -226,6 +226,28 @@ describe("UiModal", () => {
     expect(closes).toEqual(["programmatic"]);
   });
 
+  it("shows the dialog again when the browser closes it and the parent keeps it open", async () => {
+    const { dialog, closes } = mountModal({ "onUpdate:open": () => undefined });
+    await settle();
+    dialog.close();
+    dialog.dispatchEvent(new Event("close"));
+    await settle();
+    expect(dialog.open).toBe(true);
+    expect(closes).toEqual([]);
+    expect(document.documentElement.style.overflow).toBe("hidden");
+  });
+
+  it("closes with reason programmatic when the browser closes it and the parent accepts", async () => {
+    const { dialog, closes } = mountModal();
+    await settle();
+    dialog.close();
+    dialog.dispatchEvent(new Event("close"));
+    await settle();
+    expect(dialog.open).toBe(false);
+    expect(closes).toEqual(["programmatic"]);
+    expect(document.documentElement.style.overflow).toBe("");
+  });
+
   it("ignores the Escape key when not dismissible, and still stops the browser acting on it", async () => {
     const { dialog, closes } = mountModal({ dismissible: false });
     await settle();

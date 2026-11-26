@@ -4,7 +4,7 @@ import UiField from "./UiField.vue";
 
 defineOptions({ inheritAttrs: false });
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     label: string;
     hint?: string;
@@ -16,13 +16,6 @@ const props = withDefaults(
   { type: "text" },
 );
 const model = defineModel<string | number>();
-
-// A number input reports a number, or an empty string while it is empty.
-function onInput(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const isNumber = props.type === "number" && input.value !== "";
-  model.value = isNumber ? input.valueAsNumber : input.value;
-}
 </script>
 
 <template>
@@ -38,12 +31,11 @@ function onInput(event: Event): void {
       :id="id"
       class="ui-control"
       :type="type"
-      :value="model ?? ''"
+      v-model="model"
       :required="required"
       :disabled="disabled"
       :aria-describedby="describedBy"
       :aria-invalid="invalid ? 'true' : undefined"
-      @input="onInput"
     />
   </UiField>
 </template>

@@ -14,18 +14,35 @@ const isVisible = computed(
   () => isHydrated.value && isOpen.value && services.value.length > 0,
 );
 
+// Where focus was before the banner took it, so a choice does not drop it on <body>.
+let returnTarget: HTMLElement | null = null;
+
+async function moveFocusIn(): Promise<void> {
+  returnTarget = document.activeElement as HTMLElement | null;
+  await nextTick();
+  bannerRef.value?.focus();
+}
+
+async function giveFocusBack(): Promise<void> {
+  const target = returnTarget;
+  returnTarget = null;
+  await nextTick();
+  if (target?.isConnected) {
+    target.focus();
+  }
+}
+
 // Focus moves in only when the visitor reopens the banner. On page load the
 // banner and hydration arrive together, and stealing focus then would skip the page.
-watch(
-  [isHydrated, isOpen],
-  async ([hydrated, open], [wasHydrated, wasOpen]) => {
-    if (!open || wasOpen || !hydrated || !wasHydrated) {
-      return;
-    }
-    await nextTick();
-    bannerRef.value?.focus();
-  },
-);
+watch([isHydrated, isOpen], ([hydrated, open], [wasHydrated, wasOpen]) => {
+  if (wasOpen && !open) {
+    void giveFocusBack();
+    return;
+  }
+  if (open && !wasOpen && hydrated && wasHydrated) {
+    void moveFocusIn();
+  }
+});
 </script>
 
 <template>

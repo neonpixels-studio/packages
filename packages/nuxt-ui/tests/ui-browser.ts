@@ -10,6 +10,7 @@ import {
 } from "./browser-helpers.ts";
 
 const TAB_PRESSES = 12;
+const TAB_SWEEP_PRESSES = 40;
 const BROWSER_TIMEOUT_MS = 60_000;
 const TEST_TIMEOUT_MS = 30_000;
 const BACKDROP_POINT = { x: 4, y: 4 };
@@ -160,7 +161,7 @@ export function describeComponentsInBrowser(getOrigin: () => string): void {
       await link.click({ force: true });
       expect(new URL(page.url()).pathname).toBe("/components");
       const visited = new Set<string>();
-      for (let count = 0; count < 40; count += 1) {
+      for (let count = 0; count < TAB_SWEEP_PRESSES; count += 1) {
         await page.keyboard.press("Tab");
         visited.add(await activeElementId(page));
       }

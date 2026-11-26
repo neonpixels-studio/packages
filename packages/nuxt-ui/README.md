@@ -244,7 +244,7 @@ A native `<dialog>` opened with `showModal()`.
 
 With both `hint` and `error`, `describedBy` lists both ids, error first.
 
-`UiInput` and `UiTextarea` are `UiField` with the control built in. They take `v-model`, `label`, `hint`, `error`, `required`, and `disabled`, set `required` on the control, and pass every other attribute and listener to the control, not the wrapper.
+`UiInput` and `UiTextarea` are `UiField` with the control built in. They take `v-model`, `label`, `hint`, `error`, `required`, and `disabled`, set `required` on the control, and pass every other attribute and listener to the control, not the wrapper. The control's `id` comes from the field (so the label always points at it), and `aria-describedby` and `aria-invalid` are set by the field too.
 
 - `UiInput` takes `type`: `text` (default), `email`, `search`, `url`, `tel`, `password`, or `number`. A `number` input updates `v-model` with a number, or `""` while it is empty.
 - `UiTextarea` takes `rows`, default `4`.

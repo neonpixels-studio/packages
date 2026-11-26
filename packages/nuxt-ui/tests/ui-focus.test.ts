@@ -33,6 +33,13 @@ describe("findInitialFocus", () => {
     expect(findInitialFocus(dialog)?.id).toBe("a");
   });
 
+  it("skips elements that are not rendered or are inert", () => {
+    const dialog = buildDialog(
+      '<button style="display:none"></button><div inert><button></button></div><button id="a"></button>',
+    );
+    expect(findInitialFocus(dialog)?.id).toBe("a");
+  });
+
   it("returns null with nothing focusable", () => {
     expect(findInitialFocus(buildDialog("<p>text</p>"))).toBeNull();
   });
@@ -61,6 +68,15 @@ describe("wrapTabFocus", () => {
     expect(
       wrapTabFocus(dialog, dialog.querySelector("#last"), true),
     ).toBeNull();
+  });
+
+  it("treats the last rendered element as last when a later one is hidden", () => {
+    const dialog = buildDialog(
+      '<button id="first"></button><button id="last"></button><button style="display:none"></button>',
+    );
+    expect(wrapTabFocus(dialog, dialog.querySelector("#last"), false)?.id).toBe(
+      "first",
+    );
   });
 
   it("keeps focus on the dialog when nothing inside can take it", () => {

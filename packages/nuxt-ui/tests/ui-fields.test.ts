@@ -176,6 +176,27 @@ describe("UiInput", () => {
     expect(received).toEqual([42, ""]);
   });
 
+  it("keeps what the visitor typed in a number input when something else re-renders it", async () => {
+    const received: unknown[] = [];
+    mounted = mountComponent(UiInput, {
+      type: "number",
+      label: "Quantity",
+      modelValue: 0,
+      "onUpdate:modelValue": (value: unknown) => {
+        received.push(value);
+        mounted?.rerender({ modelValue: value });
+      },
+    });
+    const input = mounted.container.querySelector("input") as HTMLInputElement;
+    input.value = "1.50";
+    input.dispatchEvent(new Event("input"));
+    await settle();
+    mounted.rerender({ error: "Too many" });
+    await settle();
+    expect(received).toEqual([1.5]);
+    expect(input.value).toBe("1.50");
+  });
+
   it("shows the value it is given", () => {
     expect(mountInput({ modelValue: "kept" }).value).toBe("kept");
   });

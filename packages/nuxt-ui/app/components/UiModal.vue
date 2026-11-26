@@ -126,13 +126,20 @@ function onKeydown(event: KeyboardEvent): void {
   target.focus();
 }
 
-// A dialog closed by the browser (for example a `method="dialog"` form).
-function onNativeClose(): void {
+// A dialog closed by the browser (for example a `method="dialog"` form). When
+// the parent keeps `open` true, the dialog is shown again so the two agree.
+async function onNativeClose(): Promise<void> {
   if (!handle) {
     return;
   }
   pendingReason ??= "programmatic";
   open.value = false;
+  await nextTick();
+  if (!open.value) {
+    return;
+  }
+  pendingReason = null;
+  dialogRef.value?.showModal();
 }
 
 watch(open, (isOpen) => (isOpen ? show() : hide()), { flush: "post" });

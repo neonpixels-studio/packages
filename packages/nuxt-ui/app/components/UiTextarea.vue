@@ -15,10 +15,6 @@ withDefaults(
   { rows: 4 },
 );
 const model = defineModel<string>();
-
-function onInput(event: Event): void {
-  model.value = (event.target as HTMLTextAreaElement).value;
-}
 </script>
 
 <template>
@@ -34,12 +30,11 @@ function onInput(event: Event): void {
       :id="id"
       class="ui-control"
       :rows="rows"
-      :value="model ?? ''"
+      v-model="model"
       :required="required"
       :disabled="disabled"
       :aria-describedby="describedBy"
       :aria-invalid="invalid ? 'true' : undefined"
-      @input="onInput"
     ></textarea>
   </UiField>
 </template>
