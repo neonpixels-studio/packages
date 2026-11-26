@@ -103,6 +103,17 @@ function runLayerMiddlewareFirst(nitro: NitroInfo): void {
   });
 }
 
+function resolvePeer(requireFromLayer: NodeJS.Require, name: string): string {
+  try {
+    return requireFromLayer.resolve(name);
+  } catch (cause) {
+    throw new Error(
+      `@neon-pixels/nuxt-auth needs ${name} installed as a peer dependency (pnpm add ${name}).`,
+      { cause },
+    );
+  }
+}
+
 function clerkModuleVersion(nuxt: BuildInfo): string {
   const clerkModule = nuxt.options._installedModules?.find(
     (installed) => installed.meta?.name === CLERK_MODULE_NAME,
@@ -114,9 +125,9 @@ function clerkModuleVersion(nuxt: BuildInfo): string {
 // and replaces `useAuth`, `useUser`, and `useClerk`, which break on those pages.
 function replaceClerkClientSide(nuxt: BuildInfo): void {
   const requireFromLayer = createRequire(import.meta.url);
-  const clerkNuxtEntry = requireFromLayer.resolve("@clerk/nuxt");
+  const clerkNuxtEntry = resolvePeer(requireFromLayer, "@clerk/nuxt");
   assertSingleClerkVue(
-    requireFromLayer.resolve("@clerk/vue"),
+    resolvePeer(requireFromLayer, "@clerk/vue"),
     createRequire(clerkNuxtEntry).resolve("@clerk/vue"),
     clerkModuleVersion(nuxt),
   );

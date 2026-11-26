@@ -182,6 +182,24 @@ describe("the token timeout", () => {
     expect(sentHeaders(baseFetch).get("authorization")).toBeNull();
   });
 
+  it("goes on at once when the request is aborted during the wait", async () => {
+    const { baseFetch, wrapped } = setUp(() => new Promise(() => undefined));
+    const controller = new AbortController();
+    const request = wrapped("/api/x", { signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(baseFetch).not.toHaveBeenCalled();
+    controller.abort();
+    await request;
+    expect(baseFetch).toHaveBeenCalledTimes(1);
+    expect(sentHeaders(baseFetch).get("authorization")).toBeNull();
+  });
+
+  it("goes on at once when the request was already aborted", async () => {
+    const { baseFetch, wrapped } = setUp(() => new Promise(() => undefined));
+    await wrapped("/api/x", { signal: AbortSignal.abort() });
+    expect(baseFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("uses a token that arrives just before the wait is over", async () => {
     const { baseFetch, wrapped } = setUp(
       () =>

@@ -170,6 +170,7 @@ On a deferred page:
 - Clerk is not loaded on the server or the client, and the page middleware does not run `clerkMiddleware()`.
 - The composables below report a settled signed-out state: loaded, not signed in, no user.
 - Navigating to any page that is not deferred is a full page load, so the destination starts with Clerk installed.
+- Every other Clerk composable (`useSession`, `useOrganization`, `useSignIn`, and the rest) and every Clerk component (`<SignedIn>`, `<UserButton>`, `<SignIn>`) needs Clerk installed and throws there. Keep them out of a layout shared with a deferred page.
 
 Do not list a page that shows signed-in content, or a page whose HTML is prerendered or cached across visitors (`routeRules` `prerender`, `swr`, or `isr`): the decision is made again in the browser from its own cookies, so cached HTML rendered for one kind of visitor would not match what another one needs. The layer also assumes `app.baseURL` is `/`. A visitor whose session cookie is missing or expired sees the deferred, signed-out version of a listed page.
 

@@ -21,6 +21,7 @@ export function bearerHeaderValue(token: string): string {
 export function resolveSessionToken(
   getSessionToken: SessionTokenGetter,
   timeoutMs: number = SESSION_TOKEN_TIMEOUT_MS,
+  signal?: AbortSignal | null,
 ): Promise<string | null> {
   const pending = Promise.resolve()
     .then(getSessionToken)
@@ -29,6 +30,11 @@ export function resolveSessionToken(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
+    // A cancelled request goes on at once, so the base fetch can report it.
+    if (signal?.aborted) {
+      resolve(null);
+    }
+    signal?.addEventListener("abort", () => resolve(null), { once: true });
   });
   return Promise.race([pending, timeout]).finally(() => clearTimeout(timer));
 }
@@ -80,7 +86,9 @@ export function createSessionTokenFetch(
     if (headers.has(AUTHORIZATION_HEADER)) {
       return baseFetch(input, init);
     }
-    const token = await resolveSessionToken(getSessionToken, timeoutMs);
+    const signal =
+      init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const token = await resolveSessionToken(getSessionToken, timeoutMs, signal);
     if (!token) {
       return baseFetch(input, init);
     }

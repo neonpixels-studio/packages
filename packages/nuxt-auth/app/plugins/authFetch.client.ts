@@ -6,6 +6,8 @@ import { useClerkAuth } from "../composables/useClerkAuth.ts";
 // all share. Server rendering attaches no token: this plugin is client only.
 export default defineNuxtPlugin({
   name: "neon-pixels-auth-fetch",
+  // Before the app's own early plugins, so their first requests carry the token.
+  enforce: "pre",
   dependsOn: ["neon-pixels-auth-clerk"],
   setup() {
     const { getToken } = useClerkAuth();

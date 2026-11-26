@@ -220,6 +220,7 @@ describe("the fetch plugin", () => {
   it("runs after the Clerk plugin", async () => {
     const plugin = await loadFetchPlugin();
     expect(plugin.dependsOn).toEqual(["neon-pixels-auth-clerk"]);
+    expect(plugin.enforce).toBe("pre");
   });
 
   it("replaces window.fetch with one that adds the session token to same-origin API requests", async () => {
