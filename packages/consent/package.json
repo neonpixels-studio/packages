@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/consent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Analytics consent state, privacy-signal detection, and a consent-gated Google Analytics loader, with every browser object injected.",
   "license": "MIT",
   "type": "module",
