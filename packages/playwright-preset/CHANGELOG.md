@@ -1,5 +1,11 @@
 # @neon-pixels/playwright-preset
 
+## 0.6.0
+
+### Patch Changes
+
+- @neon-pixels/consent@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes
