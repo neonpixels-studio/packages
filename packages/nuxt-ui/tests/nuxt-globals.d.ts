@@ -29,6 +29,7 @@ interface Ref<Value> {
 declare global {
   interface ImportMeta {
     readonly client: boolean;
+    readonly dev: boolean;
   }
   function defineAppConfig(config: {
     appearance: AppearanceConfigInput;

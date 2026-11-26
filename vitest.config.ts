@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vitest/config";
 
 const consentSource = (file: string) =>
@@ -9,6 +10,8 @@ const sentrySource = fileURLToPath(
 );
 
 export default defineConfig({
+  // Compiles the single-file components of the Nuxt layers for their tests.
+  plugins: [vue()],
   resolve: {
     // CI runs the tests before the build, so a package that imports a
     // sibling must read its source, not a dist that does not exist yet.
