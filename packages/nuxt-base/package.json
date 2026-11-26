@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/nuxt-base",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Nuxt layer with the shared Nuxt config, validated site URL, and Sentry start-up for Neon Pixels apps. Shipped as source.",
   "license": "MIT",
   "type": "module",
