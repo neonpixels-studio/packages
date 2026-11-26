@@ -8,6 +8,7 @@ describe("isClerkWebhookRequest", () => {
   it("is true for a POST to the route, with or without a query string", () => {
     expect(isClerkWebhookRequest("/api/webhooks/clerk", "POST")).toBe(true);
     expect(isClerkWebhookRequest("/api/webhooks/clerk?x=1", "post")).toBe(true);
+    expect(isClerkWebhookRequest("/api/webhooks/clerk/", "POST")).toBe(true);
   });
 
   it.each([

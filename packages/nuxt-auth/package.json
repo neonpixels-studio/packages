@@ -37,6 +37,7 @@
     "@clerk/backend": "^3.0.0",
     "@clerk/nuxt": "^3.0.0",
     "@sentry/nuxt": "^11.0.0",
+    "nitropack": "^2.10.0",
     "nuxt": "^4.0.0"
   },
   "devDependencies": {
@@ -47,5 +48,10 @@
     "h3": "^1.15.4",
     "nitropack": "^2.14.0",
     "nuxt": "^4.7.0"
+  },
+  "peerDependenciesMeta": {
+    "nitropack": {
+      "optional": true
+    }
   }
 }

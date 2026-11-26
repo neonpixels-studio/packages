@@ -14,9 +14,11 @@ export const SVIX_HEADER_NAMES = [
 
 /** The webhook route is authenticated by its signature, not a bearer token. */
 export function isClerkWebhookRequest(path: string, method: string): boolean {
+  // Nitro's router ignores a trailing slash, so this does too.
+  const pathname = pathnameOf(path).replace(/\/+$/, "");
   return (
     method.toUpperCase() === CLERK_WEBHOOK_METHOD &&
-    pathnameOf(path) === CLERK_WEBHOOK_PATH
+    pathname === CLERK_WEBHOOK_PATH
   );
 }
 
