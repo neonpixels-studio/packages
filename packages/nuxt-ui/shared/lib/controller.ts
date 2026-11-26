@@ -160,7 +160,19 @@ export function createAppearanceController(
     state.accent.value = config.defaultAccent;
   }
 
+  function isOwnKey(key: string | null): boolean {
+    return (
+      key === null ||
+      key === themeStorageKey(config) ||
+      key === accentStorageKey(config)
+    );
+  }
+
   function applyStorageEvent(event: StorageEventLike): void {
+    // Another tab's choice is newer than an account load still in flight.
+    if (isOwnKey(event.key)) {
+      localChanges += 1;
+    }
     // A key of null means the other tab cleared all of storage.
     if (event.key === null) {
       resetToDefaults();

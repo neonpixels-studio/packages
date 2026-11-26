@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { buildAppearanceScript } from "../shared/lib/index.ts";
 import { blockedStorage, CONFIG, memoryStorage } from "./helpers.ts";
 
+function compileScript(script: string) {
+  return new Function("document", "localStorage", "window", script);
+}
+
 interface Scenario {
   stored?: Record<string, string>;
   systemDark?: boolean;
@@ -17,12 +21,7 @@ function runScript(scenario: Scenario = {}) {
   const fakeWindow = {
     matchMedia: () => ({ matches: scenario.systemDark ?? false }),
   };
-  const run = new Function(
-    "document",
-    "localStorage",
-    "window",
-    buildAppearanceScript(CONFIG),
-  );
+  const run = compileScript(buildAppearanceScript(CONFIG));
   run(window.document, storage, fakeWindow);
   const root = window.document.documentElement;
   return {
@@ -93,7 +92,7 @@ describe("the script before first paint", () => {
   it("never sets an accent for an app without accents", () => {
     const script = buildAppearanceScript({ storagePrefix: "plain" });
     const window = new Window();
-    new Function("document", "localStorage", "window", script)(
+    compileScript(script)(
       window.document,
       memoryStorage({ "plain:accent": "teal" }),
       { matchMedia: () => ({ matches: false }) },
@@ -111,9 +110,7 @@ describe("the script before first paint", () => {
     });
     expect(script).not.toContain("</script");
     expect(script).not.toContain("<script");
-    expect(
-      () => new Function("document", "localStorage", "window", script),
-    ).not.toThrow();
+    expect(() => compileScript(script)).not.toThrow();
   });
 
   it("fails when the prefix is missing", () => {

@@ -350,3 +350,32 @@ describe("edge cases found in review", () => {
     expect(page.classes.has("dark")).toBe(false);
   });
 });
+
+describe("an app without accents", () => {
+  it("ignores accent events from other tabs", () => {
+    const { controller } = setup({}, NO_ACCENT_CONFIG);
+    const page = fakeBrowser();
+    controller.start(page.browser);
+    page.fireStorage({ key: "plain:accent", newValue: "teal" });
+    expect(page.attributes.size).toBe(0);
+  });
+
+  it("keeps a newer tab's choice over a load still in flight", async () => {
+    let finishLoad: (value: { theme: "light" }) => void = () => undefined;
+    const adapter = {
+      load: () =>
+        new Promise<{ theme: "light" }>((resolve) => {
+          finishLoad = resolve;
+        }),
+      save: vi.fn(async () => undefined),
+    };
+    const { controller, state } = setup({}, CONFIG, adapter);
+    const page = fakeBrowser();
+    controller.start(page.browser);
+    const loading = controller.syncFromAccount();
+    page.fireStorage({ key: "fixture:theme", newValue: "dark" });
+    finishLoad({ theme: "light" });
+    await loading;
+    expect(state.theme.value).toBe("dark");
+  });
+});

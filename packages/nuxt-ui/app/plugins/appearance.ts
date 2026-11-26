@@ -4,7 +4,6 @@ import {
   createSyncRegistry,
   DEFAULT_THEME,
   resolveAppearanceConfig,
-  type AppearanceState,
   type BrowserWindow,
   type Theme,
 } from "../../shared/lib/index.ts";
@@ -14,7 +13,7 @@ import {
 // the first client render matches the server.
 export default defineNuxtPlugin((nuxtApp) => {
   const config = resolveAppearanceConfig(useAppConfig().appearance);
-  const state: AppearanceState = {
+  const state = {
     theme: useState<Theme>("appearance:theme", () => DEFAULT_THEME),
     accent: useState<string>("appearance:accent", () => config.defaultAccent),
     systemDark: useState<boolean>("appearance:system-dark", () => false),

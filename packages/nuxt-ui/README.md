@@ -72,7 +72,7 @@ Auto-imported. Returns `{ theme, resolvedTheme, accent, accents, setTheme, setAc
 
 Every server-rendered page gets one inline script in `<head>` that reads the stored theme and accent and sets the class and attribute before the page paints. It applies an accent only when the stored name is in the configured list (otherwise the default accent), falls back to the operating system setting when no theme is stored, and never throws when storage is blocked. It carries the response's nonce from `@neon-pixels/nuxt-base`, so it runs under the enforced Content-Security-Policy.
 
-Every app value is written into the script as JSON. `buildAppearanceScript` is also exported from `@neon-pixels/nuxt-ui/build`, with the other pure functions, for use outside Nuxt:
+Every app value is written into the script as JSON. `buildAppearanceScript` is also exported from `@neon-pixels/nuxt-ui/build`, with the other pure functions, for bundled code that runs outside Nuxt (Vite, a Nuxt config file). It is TypeScript source, so plain Node cannot import it from `node_modules`:
 
 ```ts
 import { buildAppearanceScript } from "@neon-pixels/nuxt-ui/build";
@@ -115,6 +115,7 @@ export default defineNuxtPlugin(() => {
 - Call `useAppearance().syncFromAccount()` once the visitor is known to be signed in. It calls `load` once and applies what it returns. The account's values win over the device's. A failed `load` is reported with `console.warn`.
 - Saves are queued so that only the newest value is sent: while one `save` runs, later changes collapse into one further call. A failed `save` is reported with `console.warn`, never rejects into the caller, and the device keeps the new value.
 - Calling `defineAppearanceSync` twice throws.
+- `save` runs on every change once an adapter is registered, signed in or not. An app with signed-out visitors returns early from `save` when nobody is signed in.
 
 ## What an adopting app deletes
 
