@@ -1,8 +1,10 @@
 import { resolveSentryEnvironment } from "@neon-pixels/sentry";
 import type { EnvironmentRecord } from "./environment.ts";
+import { buildDefaultCspConfig, type LayerCspConfig } from "./csp.ts";
 
 export type LayerRuntimeConfig = {
   databaseUrl: string;
+  csp: LayerCspConfig;
   public: {
     siteUrl: string;
     sentry: { dsn: string; environment: string };
@@ -18,6 +20,7 @@ export function buildRuntimeConfig(
 ): LayerRuntimeConfig {
   return {
     databaseUrl: environment.E2E_DATABASE_URL || environment.DATABASE_URL || "",
+    csp: buildDefaultCspConfig(),
     public: {
       siteUrl: environment.NUXT_PUBLIC_SITE_URL || "",
       sentry: {

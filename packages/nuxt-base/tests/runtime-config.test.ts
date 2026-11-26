@@ -8,6 +8,7 @@ describe("buildRuntimeConfig", () => {
   it("returns empty strings when nothing is set", () => {
     expect(buildRuntimeConfig({})).toEqual({
       databaseUrl: "",
+      csp: { directives: {}, reportEndpoint: "" },
       public: {
         siteUrl: "",
         sentry: { dsn: "", environment: "development" },

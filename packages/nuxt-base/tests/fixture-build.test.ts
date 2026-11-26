@@ -17,7 +17,7 @@ const UNREACHABLE_SENTRY_URL = "http://127.0.0.1:9";
 const CLIENT_CONFIG_TEMPLATE = "#build/sentry-client-config.mjs";
 const SERVER_CONFIG_TEMPLATE = "#build/sentry-server-config-plugin.mjs";
 
-afterAll(cleanFixtureOutput);
+afterAll(() => cleanFixtureOutput());
 
 function listFiles(directory: string): string[] {
   return readdirSync(directory, { recursive: true, withFileTypes: true })

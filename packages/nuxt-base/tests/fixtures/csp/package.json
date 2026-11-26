@@ -1,0 +1,5 @@
+{
+  "name": "nuxt-base-csp-fixture",
+  "private": true,
+  "type": "module"
+}

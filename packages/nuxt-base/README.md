@@ -4,7 +4,7 @@ A Nuxt layer with the config every Neon Pixels Nuxt app shares: the Nuxt setting
 
 The layer is consumed as source, not built. `main` points at `nuxt.config.ts` and the package ships the config, the two Sentry start-up files, and the `app`, `server`, and `shared` directories. There is no `dist`, and `pnpm build` has nothing to do for this package.
 
-Authentication, theming, consent, security headers, and Tailwind are not part of it.
+Authentication, theming, consent, and Tailwind are not part of it.
 
 ## Install
 
@@ -12,7 +12,7 @@ Authentication, theming, consent, security headers, and Tailwind are not part of
 pnpm add @neon-pixels/nuxt-base @sentry/nuxt
 ```
 
-Peer dependencies: `nuxt` 4 and `@sentry/nuxt` 11. `@neon-pixels/sentry` is installed with the layer.
+Peer dependencies: `nuxt` 4 and `@sentry/nuxt` 11. `@neon-pixels/sentry` and `@neon-pixels/security` are installed with the layer.
 
 ## Adopt it
 
@@ -28,6 +28,7 @@ Peer dependencies: `nuxt` 4 and `@sentry/nuxt` 11. `@neon-pixels/sentry` is inst
 3. Delete your own `sentry.client.config.ts` and `sentry.server.config.ts`. `@sentry/nuxt` searches the layers for these files and checks the lowest layer first, so the layer's files are the ones it uses. A copy left in the app would be ignored, which is why it should go.
 4. Delete your own site URL helpers and use `useSiteUrl()` (below).
 5. Rename any retired environment variable (below).
+6. Delete your own Content-Security-Policy and security header code (see "Content-Security-Policy" below).
 
 Every value the layer sets can still be overridden in your own `nuxt.config.ts`. The server start-up file reads the DSN and environment from the `nitro.replace` literals, not from the runtime config, so an app that overrides `runtimeConfig.public.sentry` must override those two `nitro.replace` entries as well. Arrays merge instead of being replaced, so a `modules` or `filesToDeleteAfterUpload` entry in your config is added to the layer's.
 
@@ -43,6 +44,7 @@ Every value the layer sets can still be overridden in your own `nuxt.config.ts`.
 | `sentry.org`, `sentry.project`, `sentry.authToken`                                | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`                                                      |
 | `sentry.sourcemaps.filesToDeleteAfterUpload`                                      | `["dist/**/*.map"]`, so a failed upload never leaves source maps in Netlify's publish directory (`dist`) |
 | `runtimeConfig.databaseUrl`                                                       | `E2E_DATABASE_URL`, else `DATABASE_URL`, else `""`                                                       |
+| `runtimeConfig.csp.directives`, `runtimeConfig.csp.reportEndpoint`                | `{}`, `""` (see Content-Security-Policy)                                                                 |
 | `runtimeConfig.public.siteUrl`                                                    | `NUXT_PUBLIC_SITE_URL`, else `""`                                                                        |
 | `runtimeConfig.public.sentry.dsn`                                                 | `SENTRY_DSN`, else `""`                                                                                  |
 | `runtimeConfig.public.sentry.environment`                                         | `resolveSentryEnvironment()` from `@neon-pixels/sentry`, using Netlify's `CONTEXT`                       |
@@ -51,6 +53,43 @@ Every value the layer sets can still be overridden in your own `nuxt.config.ts`.
 These values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time. The server start-up file runs before `useRuntimeConfig()` exists, which is why it reads `process.env` and why `nitro.replace` swaps those two reads for literals.
 
 `useRuntimeConfig().public.siteUrl` and `.public.sentry` are typed by the layer. No local declaration is needed.
+
+## Content-Security-Policy
+
+An app that extends the layer sends an enforced `Content-Security-Policy` on every response and the static security headers on every route, with no code of its own. Everything comes from `@neon-pixels/security`.
+
+- **Rendered pages** get a new nonce per response. A Nitro plugin (`server/plugins/cspNonce.ts`) creates it, sends the header with it, and stamps the `head` and `bodyAppend` script tags. A server-only Nuxt plugin (`app/plugins/cspNonce.server.ts`) stamps every script tag unhead resolves, in every position. `body` and `bodyPrepend` are never stamped, because they can hold untrusted markup. There is no `'unsafe-inline'` in `script-src`. The nonce is per response, so a route that is prerendered or cached (`prerender`, `swr`, `isr`, or `cache` route rules) would share one nonce between visitors or send none: keep nonce-based pages server-rendered on every request.
+- **Every other response** (API routes, redirects) gets the same policy with no nonce, so no inline script is allowed. Nitro's own error responses keep Nitro's policy, which allows no script at all.
+- **The policy** is `nuxtPolicy` fed from the runtime config: `public.clerk.publishableKey` (what `@clerk/nuxt` reads) when set, `public.sentry.dsn`, `public.analytics.measurementId` when set (this allows Google Analytics), and `development` on the development server.
+- **Static headers:** `securityHeaders({ production })` is added as a route rule for `/**`. `production` is false only on the development server. A header you set yourself for `/**` in `routeRules` or `nitro.routeRules` wins.
+
+### Add a source
+
+`runtimeConfig.csp.directives` is a directive map. It is merged into the policy with `mergeCspDirectives`, and it is the only extension point:
+
+```ts
+export default defineNuxtConfig({
+  extends: ["@neon-pixels/nuxt-base"],
+  runtimeConfig: {
+    csp: {
+      directives: {
+        "img-src": ["https://images.example.com"],
+        "connect-src": ["https://api.example.com"],
+      },
+    },
+  },
+});
+```
+
+An app directive that allows `'unsafe-inline'` or `'unsafe-eval'` in `script-src` (or `script-src-elem` or `script-src-attr`) fails the build with a message naming the directive. `style-src` is not checked.
+
+Set `runtimeConfig.csp.reportEndpoint` to a path or https URL to turn reporting on. It adds `report-uri`, `report-to`, and the `Reporting-Endpoints` header. The layer ships no report route: the app keeps its own.
+
+### What an adopting app deletes
+
+- Its own `Content-Security-Policy` header code and `routeRules` or `nitro.routeRules` entries for the headers from `securityHeaders()`.
+- Its own Nitro plugin and Nuxt plugin that create a nonce, set the header, or stamp script tags.
+- Any copy of the nonce helpers or policy builder.
 
 ## Retired environment variables
 
