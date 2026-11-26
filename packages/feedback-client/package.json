@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/feedback-client",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Send user feedback to the Neon Pixels dashboard: one typed request, a typed error, and the receiver's field limits.",
   "license": "MIT",
   "type": "module",
