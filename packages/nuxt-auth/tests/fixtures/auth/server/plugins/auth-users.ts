@@ -25,7 +25,10 @@ export default defineNitroPlugin(() => {
       return created;
     },
     async authenticateOtherBearer(token) {
-      return token === API_KEY ? { userId: "u_key", label: "api key" } : null;
+      // A key shaped like a JWT must still never reach this function.
+      return token === API_KEY || token === "a.b.c"
+        ? { userId: "u_key", label: "api key" }
+        : null;
     },
     isPublicApiPath(path) {
       return path === PUBLIC_PATH || path === STATS_PATH;

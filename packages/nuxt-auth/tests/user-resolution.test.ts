@@ -86,6 +86,18 @@ describe("createUserResolver", () => {
     expect(await resolver.resolve("user_1")).toBe("new_user_1");
   });
 
+  it.each([undefined, "", 7])(
+    "answers 500 and caches nothing when the store returns the id %j",
+    async (id) => {
+      const { store, resolver } = setup();
+      store.create.mockResolvedValueOnce({ id: id as never });
+      await expect(resolver.resolve("user_1")).rejects.toMatchObject({
+        statusCode: 500,
+      });
+      expect(await resolver.resolve("user_1")).toBe("new_user_1");
+    },
+  );
+
   it("looks the user up again after clear", async () => {
     const { store, resolver } = setup({
       existing: { id: "u1", deleted: false },

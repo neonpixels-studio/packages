@@ -3,6 +3,7 @@ import {
   looksLikeJwt,
   pathnameOf,
 } from "../../shared/lib/bearer.ts";
+import { assertUserId } from "../../shared/lib/user-resolution.ts";
 import {
   AuthHttpError,
   HTTP_UNAUTHORIZED,
@@ -45,7 +46,7 @@ async function authenticateOther(
   if (!result) {
     return unauthorized();
   }
-  return { ...result, method: "other" };
+  return { ...result, userId: assertUserId(result.userId), method: "other" };
 }
 
 // Authenticates `/api/` by the bearer header only and never reads a cookie.

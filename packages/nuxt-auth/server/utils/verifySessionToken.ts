@@ -43,6 +43,20 @@ function unavailable(error: unknown): AuthHttpError {
   );
 }
 
+// A rejected credential is `null`; anything else is an outage.
+function rejectedOrUnavailable(error: unknown): null {
+  if (isRejectedCredential(error)) {
+    return null;
+  }
+  throw unavailable(error);
+}
+
+async function verifyClaims(token: string): Promise<SessionClaims | null> {
+  const options = buildVerifyOptions();
+  const claims = await verifyToken(token, options).catch(rejectedOrUnavailable);
+  return claims ? readSessionClaims(claims) : null;
+}
+
 /**
  * Verifies a Clerk session token. Returns `null` for a rejected credential. A
  * failure that is not the caller's fault is a 503, so an outage never looks
@@ -51,15 +65,5 @@ function unavailable(error: unknown): AuthHttpError {
 export function verifySessionToken(
   token: string,
 ): Promise<SessionClaims | null> {
-  return withNitroErrors(async () => {
-    const options = buildVerifyOptions();
-    try {
-      return readSessionClaims(await verifyToken(token, options));
-    } catch (error) {
-      if (isRejectedCredential(error)) {
-        return null;
-      }
-      throw unavailable(error);
-    }
-  });
+  return withNitroErrors(() => verifyClaims(token));
 }

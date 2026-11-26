@@ -37,7 +37,7 @@ export {
   createUserCache,
   type UserCache,
 } from "./user-cache.ts";
-export { createUserResolver } from "./user-resolution.ts";
+export { assertUserId, createUserResolver } from "./user-resolution.ts";
 export type {
   AuthContext,
   AuthUserRecord,

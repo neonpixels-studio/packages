@@ -1,6 +1,21 @@
-import { AuthHttpError, HTTP_FORBIDDEN } from "./http-error.ts";
+import {
+  AuthHttpError,
+  HTTP_FORBIDDEN,
+  HTTP_INTERNAL_SERVER_ERROR,
+} from "./http-error.ts";
 import { createUserCache, type UserCache } from "./user-cache.ts";
 import type { AuthUsersStore } from "../types/auth.ts";
+
+/** A store that returns no usable id would authenticate a request as nobody. */
+export function assertUserId(value: unknown): string {
+  if (typeof value !== "string" || value === "") {
+    throw new AuthHttpError(
+      HTTP_INTERNAL_SERVER_ERROR,
+      "The auth user store returned no user id.",
+    );
+  }
+  return value;
+}
 
 export type UserResolverDependencies = {
   getStore: () => Pick<AuthUsersStore, "findByProviderId" | "create">;
@@ -29,12 +44,12 @@ export function createUserResolver(
       throw new AuthHttpError(HTTP_FORBIDDEN, "This account was deleted.");
     }
     if (existing) {
-      return existing.id;
+      return assertUserId(existing.id);
     }
     if (dependencies.isSignupDisabled()) {
       throw new AuthHttpError(HTTP_FORBIDDEN, "Sign-ups are disabled.");
     }
-    return (await store.create(providerId)).id;
+    return assertUserId((await store.create(providerId)).id);
   }
 
   return {

@@ -27,9 +27,10 @@ export default defineNuxtConfig({
 1. Extend the layer (above) and remove `@neon-pixels/nuxt-base` from `extends`.
 2. Delete what the layer now provides from your own config: the `@clerk/nuxt` entry in `modules`, `clerk.skipServerMiddleware`, and the `clerk`, `public.clerk`, and `disableSignups` runtime config keys.
 3. Delete your own copies of the server files the layer replaces: the `/api` bearer middleware, the Clerk page middleware, the bearer token parser, the Clerk token verification helper, the get-or-create-user helper with its cache, and the reverification helper.
-4. Register your user store from a Nitro plugin (below).
-5. Replace reads of your own `event.context.user` with `requireAuth(event)`.
-6. Set the environment variables (below).
+4. Allow any route a Nuxt module serves under `/api` (for example `/api/_nuxt_icon` from `@nuxt/icon`) in `isPublicApiPath`, because every `/api` request now needs a bearer token unless the store says otherwise.
+5. Register your user store from a Nitro plugin (below).
+6. Replace reads of your own `event.context.user` with `requireAuth(event)`.
+7. Set the environment variables (below).
 
 ## Register the user store
 

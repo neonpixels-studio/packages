@@ -46,24 +46,27 @@ export function createUserCache<Value>(
     }
   }
 
-  // A key cleared while its load is running must not be refilled by that load.
-  async function load(
-    key: string,
-    loader: () => Promise<Value>,
-  ): Promise<Value> {
-    const pending = loader();
-    loading.set(key, pending);
-    try {
-      const value = await pending;
-      if (loading.get(key) === pending) {
+  // A key cleared while its load is running must not be refilled by that load,
+  // so only the load that is still registered may store or unregister itself.
+  function load(key: string, loader: () => Promise<Value>): Promise<Value> {
+    const isCurrent = (): boolean => loading.get(key) === pending;
+    // The executor runs now, and turns a synchronous throw into a rejection.
+    const pending: Promise<Value> = new Promise<Value>((resolve) => {
+      resolve(loader());
+    }).then((value) => {
+      if (isCurrent()) {
         remember(key, value);
       }
       return value;
-    } finally {
-      if (loading.get(key) === pending) {
+    });
+    loading.set(key, pending);
+    const unregister = (): void => {
+      if (isCurrent()) {
         loading.delete(key);
       }
-    }
+    };
+    pending.then(unregister, unregister);
+    return pending;
   }
 
   return {

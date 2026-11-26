@@ -33,12 +33,15 @@ describe("requireAuth", () => {
     expect(requireAuth(eventWith(auth))).toBe(auth);
   });
 
-  it.each([undefined, null, () => ({})])("answers 401 for %s", async (auth) => {
-    const { requireAuth } = await load();
-    expect(() => requireAuth(eventWith(auth))).toThrow(
-      expect.objectContaining({ statusCode: 401 }),
-    );
-  });
+  it.each([undefined, null, () => ({}), { userId: undefined }, { userId: "" }])(
+    "answers 401 for %s",
+    async (auth) => {
+      const { requireAuth } = await load();
+      expect(() => requireAuth(eventWith(auth))).toThrow(
+        expect.objectContaining({ statusCode: 401 }),
+      );
+    },
+  );
 });
 
 describe("assertRecentReverification", () => {

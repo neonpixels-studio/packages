@@ -8,7 +8,11 @@ import type { H3Event } from "h3";
 
 // On a page request `context.auth` is Clerk's function, never ours.
 function isAuthContext(value: unknown): value is AuthContext {
-  return typeof value === "object" && value !== null && "userId" in value;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const { userId } = value as { userId?: unknown };
+  return typeof userId === "string" && userId !== "";
 }
 
 /**

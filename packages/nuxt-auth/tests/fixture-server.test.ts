@@ -150,6 +150,10 @@ describe("the API middleware", () => {
     expect((await get("/api/me", token)).status).toBe(401);
   });
 
+  it("never hands a JWT-shaped token to the store's other-bearer check", async () => {
+    expect((await get("/api/me", "a.b.c")).status).toBe(401);
+  });
+
   it("answers 401 for a token that is not a session token and not accepted by the store", async () => {
     expect((await get("/api/me", "key_unknown")).status).toBe(401);
   });
@@ -227,6 +231,10 @@ describe("the API middleware", () => {
     const response = await get("/api/public");
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ public: true });
+  });
+
+  it("matches a public path without its query string", async () => {
+    expect((await get("/api/public?x=1")).status).toBe(200);
   });
 
   it("hands another bearer token to the store", async () => {
