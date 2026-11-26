@@ -1,5 +1,13 @@
 import { Window } from "happy-dom";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   type ConsentState,
   isPrivacySignalPresent,
@@ -33,6 +41,10 @@ beforeAll(() => {
       name === "window" ? happyWindow : Reflect.get(happyWindow, name),
     );
   }
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 afterAll(() => {
@@ -98,6 +110,5 @@ describe.each(VISITORS)("a visitor sending %s", (_name, signal) => {
     expect(happyWindow.document.querySelector("#banner")).toBeNull();
     expect(happyWindow.document.querySelector("#settings")).toBeNull();
     expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
   });
 });

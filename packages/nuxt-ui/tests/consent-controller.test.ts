@@ -180,17 +180,17 @@ describe("grant", () => {
     );
   });
 
-  it("asks again when storage refuses writes and only an old bare grant is stored", () => {
-    const harness = createHarness({
-      settings: { ...ANALYTICS_AND_REPLAY, legacyKey: "old-consent" },
-      stored: { "old-consent": "accepted" },
-    });
+  it("applies a grant and a denial even when storage refuses the write", () => {
+    const harness = createHarness();
+    harness.controller.start(harness.browser);
     harness.storage.setItem = () => {
       throw new DOMException("full", "QuotaExceededError");
     };
-    harness.controller.start(harness.browser);
-    expect(harness.state.status.value).toBe("unset");
-    expect(harness.loadAnalytics).not.toHaveBeenCalled();
+    expect(() => harness.controller.grant()).not.toThrow();
+    expect(harness.state.status.value).toBe("granted");
+    expect(harness.loadAnalytics).toHaveBeenCalledOnce();
+    expect(() => harness.controller.deny()).not.toThrow();
+    expect(harness.stopReplay).toHaveBeenCalledOnce();
   });
 });
 
