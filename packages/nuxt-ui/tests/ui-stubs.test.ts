@@ -53,6 +53,38 @@ describe("the testing stubs", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
+  it("gives every field of a page its own id, with the label pointing at its own control", () => {
+    const container = mountPage(() =>
+      h("form", [
+        h(uiStubs.UiInput!, { label: "Email" }),
+        h(uiStubs.UiInput!, { label: "Name" }),
+        h(uiStubs.UiTextarea!, { label: "Notes" }),
+      ]),
+    );
+    const labels = Array.from(container.querySelectorAll("label"));
+    const ids = labels.map((label) => label.getAttribute("for"));
+    expect(new Set(ids).size).toBe(3);
+    for (const label of labels) {
+      const control = container.querySelector(`#${label.getAttribute("for")}`);
+      expect(control).not.toBeNull();
+    }
+  });
+
+  it("renders a disabled link like the component does, and marks a loading button busy", () => {
+    const container = mountPage(() =>
+      h("div", [
+        h(uiStubs.UiButton!, { to: "/x", disabled: true }, () => "Link"),
+        h(uiStubs.UiButton!, { loading: true }, () => "Save"),
+      ]),
+    );
+    const link = container.querySelector("[role=link]");
+    expect(link?.hasAttribute("href")).toBe(false);
+    expect(container.querySelector("a")).toBeNull();
+    const button = container.querySelector("button");
+    expect(button?.getAttribute("aria-busy")).toBe("true");
+    expect(button?.disabled).toBe(true);
+  });
+
   it("gives UiField's slot an id, describedBy, and invalid", () => {
     const seen: Record<string, unknown>[] = [];
     mountPage(() =>

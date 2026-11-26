@@ -1,5 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activeElementId,
   documentOverflow,
@@ -47,6 +47,10 @@ export function describeComponentsInBrowser(getOrigin: () => string): void {
   beforeAll(async () => {
     browser = await launchBrowser();
   }, BROWSER_TIMEOUT_MS);
+
+  afterEach(async () => {
+    await watched?.close();
+  });
 
   afterAll(async () => {
     await browser?.close();
@@ -128,6 +132,14 @@ export function describeComponentsInBrowser(getOrigin: () => string): void {
       const after = (await target.boundingBox())?.width ?? 0;
       expect(after).toBe(before);
       expect(await target.isDisabled()).toBe(true);
+      const pressed = await page.evaluate(() => {
+        const button = document.querySelector("#button-loading") as HTMLElement;
+        let clicks = 0;
+        button.addEventListener("click", () => (clicks += 1));
+        button.click();
+        return clicks;
+      });
+      expect(pressed).toBe(0);
     });
 
     it("draws a visible focus ring from the accent token on a keyboard focus", async () => {
@@ -147,8 +159,13 @@ export function describeComponentsInBrowser(getOrigin: () => string): void {
       expect(await link.getAttribute("href")).toBeNull();
       await link.click({ force: true });
       expect(new URL(page.url()).pathname).toBe("/components");
-      await press(page, "Tab", 40);
-      expect(await activeElementId(page)).not.toBe("link-disabled");
+      const visited = new Set<string>();
+      for (let count = 0; count < 40; count += 1) {
+        await page.keyboard.press("Tab");
+        visited.add(await activeElementId(page));
+      }
+      expect(visited.has("link-active")).toBe(true);
+      expect(visited.has("link-disabled")).toBe(false);
     });
   });
 

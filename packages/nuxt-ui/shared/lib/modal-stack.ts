@@ -47,11 +47,15 @@ export function createModalStack(documentRef: Document): ModalStack {
   // A modal that opened from inside the closing one now returns to where the
   // closing one would have returned.
   function handOverFocusTarget(closed: Entry, closedIndex: number): void {
-    for (const above of entries.slice(closedIndex)) {
-      if (above.returnTarget && closed.dialog.contains(above.returnTarget)) {
+    entries
+      .slice(closedIndex)
+      .filter(
+        (above) =>
+          above.returnTarget && closed.dialog.contains(above.returnTarget),
+      )
+      .forEach((above) => {
         above.returnTarget = closed.returnTarget;
-      }
-    }
+      });
   }
 
   function restoreFocus(closed: Entry): void {

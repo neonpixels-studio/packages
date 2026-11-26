@@ -20,6 +20,7 @@ export interface WatchedPage {
   violations: () => Promise<string[]>;
   // Console warnings and errors.
   problems: string[];
+  close: () => Promise<void>;
 }
 
 const VIOLATION_RECORDER = `
@@ -49,6 +50,7 @@ export async function openWatchedPage(
   return {
     page,
     problems,
+    close: () => context.close(),
     violations: () =>
       page.evaluate(
         () => (window as unknown as { __violations: string[] }).__violations,

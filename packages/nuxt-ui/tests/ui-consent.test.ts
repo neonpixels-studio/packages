@@ -52,6 +52,15 @@ describe("UiConsentBanner", () => {
     expect(container.querySelector("section")).not.toBeNull();
   });
 
+  it("renders nothing when no service is configured", async () => {
+    const harness = installConsent({ settings: NO_SERVICES });
+    const container = mountBanner();
+    await startBrowser(harness);
+    harness.state.isReopened.value = true;
+    await settle();
+    expect(container.querySelector("section")).toBeNull();
+  });
+
   it("renders nothing once a choice is stored", async () => {
     const harness = installConsent({
       stored: { "fixture:analytics-consent": "x" },

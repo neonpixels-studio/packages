@@ -166,6 +166,66 @@ describe("UiModal", () => {
     expect(closes).toEqual(["escape"]);
   });
 
+  it("leaves the modal open when a control inside already handled Escape", async () => {
+    const { dialog, closes } = mountModal(
+      {},
+      {
+        default: () =>
+          h("input", {
+            id: "popup-owner",
+            onKeydown: (event: KeyboardEvent) => event.preventDefault(),
+          }),
+      },
+    );
+    await settle();
+    dialog.querySelector("#popup-owner")?.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await settle();
+    expect(closes).toEqual([]);
+    expect(dialog.open).toBe(true);
+  });
+
+  it("closes only the inner modal when Escape is pressed inside one nested in another", async () => {
+    const innerCloses: ModalCloseReason[] = [];
+    const inner = h(UiModal, {
+      title: "Inner",
+      open: true,
+      onClose: (reason: ModalCloseReason) => innerCloses.push(reason),
+    });
+    const { dialog, closes } = mountModal({}, { default: () => inner });
+    await settle();
+    const innerDialog = dialog.querySelector("dialog") as HTMLDialogElement;
+    innerDialog.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await settle();
+    expect(innerCloses).toEqual(["escape"]);
+    expect(closes).toEqual([]);
+    expect(dialog.open).toBe(true);
+  });
+
+  it("reports programmatic, not an earlier refused Escape, when the parent later closes it", async () => {
+    const { dialog, mounted, closes } = mountModal({
+      "onUpdate:open": () => undefined,
+    });
+    await settle();
+    dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+    await settle();
+    expect(closes).toEqual([]);
+    mounted.rerender({ open: false });
+    await settle();
+    expect(closes).toEqual(["programmatic"]);
+  });
+
   it("ignores the Escape key when not dismissible, and still stops the browser acting on it", async () => {
     const { dialog, closes } = mountModal({ dismissible: false });
     await settle();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { findInitialFocus, wrapTabFocus } from "../../shared/lib/focus.ts";
 import {
   getModalStack,
@@ -47,20 +47,29 @@ function hide(): void {
   pendingReason = null;
 }
 
-function requestClose(reason: ModalCloseReason): void {
+async function requestClose(reason: ModalCloseReason): Promise<void> {
   if (!open.value) {
     return;
   }
   pendingReason = reason;
   open.value = false;
+  await nextTick();
+  // A parent that refused the close must not leave its reason for a later one.
+  if (open.value) {
+    pendingReason = null;
+  }
+}
+
+function dismiss(reason: ModalCloseReason): void {
+  if (props.dismissible) {
+    void requestClose(reason);
+  }
 }
 
 function onCancel(event: Event): void {
   // The browser would close the dialog itself; the open state decides instead.
   event.preventDefault();
-  if (props.dismissible) {
-    requestClose("escape");
-  }
+  dismiss("escape");
 }
 
 function onPointerdown(event: PointerEvent): void {
@@ -75,9 +84,7 @@ function onClick(event: MouseEvent): void {
   if (event.target !== dialogRef.value || !startedOnBackdrop) {
     return;
   }
-  if (props.dismissible) {
-    requestClose("backdrop");
-  }
+  dismiss("backdrop");
 }
 
 // Chrome closes a dialog whose cancel event was prevented when Escape is
@@ -85,18 +92,30 @@ function onClick(event: MouseEvent): void {
 // close request exists.
 function onEscape(event: KeyboardEvent): void {
   event.preventDefault();
-  if (props.dismissible) {
-    requestClose("escape");
-  }
+  dismiss("escape");
+}
+
+// A modal nested in this one's slot handles its own keys first; a control that
+// already used the key (a popup closing on Escape) leaves the modal open.
+function isKeyForThisModal(event: KeyboardEvent, dialog: HTMLElement): boolean {
+  const target = event.target as Element;
+  return (
+    target.closest("dialog") === dialog &&
+    !event.defaultPrevented &&
+    !event.isComposing
+  );
 }
 
 function onKeydown(event: KeyboardEvent): void {
   const dialog = dialogRef.value;
+  if (!dialog || !isKeyForThisModal(event, dialog)) {
+    return;
+  }
   if (event.key === "Escape") {
     onEscape(event);
     return;
   }
-  if (event.key !== "Tab" || !dialog) {
+  if (event.key !== "Tab") {
     return;
   }
   const target = wrapTabFocus(dialog, document.activeElement, event.shiftKey);
@@ -164,9 +183,8 @@ onBeforeUnmount(() => {
 .ui-modal {
   box-sizing: border-box;
   width: min(32rem, calc(100vw - 2rem));
-  max-height: calc(100dvh - 2rem);
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   color: var(--ui-ink);
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
@@ -182,7 +200,11 @@ onBeforeUnmount(() => {
   outline-offset: -2px;
 }
 
+/* The panel scrolls, not the dialog, so a click on a scrollbar is never a backdrop click. */
 .ui-modal__panel {
+  box-sizing: border-box;
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;

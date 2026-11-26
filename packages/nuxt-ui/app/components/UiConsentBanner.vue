@@ -10,7 +10,9 @@ const { services, isOpen, isHydrated, grant, deny } = useConsent();
 const titleId = useId();
 const bannerRef = ref<HTMLElement | null>(null);
 const copy = computed(() => describeConsent(services.value));
-const isVisible = computed(() => isHydrated.value && isOpen.value);
+const isVisible = computed(
+  () => isHydrated.value && isOpen.value && services.value.length > 0,
+);
 
 // Focus moves in only when the visitor reopens the banner. On page load the
 // banner and hydration arrive together, and stealing focus then would skip the page.

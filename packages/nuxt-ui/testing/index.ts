@@ -6,6 +6,14 @@ import { defineComponent, h, type Component, type Slots } from "vue";
 //
 //   mount(Page, { global: { stubs: uiStubs } })
 
+let stubCount = 0;
+
+// Each stub instance gets its own id, so two fields on a page never share one.
+function nextStubId(name: string): string {
+  stubCount += 1;
+  return `${name}-${stubCount}`;
+}
+
 function slotOrNothing(slots: Slots, name = "default") {
   return slots[name]?.() ?? [];
 }
@@ -44,7 +52,7 @@ export const UiField = defineComponent({
     required: { type: Boolean, default: false },
   },
   setup(props, context) {
-    const id = "ui-field-stub";
+    const id = nextStubId("UiField");
     return () =>
       h("div", [
         h("label", { for: id }, props.label),
@@ -73,12 +81,13 @@ function createControlStub(name: string, tag: "input" | "textarea") {
     },
     emits: ["update:modelValue"],
     setup(props, context) {
+      const id = nextStubId(name);
       return () =>
         h("div", [
-          h("label", { for: name }, props.label),
+          h("label", { for: id }, props.label),
           h(tag, {
             ...context.attrs,
-            id: name,
+            id,
             value: props.modelValue,
             required: props.required,
             disabled: props.disabled,
@@ -107,18 +116,31 @@ export const UiButton = defineComponent({
   },
   emits: ["click"],
   setup(props, context) {
-    return () =>
-      props.to
-        ? h("a", { href: props.to }, slotOrNothing(context.slots))
-        : h(
-            "button",
-            {
-              type: props.type,
-              disabled: props.disabled || props.loading,
-              onClick: (event: MouseEvent) => context.emit("click", event),
-            },
-            slotOrNothing(context.slots),
-          );
+    return () => {
+      const inactive = props.disabled || props.loading;
+      const busy = props.loading ? "true" : undefined;
+      const content = slotOrNothing(context.slots);
+      if (props.to && inactive) {
+        return h(
+          "span",
+          { role: "link", "aria-disabled": "true", "aria-busy": busy },
+          content,
+        );
+      }
+      if (props.to) {
+        return h("a", { href: props.to }, content);
+      }
+      return h(
+        "button",
+        {
+          type: props.type,
+          disabled: inactive,
+          "aria-busy": busy,
+          onClick: (event: MouseEvent) => context.emit("click", event),
+        },
+        content,
+      );
+    };
   },
 });
 
