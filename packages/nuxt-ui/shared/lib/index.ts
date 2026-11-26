@@ -38,3 +38,23 @@ export type {
   ResolvedTheme,
   Theme,
 } from "./types.ts";
+export {
+  buildConsentRuntimeConfig,
+  hasConfiguredService,
+  resolveConsentSettings,
+  type ConsentConfigInput,
+  type ConsentEnvironment,
+  type ConsentSettings,
+} from "./consent-config.ts";
+export {
+  createConsentController,
+  isPrivacySignalPresent,
+  isPromptDue,
+  isPromptOpen,
+  listServices,
+  type ConsentBrowser,
+  type ConsentController,
+  type ConsentControllerDependencies,
+  type ConsentState,
+} from "./consent-controller.ts";
+export { createResilientStorage } from "./consent-storage.ts";

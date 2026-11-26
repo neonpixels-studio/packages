@@ -5,4 +5,5 @@ export default defineAppConfig({
     defaultAccent: "violet",
     legacyKeys: { theme: ["old-theme"], accent: ["old-accent"] },
   },
+  consent: { app: "fixture" },
 });

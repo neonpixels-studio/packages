@@ -117,6 +117,44 @@ export default defineNuxtPlugin(() => {
 - Calling `defineAppearanceSync` twice throws.
 - `save` runs on every change once an adapter is registered, signed in or not. An app with signed-out visitors returns early from `save` when nobody is signed in.
 
+## Consent
+
+The layer connects `@neon-pixels/consent` (a regular dependency) to Nuxt: reactive state, Google Analytics after a grant, Sentry session replay, and server and client markup that match. It ships no banner and no cookie-settings link; an app renders those from `useConsent()`.
+
+Configure it in `app/app.config.ts`:
+
+```ts
+export default defineAppConfig({
+  consent: { app: "myapp", legacyKey: "myapp-analytics-consent" },
+});
+```
+
+| Key         | Meaning                                                                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`       | Required when any service is configured, and ignored otherwise. The choice is stored as `<app>:analytics-consent`. A missing value fails with a clear message. |
+| `legacyKey` | Optional. Passed to `createConsent`, which migrates a valid value from this older key.                                                                         |
+
+The services come from config alone:
+
+- `analytics` when `runtimeConfig.public.analytics.measurementId` is set. It is `NUXT_PUBLIC_GA_MEASUREMENT_ID` or `""`, read at build time. This is the key the Content-Security-Policy in `@neon-pixels/nuxt-base` reads.
+- `sessionReplay` when the Sentry DSN (`runtimeConfig.public.sentry.dsn`) is set.
+
+### `useConsent()`
+
+Auto-imported. Returns reactive `{ status, shouldPrompt, services, isHydrated, hasPrivacySignal, grant, deny, reopen, isOpen }`.
+
+- `services` lists only the configured services (`"analytics"`, `"sessionReplay"`), so a banner can name exactly those.
+- `isOpen` is `true` when `shouldPrompt` is `true`, or after `reopen()` until the visitor chooses. `reopen()` does nothing while a privacy signal is present.
+- On the server, and on the client until the app has mounted, `isHydrated`, `shouldPrompt`, `hasPrivacySignal`, and `isOpen` are `false` and `status` is `"unset"`. Real values appear after mount, so a banner and a cookie-settings link never cause a hydration mismatch, for a visitor sending Global Privacy Control or Do Not Track included.
+
+### What the layer does for you
+
+- Google Analytics loads through `loadGoogleAnalytics` only after `status` is `"granted"`. Never on the server, with no measurement id, or while a privacy signal is present. It starts after mount, not during setup.
+- Session replay starts through `startSentryReplay()` after a grant and stops through `stopSentryReplay()` when the visitor denies.
+- When a privacy signal is present and an earlier grant is stored, the layer calls `deny()` once on mount, which clears the cookies of the earlier grant.
+- A choice made in another tab is applied in this one. A grant starts the services; a denial, or a cleared storage, stops them.
+- When `localStorage` is blocked, the choice is kept in memory for the page and nothing throws. A loader or replay call that fails is reported with `console.warn` and never breaks the page.
+
 ## What an adopting app deletes
 
 - Its theme composable or store, and any accent store.
@@ -124,3 +162,8 @@ export default defineNuxtPlugin(() => {
 - Its storage helpers for the theme and accent keys, and the code that migrates old keys (use `legacyKeys`).
 - Its own Tailwind `@custom-variant dark` line, replaced by the import of `dark-variant.css`.
 - Its own save queue for the account sync, replaced by the adapter above.
+- Its consent composable, and the plugins that gate analytics and replay on it.
+- Its consent hydration plugin (the layer waits for `app:mounted` itself).
+- Its resilient storage wrapper.
+- Any local copy of the consent rules (use `@neon-pixels/consent` through the layer).
+- Its own `gaMeasurementId` runtime config key (use `NUXT_PUBLIC_GA_MEASUREMENT_ID`).

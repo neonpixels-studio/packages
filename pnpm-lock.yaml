@@ -349,6 +349,9 @@ importers:
 
   packages/nuxt-ui:
     dependencies:
+      '@neon-pixels/consent':
+        specifier: workspace:*
+        version: link:../consent
       '@neon-pixels/nuxt-base':
         specifier: workspace:*
         version: link:../nuxt-base
