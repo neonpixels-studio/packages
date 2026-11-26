@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2024", "DOM"],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@neon-pixels/nuxt-base/build": ["../nuxt-base/shared/lib/index.ts"],
+      "@neon-pixels/security": ["../security/src/index.ts"],
+      "@neon-pixels/sentry": ["../sentry/src/index.ts"]
+    }
+  },
+  "include": ["*.ts", "server", "shared", "tests/*.ts"],
+  "exclude": ["tests/fixtures"]
+}
