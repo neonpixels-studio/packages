@@ -46,3 +46,31 @@ export type {
   OtherBearerResult,
   SessionAuthContext,
 } from "../types/auth.ts";
+export {
+  hasClerkSessionCookie,
+  isDeferredPath,
+  reloadTargetFor,
+  shouldDeferClerk,
+} from "./clerk-deferral.ts";
+export {
+  LOGIN_PATH,
+  RETURN_TO_QUERY_PARAM,
+  buildLoginPath,
+  getSafeReturnPath,
+} from "./return-path.ts";
+export {
+  AUTHORIZATION_HEADER,
+  SESSION_TOKEN_TIMEOUT_MS,
+  bearerHeaderValue,
+  createSessionTokenFetch,
+  resolveSessionToken,
+  type SessionTokenGetter,
+} from "./session-token.ts";
+export {
+  ReverificationCancelledError,
+  createWithReverification,
+  isReverificationRequired,
+  type ReverificationDependencies,
+} from "./reverification-client.ts";
+export { assertSingleClerkVue, packageRootOf } from "./clerk-module.ts";
+export { AUTH_RESOLVE_TIMEOUT_MS } from "./auth-resolved.ts";

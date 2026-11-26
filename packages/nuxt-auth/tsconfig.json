@@ -12,6 +12,6 @@
       "@neon-pixels/sentry": ["../sentry/src/index.ts"]
     }
   },
-  "include": ["*.ts", "server", "shared", "tests/*.ts"],
+  "include": ["*.ts", "app", "server", "shared", "tests/*.ts"],
   "exclude": ["tests/fixtures"]
 }

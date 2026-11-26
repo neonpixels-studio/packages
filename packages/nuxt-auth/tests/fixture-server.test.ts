@@ -1,4 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -113,7 +114,13 @@ afterAll(() => {
 
 function sessionToken(
   subject: string,
-  claims: { fva?: unknown; azp?: string; expiresIn?: number } = {},
+  claims: {
+    fva?: unknown;
+    azp?: string;
+    expiresIn?: number;
+    sid?: string;
+    sts?: string;
+  } = {},
 ): string {
   return signSessionToken(keys.privateKeyPem, {
     sub: subject,
@@ -296,5 +303,127 @@ describe("a page request", () => {
   it("does not run the API middleware", async () => {
     const response = await get("/whoami", "a.b.c");
     expect(response.status).toBe(200);
+  });
+});
+
+function page(path: string, cookie?: string): Promise<Response> {
+  return fetch(`${origin}${path}`, {
+    redirect: "manual",
+    headers: cookie ? { cookie } : {},
+  });
+}
+
+function sessionCookies(subject: string): string {
+  const token = sessionToken(subject, { sid: "sess_fixture", sts: "active" });
+  const issuedAtSeconds = Math.floor(Date.now() / 1000) - 60;
+  return `__session=${token}; __client_uat=${issuedAtSeconds}`;
+}
+
+function readFixtureFile(relativePath: string): string {
+  return readFileSync(join(AUTH_FIXTURE_DIRECTORY, relativePath), "utf8");
+}
+
+describe("a deferred page", () => {
+  it("renders signed out and settled, with no Clerk, for a visitor with no session", async () => {
+    const response = await page("/deferred");
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('data-clerk="deferred"');
+    expect(html).toContain('data-loaded="true"');
+    expect(html).toContain('data-signed-in="false"');
+    expect(html).toContain('data-user="none"');
+    expect(html).toContain('data-resolved="true"');
+    expect(html).not.toContain("clerk-initial-state");
+    expect(html).not.toContain("clerk-js");
+  });
+
+  it("ignores a trailing slash and a signed-out client cookie", async () => {
+    const html = await (await page("/deferred/", "__client_uat=0")).text();
+    expect(html).toContain('data-clerk="deferred"');
+  });
+
+  it("loads Clerk and renders the visitor as signed in when a session cookie is present", async () => {
+    const response = await page("/deferred", sessionCookies("user_cookie"));
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('data-clerk="installed"');
+    expect(html).toContain("clerk-initial-state");
+    expect(html).toContain('data-signed-in="true"');
+    expect(html).toContain('data-user-id="user_cookie"');
+  });
+
+  it("still loads Clerk for a page that is not in the list", async () => {
+    const html = await (await page("/login")).text();
+    expect(html).toContain("clerk-initial-state");
+  });
+});
+
+describe("the protected page", () => {
+  it("redirects a signed-out visitor to the login path with the return path", async () => {
+    const response = await page("/protected");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "/login?return_to=/protected",
+    );
+  });
+
+  it("keeps the query string in the return path", async () => {
+    const response = await page("/protected?tab=2");
+    expect(response.headers.get("location")).toBe(
+      "/login?return_to=/protected?tab=2",
+    );
+  });
+
+  it("keeps a query string with several parameters whole for the login page", async () => {
+    const location = (await page("/protected?a=1&b=2")).headers.get("location");
+    const returnTo = new URL(location ?? "", SITE_ORIGIN).searchParams.get(
+      "return_to",
+    );
+    expect(returnTo).toBe("/protected?a=1&b=2");
+  });
+
+  it("renders for a signed-in visitor", async () => {
+    const response = await page("/protected", sessionCookies("user_cookie"));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('id="protected"');
+  });
+
+  it("gives the login page a safe return path and rejects an unsafe one", async () => {
+    const safe = await (await page("/login?return_to=%2Fprotected")).text();
+    expect(safe).toContain('data-return-to="/protected"');
+    const unsafe = await (
+      await page("/login?return_to=%2F%2Fevil.example")
+    ).text();
+    expect(unsafe).not.toContain("data-return-to");
+  });
+});
+
+describe("the layer's replacement of the Clerk module's client side", () => {
+  it("registers its own plugin and not the module's", () => {
+    const plugins = readFixtureFile(".nuxt/types/plugins.d.ts");
+    expect(plugins).toContain("app/plugins/authClerk");
+    expect(plugins).toContain("app/plugins/authFetch.client");
+    expect(plugins).not.toMatch(/@clerk\/nuxt\/dist\/runtime\/plugin/);
+  });
+
+  it("auto-imports the layer's composables and not Clerk's unsafe ones", () => {
+    const imports = readFixtureFile(".nuxt/types/imports.d.ts");
+    for (const name of [
+      "useClerkAuth",
+      "useClerkUser",
+      "useClerkInstance",
+      "useSignOut",
+      "useAuthResolved",
+      "useAuthHeaders",
+      "useReverification",
+      "buildLoginPath",
+      "getSafeReturnPath",
+      "ReverificationCancelledError",
+    ]) {
+      expect(imports).toContain(`const ${name}:`);
+    }
+    for (const name of ["useAuth", "useUser", "useClerk"]) {
+      expect(imports).not.toContain(`const ${name}:`);
+    }
   });
 });

@@ -1,20 +1,20 @@
 # @neon-pixels/nuxt-auth
 
-A Nuxt layer for the server side of Clerk authentication. `/api` requests are authenticated by a bearer session token, pages get Clerk's state for server rendering, and the first authenticated request creates the user row.
+A Nuxt layer for Clerk authentication. `/api` requests are authenticated by a bearer session token, pages get Clerk's state for server rendering, and the first authenticated request creates the user row. On the client it installs Clerk (skipping it on public pages for signed-out visitors), attaches the session token to API requests, and provides the composables, route guard, and reverification prompt.
 
-The layer never owns a database table. Each app keeps its own `users` table and tells the layer how to read and create a user. It has no options; the one extension point is `defineAuthUsers()`.
+The layer never owns a database table. Each app keeps its own `users` table and tells the layer how to read and create a user. Its one option is the list of pages that may skip Clerk (`runtimeConfig.public.auth.deferredPaths`, below), and its one extension point is `defineAuthUsers()`.
 
 The layer is consumed as source, not built. `main` points at `nuxt.config.ts`, and the package ships the config and the `server` and `shared` directories. There is no `dist`.
 
-Not part of this package: the Clerk client plugin, composables, and route middleware, the Clerk webhook route, API keys (`@neon-pixels/api-keys`), end-to-end sign-in helpers (`@neon-pixels/playwright-preset/clerk`), and anything about who may use an app beyond "has a valid session" (owner lists, plans, invitations, rate limits). An app enforces those in its store or in its own middleware.
+Not part of this package: the login, sign-up, and account pages, the Clerk webhook route, API keys (`@neon-pixels/api-keys`), end-to-end sign-in helpers (`@neon-pixels/playwright-preset/clerk`), and anything about who may use an app beyond "has a valid session" (owner lists, plans, invitations, rate limits). An app enforces those in its store or in its own middleware.
 
 ## Install
 
 ```sh
-pnpm add @neon-pixels/nuxt-auth @clerk/nuxt @clerk/backend
+pnpm add @neon-pixels/nuxt-auth @clerk/nuxt @clerk/vue @clerk/backend
 ```
 
-Peer dependencies: `nuxt` 4, `@clerk/nuxt` 3, and `@clerk/backend` 3. The layer extends `@neon-pixels/nuxt-base`, which is installed with it, so an app lists only this layer:
+Peer dependencies: `nuxt` 4, `vue` 3, `@clerk/nuxt` 3, `@clerk/vue` 2, and `@clerk/backend` 3. The layer extends `@neon-pixels/nuxt-base`, which is installed with it, so an app lists only this layer:
 
 ```ts
 export default defineNuxtConfig({
@@ -31,6 +31,7 @@ export default defineNuxtConfig({
 5. Register your user store from a Nitro plugin (below).
 6. Replace reads of your own `event.context.user` with `requireAuth(event)`.
 7. Set the environment variables (below).
+8. Delete what the client side now provides (see "Adopting the client side" below).
 
 ## Register the user store
 
@@ -146,6 +147,133 @@ These are auto-imported in `server/`.
 - `factorVerificationAges` is `[first factor, second factor]` in minutes, with `-1` for a factor that was not used (Clerk's `fva` claim). When the second-factor age is not `-1`, it must be inside the window. Otherwise the first-factor age must be. A missing or malformed claim fails.
 - Every failure is a 403 with `data.code` set to `"reverification_required"`. Import `REVERIFICATION_REQUIRED_CODE` from `@neon-pixels/nuxt-auth/build` to match on it.
 
+## The client side
+
+### Clerk loading and deferral
+
+`@clerk/nuxt` installs a client plugin that loads Clerk on every page. The layer removes it and installs Clerk from its own plugin, which runs before every other plugin, so a public page can skip Clerk for a signed-out visitor. If the module's plugin cannot be found at build time, the build fails with a message naming the `@clerk/nuxt` version, so an upgrade never leaves two plugins running. The build also fails when your `@clerk/vue` is a different copy from the one `@clerk/nuxt` depends on, because two copies do not share Clerk's state; keep `@clerk/vue` on a version `@clerk/nuxt` accepts.
+
+Set the pages that may skip Clerk in your own config. The list is exact paths, empty by default, and with an empty list Clerk loads on every page:
+
+```ts
+export default defineNuxtConfig({
+  runtimeConfig: {
+    public: { auth: { deferredPaths: ["/", "/pricing", "/docs"] } },
+  },
+});
+```
+
+A page is deferred only when its path is in the list (a trailing slash is ignored) and the request carries no Clerk session cookie (`__session`, or `__client_uat` with a value other than `0`). The decision is a pure function of the path and the `Cookie` header, so the server and the first client render agree. `shouldDeferClerk(path, cookieHeader, deferredPaths)` is exported from `@neon-pixels/nuxt-auth/build`.
+
+On a deferred page:
+
+- Clerk is not loaded on the server or the client, and the page middleware does not run `clerkMiddleware()`.
+- The composables below report a settled signed-out state: loaded, not signed in, no user.
+- Navigating to any page that is not deferred is a full page load, so the destination starts with Clerk installed.
+- Every other Clerk composable (`useSession`, `useOrganization`, `useSignIn`, and the rest) and every Clerk component (`<SignedIn>`, `<UserButton>`, `<SignIn>`) needs Clerk installed and throws there. Keep them out of a layout shared with a deferred page.
+
+Do not list a page that shows signed-in content, or a page whose HTML is prerendered or cached across visitors (`routeRules` `prerender`, `swr`, or `isr`): the decision is made again in the browser from its own cookies, so cached HTML rendered for one kind of visitor would not match what another one needs. The layer also assumes `app.baseURL` is `/`. A visitor whose session cookie is missing or expired sees the deferred, signed-out version of a listed page.
+
+### Composables
+
+These are auto-imported. The layer removes the `useAuth`, `useUser`, and `useClerk` auto-imports that `@clerk/nuxt` adds, because they break on a deferred page; the build fails if it cannot find them. Import Clerk's own from `@clerk/vue` only where you know Clerk is installed.
+
+| Composable            | What it returns                                                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useClerkAuth()`      | Clerk's `useAuth()` value, or the settled signed-out value on a deferred page.                                                                                                                             |
+| `useClerkUser()`      | Clerk's `useUser()` value, or the settled signed-out value on a deferred page.                                                                                                                             |
+| `useClerkInstance()`  | Clerk's `useClerk()` value, or a ref holding `null` on a deferred page.                                                                                                                                    |
+| `useSignOut()`        | `{ signOutStatus, signOutError, signOut }`. `signOutStatus` is `"idle"`, `"signingOut"`, or `"error"`. A failed sign-out sets the error and never throws to the caller.                                    |
+| `useAuthResolved()`   | A computed boolean: `true` once Clerk has loaded, or after 2 seconds when it has not, so a page never waits forever when the Clerk script is blocked. `true` at once on the server and on a deferred page. |
+| `useAuthHeaders()`    | `{ buildAuthHeaders }`. `buildAuthHeaders({ skipCache })` resolves to `{ Authorization: "Bearer <token>" }`, or `{}` when there is no token. `skipCache: true` asks Clerk for a fresh token.               |
+| `useReverification()` | `{ withReverification }` (below).                                                                                                                                                                          |
+
+### Route middleware and the return path
+
+The layer ships a named route middleware, `auth`. A signed-out visitor is sent to `/login?return_to=<path>` with `replace`. It does nothing while Clerk is still loading.
+
+```ts
+definePageMeta({ middleware: "auth" });
+```
+
+An app that protects every page writes a global middleware from the same helpers:
+
+```ts
+// app/middleware/auth.global.ts
+export default defineNuxtRouteMiddleware((to) => {
+  const { isLoaded, isSignedIn } = useClerkAuth();
+  if (isLoaded.value && !isSignedIn.value && to.path !== "/login") {
+    return navigateTo(buildLoginPath(to.fullPath), { replace: true });
+  }
+});
+```
+
+`buildLoginPath(currentPath)` and `getSafeReturnPath(rawValue)` are auto-imported and exported from `@neon-pixels/nuxt-auth/build`, with the query parameter name as `RETURN_TO_QUERY_PARAM` (`"return_to"`). The name is deliberately not `redirect_url`, which Clerk reads itself.
+
+`getSafeReturnPath` returns the path (with query and hash) only when the value is a string that starts with a single `/`, stays on the same origin when resolved, and does not lead back to `/login`. It returns `null` for everything else, including `//host`, `/\host`, an absolute URL, and a value with another scheme. Your login page uses it for the destination after sign-in:
+
+```vue
+<script setup lang="ts">
+const route = useRoute();
+const destination = computed(
+  () => getSafeReturnPath(route.query.return_to) ?? "/",
+);
+</script>
+
+<template>
+  <SignIn :force-redirect-url="destination" />
+</template>
+```
+
+Where an app sends a visitor after sign-in when there is no return path, and redirecting signed-in visitors away from public pages, stay in the app.
+
+### The session token on API requests
+
+On the client, every same-origin request to `/api` or a path under `/api/` carries `Authorization: Bearer <session token>` when the visitor is signed in. It holds for `$fetch`, `useFetch`, and plain `fetch`, because the plugin wraps `fetch` itself and ofetch reads it on every call.
+
+- A request to any other origin never gets the header, and a request that already has an `Authorization` header is left alone.
+- Getting the token is raced against a 10-second timeout (`SESSION_TOKEN_TIMEOUT_MS`). On timeout, on a deferred page, or when there is no session, the request goes out with no header.
+- The token is read when each request is sent, so a request queued for later carries a fresh one.
+- During server rendering no token is attached, so an `/api` call made while rendering is answered with 401. Pages that need user data on the server read it from Clerk state (`useClerkUser()`), not from the app's own API.
+
+### Reverification prompt
+
+`useReverification()` returns `{ withReverification }`. `withReverification(action)` returns a function that runs `action`. When it fails with a 403 whose `data.code` is `reverification_required` (the server side's `REVERIFICATION_REQUIRED_CODE`), it opens Clerk's reverification prompt, and once the visitor completes it, gets a fresh session token and runs the action once more.
+
+```ts
+const { withReverification } = useReverification();
+const deleteAccount = withReverification(() =>
+  $fetch("/api/account", { method: "DELETE" }),
+);
+
+try {
+  await deleteAccount();
+} catch (error) {
+  if (error instanceof ReverificationCancelledError) {
+    return;
+  }
+  throw error;
+}
+```
+
+- Any other error, including a 403 with another code, is rethrown unchanged. A second reverification failure is rethrown and the prompt is not opened again.
+- A cancelled prompt rejects with `ReverificationCancelledError`, which is auto-imported and exported from `@neon-pixels/nuxt-auth/build`.
+- Clerk's Vue SDK has no public wrapper for the prompt, so the layer calls `__internal_openReverification`, the entry point Clerk's own React hook uses. It is called from one function (`app/internal/openReverificationPrompt.ts`), so a Clerk upgrade that renames it is a one-line change, and it fails with a clear error when the entry point is missing.
+
+### Adopting the client side
+
+An adopting app deletes its own copies of:
+
+- the Clerk plugin (`plugins/clerk.ts`) and the build hook that removes `@clerk/nuxt`'s plugin,
+- the deferral helpers and the deferred-path list (move the list to `runtimeConfig.public.auth.deferredPaths`),
+- the wrapper composables around `useAuth`, `useUser`, and `useClerk`, and the build hook that removes their auto-imports,
+- the sign-out, auth-resolved, and reverification composables,
+- the `auth` route middleware and the login return-path helpers,
+- the fetch plugin that attaches the session token (and any build hook that removes the `$fetch` auto-import for it), and
+- the reverification helper that opens Clerk's prompt.
+
+The layer does not report `sdkMetadata` to Clerk, which `@clerk/nuxt`'s own plugin sets.
+
 ## Environment variables
 
 Values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time. Nuxt also lets a `NUXT_`-prefixed variable override its runtime config key at run time on a host that passes it; `CLERK_WEBHOOK_SIGNING_SECRET`, `CONTEXT`, and `DEPLOY_PRIME_URL` are only read at build time.
@@ -164,4 +292,4 @@ Values are read from `process.env` when the config loads, so they are fixed at b
 
 ## Pure functions
 
-`@neon-pixels/nuxt-auth/build` exports the functions behind the utilities, with nothing imported from Nuxt: `parseBearerToken`, `isApiPath`, `buildAuthRuntimeConfig`, `parseFactorVerificationAges`, `isRecentlyVerified`, `createUserCache`, `createUserResolver`, and the constants above.
+`@neon-pixels/nuxt-auth/build` exports the functions behind the utilities, with nothing imported from Nuxt: `parseBearerToken`, `isApiPath`, `buildAuthRuntimeConfig`, `parseFactorVerificationAges`, `isRecentlyVerified`, `createUserCache`, `createUserResolver`, `shouldDeferClerk`, `buildLoginPath`, `getSafeReturnPath`, `createSessionTokenFetch`, `createWithReverification`, `ReverificationCancelledError`, and the constants above.

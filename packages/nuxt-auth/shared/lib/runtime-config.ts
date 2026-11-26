@@ -6,7 +6,10 @@ export type AuthRuntimeConfig = {
   clerk: { secretKey: string; jwtKey: string; webhookSigningSecret: string };
   disableSignups: boolean;
   auth: { authorizedParties: string[] };
-  public: { clerk: { publishableKey: string } };
+  public: {
+    clerk: { publishableKey: string };
+    auth: { deferredPaths: string[] };
+  };
 };
 
 const PRODUCTION_CONTEXT = "production";
@@ -63,6 +66,8 @@ export function buildAuthRuntimeConfig(
       clerk: {
         publishableKey: environment.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
       },
+      // An app lists its public pages here; with none, Clerk loads everywhere.
+      auth: { deferredPaths: [] },
     },
   };
 }

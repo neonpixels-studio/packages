@@ -1,3 +1,3 @@
 <template>
-  <div>fixture</div>
+  <NuxtPage />
 </template>
