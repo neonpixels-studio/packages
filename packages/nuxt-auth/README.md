@@ -6,7 +6,7 @@ The layer never owns a database table. Each app keeps its own `users` table and 
 
 The layer is consumed as source, not built. `main` points at `nuxt.config.ts`, and the package ships the config and the `server` and `shared` directories. There is no `dist`.
 
-Not part of this package: the Clerk client plugin, composables, and route middleware, the Clerk webhook route, API keys (`@neon-pixels/api-keys`), end-to-end sign-in helpers (`@neon-pixels/playwright-preset/clerk`), and anything about who may use an app beyond "has a valid session" (owner lists, plans, invitations, rate limits). An app enforces those in its store or in its own middleware.
+Not part of this package: the Clerk client plugin, composables, and route middleware, API keys (`@neon-pixels/api-keys`), end-to-end sign-in helpers (`@neon-pixels/playwright-preset/clerk`), and anything about who may use an app beyond "has a valid session" (owner lists, plans, invitations, rate limits). An app enforces those in its store or in its own middleware.
 
 ## Install
 
@@ -85,6 +85,47 @@ export default defineNitroPlugin(() => {
 | `authenticateOtherBearer(token, event)` | no       | For an app that accepts API keys or a shared secret on the same header. Resolves to `{ userId: string }` plus any fields the app wants on the context, or `null` for a token it rejects. |
 | `isPublicApiPath(path, method)`         | no       | Returns `true` for an `/api` route that needs no authentication. `path` has no query string.                                                                                             |
 
+## The Clerk webhook
+
+The layer serves `POST /api/webhooks/clerk`. The API middleware treats that one method and path as public without the app listing it in `isPublicApiPath`; the signature is the authentication.
+
+1. Create a webhook endpoint in the Clerk dashboard pointing at `https://<your site>/api/webhooks/clerk`, subscribe it to the events you want, and set its signing secret as `CLERK_WEBHOOK_SIGNING_SECRET`.
+2. The route verifies the delivery with `verifyWebhook` from `@clerk/backend/webhooks` and `runtimeConfig.clerk.webhookSigningSecret`.
+3. For a verified `user.deleted` event, the layer first calls `clearAuthUser` with the deleted user's Clerk id.
+4. Every verified event, `user.deleted` included, is then passed to the Nitro hook `clerk:webhook` as `{ type, data }`. The layer decides nothing about your data; your handlers do.
+
+| Response | When                                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------------- |
+| 200      | The signature is valid and every handler finished, or there are none.                                    |
+| 400      | A signature header is missing, or the signature does not match the body.                                 |
+| 503      | The signing secret is empty. Clerk retries, so a delivery is not lost while the app is being configured. |
+| 500      | A handler threw. The error is reported to Sentry (`@sentry/nuxt`) and Clerk retries.                     |
+
+No response includes the secret, the signature, the request body, or a handler's error message.
+
+Handle the events you care about from a server plugin. This one marks the app's user row deleted when Clerk deletes the user:
+
+```ts
+// server/plugins/clerk-webhook.ts
+import { eq } from "drizzle-orm";
+
+export default defineNitroPlugin((nitroApp) => {
+  nitroApp.hooks.hook("clerk:webhook", async ({ type, data }) => {
+    if (type !== "user.deleted" || !data.id) {
+      return;
+    }
+    await db
+      .update(users)
+      .set({ deleted: true })
+      .where(eq(users.providerId, data.id));
+  });
+});
+```
+
+The hook's payload is typed by the layer (`ClerkWebhookPayload`, narrowed by `type`), through an augmentation of `NitroRuntimeHooks` from `nitropack/types`.
+
+**Handlers must be safe to run twice.** Clerk retries any delivery that did not get a 200, and it can deliver an event more than once, so a handler that already ran for an event has to leave the same result when it runs again. The example above is safe because it sets a flag instead of toggling it. Every handler runs in the one request, so a slow or failing handler delays and fails the whole delivery: keep each one short, and move slow work to a queue.
+
 ## What the middleware does
 
 `/api` and the paths under it are the API. Everything else is a page. The layer's two middleware files run before the app's own server middleware and route handlers.
@@ -155,7 +196,7 @@ Values are read from `process.env` when the config loads, so they are fixed at b
 | `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `public.clerk.publishableKey` | Clerk publishable key (Clerk dashboard, API keys). Empty by default.                                                                                                                                             |
 | `NUXT_CLERK_SECRET_KEY`             | `clerk.secretKey`             | Clerk secret key (Clerk dashboard, API keys). An empty key does not fail the build, because some apps have none in preview builds; the first request to verify a token fails with a 500 that names the variable. |
 | `NUXT_CLERK_JWT_KEY`                | `clerk.jwtKey`                | Clerk's JWKS public key (Clerk dashboard, API keys, "Show JWT public key"). Optional. When set, tokens are verified without a network request.                                                                   |
-| `CLERK_WEBHOOK_SIGNING_SECRET`      | `clerk.webhookSigningSecret`  | Signing secret of a Clerk webhook endpoint. Nothing in this package reads it; the webhook route does.                                                                                                            |
+| `CLERK_WEBHOOK_SIGNING_SECRET`      | `clerk.webhookSigningSecret`  | Signing secret of a Clerk webhook endpoint (Clerk dashboard, Webhooks, the endpoint's signing secret). The webhook route verifies every delivery with it. Empty by default, which makes the route answer 503.    |
 | `NUXT_DISABLE_SIGNUPS`              | `disableSignups`              | `"true"` stops the layer from creating users. Any other value leaves sign-ups open.                                                                                                                              |
 | `NUXT_PUBLIC_SITE_URL`              | `auth.authorizedParties`      | The site's origin, from `@neon-pixels/nuxt-base`. A production build fails when it is unset. Its origin is passed to Clerk as an authorized party.                                                               |
 | `CONTEXT`, `DEPLOY_PRIME_URL`       | `auth.authorizedParties`      | Set by Netlify. Outside the `production` context the origin of `DEPLOY_PRIME_URL` is added, so deploy previews can sign in.                                                                                      |

@@ -1,4 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -16,6 +17,9 @@ const STARTUP_POLL_MS = 100;
 const SITE_ORIGIN = "https://fixture.example.com";
 // Clerk reads the frontend host out of the publishable key.
 const PUBLISHABLE_KEY = `pk_live_${Buffer.from("clerk.fixture.example.com$").toString("base64")}`;
+
+const WEBHOOK_SECRET_BYTES = "w".repeat(32);
+const WEBHOOK_SIGNING_SECRET = `whsec_${Buffer.from(WEBHOOK_SECRET_BYTES).toString("base64")}`;
 
 const keys = generateTestKeys();
 const servers: { process: ChildProcess; origin: string }[] = [];
@@ -41,6 +45,7 @@ function buildFixture(): void {
       NUXT_CLERK_SECRET_KEY: "sk_live_fixture",
       NUXT_CLERK_JWT_KEY: keys.publicKeyPem,
       NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: PUBLISHABLE_KEY,
+      CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_SIGNING_SECRET,
       NUXT_TELEMETRY_DISABLED: "1",
     },
   });
@@ -296,5 +301,94 @@ describe("a page request", () => {
   it("does not run the API middleware", async () => {
     const response = await get("/whoami", "a.b.c");
     expect(response.status).toBe(200);
+  });
+});
+
+describe("the Clerk webhook route", () => {
+  function signedWebhook(type: string, data: Record<string, unknown>) {
+    const body = JSON.stringify({
+      object: "event",
+      type,
+      timestamp: 1,
+      instance_id: "ins_fixture",
+      event_attributes: { http_request: {} },
+      data,
+    });
+    const id = `msg_${Math.random().toString(36).slice(2)}`;
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = createHmac("sha256", WEBHOOK_SECRET_BYTES)
+      .update(`${id}.${timestamp}.${body}`)
+      .digest("base64");
+    return {
+      body,
+      headers: {
+        "svix-id": id,
+        "svix-timestamp": timestamp,
+        "svix-signature": `v1,${signature}`,
+      },
+    };
+  }
+
+  function postWebhook(
+    type: string,
+    data: Record<string, unknown>,
+  ): Promise<Response> {
+    const { body, headers } = signedWebhook(type, data);
+    return fetch(`${origin}/api/webhooks/clerk`, {
+      method: "POST",
+      headers,
+      body,
+    });
+  }
+
+  async function receivedEvents(): Promise<{ type: string; id?: string }[]> {
+    const response = await get("/api/webhook-calls", "key_good");
+    return response.json();
+  }
+
+  it("is public without the app listing it, and rejects an unsigned request with 400", async () => {
+    const response = await fetch(`${origin}/api/webhooks/clerk`, {
+      method: "POST",
+      body: "{}",
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("is only public for POST", async () => {
+    expect((await get("/api/webhooks/clerk")).status).toBe(401);
+  });
+
+  it("clears the cached user and passes a verified user.deleted to the hook", async () => {
+    await get("/api/me", sessionToken("user_hooked"));
+    const before = await stats();
+    const response = await postWebhook("user.deleted", {
+      id: "user_hooked",
+      deleted: true,
+      object: "user",
+    });
+    expect(response.status).toBe(200);
+    expect(await receivedEvents()).toContainEqual({
+      type: "user.deleted",
+      id: "user_hooked",
+    });
+    await get("/api/me", sessionToken("user_hooked"));
+    expect((await stats()).find).toBe(before.find + 1);
+  });
+
+  it("answers 200 for an event type with no special handling", async () => {
+    const response = await postWebhook("user.created", { id: "user_created" });
+    expect(response.status).toBe(200);
+    expect(await receivedEvents()).toContainEqual({
+      type: "user.created",
+      id: "user_created",
+    });
+  });
+
+  it("answers 500 when the app's handler throws", async () => {
+    const response = await postWebhook("user.updated", {
+      id: "user_webhook_throws",
+    });
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("the app handler failed");
   });
 });

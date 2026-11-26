@@ -5,6 +5,7 @@ export type StubConfig = {
   jwtKey?: string;
   authorizedParties?: string[];
   disableSignups?: boolean;
+  webhookSigningSecret?: string;
 };
 
 /** Stands in for the Nitro auto-imports the layer's server files use. */
@@ -13,7 +14,7 @@ export function stubNitro(config: StubConfig = {}): void {
     clerk: {
       secretKey: config.secretKey ?? "sk_test_value",
       jwtKey: config.jwtKey ?? "",
-      webhookSigningSecret: "",
+      webhookSigningSecret: config.webhookSigningSecret ?? "",
     },
     disableSignups: config.disableSignups ?? false,
     auth: { authorizedParties: config.authorizedParties ?? [] },
