@@ -1,0 +1,125 @@
+import { verifyWebhook } from "@clerk/backend/webhooks";
+import {
+  AuthHttpError,
+  HTTP_BAD_REQUEST,
+  HTTP_INTERNAL_SERVER_ERROR,
+  HTTP_SERVICE_UNAVAILABLE,
+} from "../../shared/lib/http-error.ts";
+import {
+  CLERK_WEBHOOK_HOOK,
+  CLERK_WEBHOOK_PATH,
+  SVIX_HEADER_NAMES,
+  deletedUserProviderId,
+} from "../../shared/lib/webhook.ts";
+import { clearAuthUser } from "../utils/resolveAuthUser.ts";
+import { toNitroError } from "./http-errors.ts";
+import { reportError } from "./report-error.ts";
+import type { ClerkWebhookPayload } from "../../shared/types/webhook.d.ts";
+import type { H3Event } from "h3";
+
+// Nothing below puts the secret, the signature, or the body in a message.
+const MESSAGE_NOT_CONFIGURED = "Clerk webhook signing secret is not configured";
+const MESSAGE_INVALID = "Invalid webhook signature";
+const MESSAGE_HANDLER_FAILED = "Webhook handler failed";
+
+function requireSigningSecret(): string {
+  const secret = useRuntimeConfig().clerk.webhookSigningSecret;
+  if (!secret) {
+    // 503 so Clerk retries once the app is configured.
+    throw new AuthHttpError(HTTP_SERVICE_UNAVAILABLE, MESSAGE_NOT_CONFIGURED);
+  }
+  return secret;
+}
+
+// Null when any signed header is missing, so an unsigned request is rejected
+// before its body is read.
+function readSignatureHeaders(event: H3Event): Headers | null {
+  const headers = new Headers();
+  for (const name of SVIX_HEADER_NAMES) {
+    const value = getHeader(event, name);
+    if (!value) {
+      return null;
+    }
+    headers.set(name, value);
+  }
+  return headers;
+}
+
+function invalidSignature(): AuthHttpError {
+  return new AuthHttpError(HTTP_BAD_REQUEST, MESSAGE_INVALID);
+}
+
+async function buildSignedRequest(event: H3Event): Promise<Request> {
+  const headers = readSignatureHeaders(event);
+  if (!headers) {
+    throw invalidSignature();
+  }
+  // Only the raw body and the headers are signed, so the URL is a placeholder.
+  return new Request(`http://localhost${CLERK_WEBHOOK_PATH}`, {
+    method: "POST",
+    headers,
+    body: (await readRawBody(event)) ?? "",
+  });
+}
+
+async function verifyDelivery(
+  event: H3Event,
+  signingSecret: string,
+): Promise<ClerkWebhookPayload> {
+  const request = await buildSignedRequest(event);
+  try {
+    const verified = await verifyWebhook(request, { signingSecret });
+    return { type: verified.type, data: verified.data } as ClerkWebhookPayload;
+  } catch (error) {
+    // The error's class name only: a rotated or malformed secret is visible in
+    // the logs, and nothing sent in the request is.
+    console.warn(
+      "[clerk-webhook] verification failed:",
+      error instanceof Error ? error.name : typeof error,
+    );
+    throw invalidSignature();
+  }
+}
+
+// A deleted user leaves the cache before the app's handlers run, so they see
+// fresh data, and again after, because a request with a still-valid token can
+// cache the user again while a handler is marking the row deleted.
+function forgetDeletedUser(payload: ClerkWebhookPayload): void {
+  const providerId = deletedUserProviderId(payload);
+  if (providerId) {
+    clearAuthUser(providerId);
+  }
+}
+
+async function runAppHandlers(payload: ClerkWebhookPayload): Promise<void> {
+  try {
+    await useNitroApp().hooks.callHook(CLERK_WEBHOOK_HOOK, payload);
+  } catch (error) {
+    // Sentry does nothing when it is not initialized, so log it as well.
+    console.error("[clerk-webhook] handler failed:", payload.type, error);
+    reportError(error, { source: "clerk-webhook", eventType: payload.type });
+    // 500 so Clerk retries. The message never carries the handler's error.
+    throw new AuthHttpError(HTTP_INTERNAL_SERVER_ERROR, MESSAGE_HANDLER_FAILED);
+  }
+}
+
+async function verifyAndDispatch(event: H3Event): Promise<{ received: true }> {
+  const payload = await verifyDelivery(event, requireSigningSecret());
+  forgetDeletedUser(payload);
+  try {
+    await runAppHandlers(payload);
+  } finally {
+    forgetDeletedUser(payload);
+  }
+  return { received: true };
+}
+
+export async function handleClerkWebhook(
+  event: H3Event,
+): Promise<{ received: true }> {
+  try {
+    return await verifyAndDispatch(event);
+  } catch (error) {
+    throw toNitroError(error);
+  }
+}

@@ -1,4 +1,5 @@
 import type { H3Event } from "h3";
+import type { ClerkWebhookPayload } from "../shared/types/webhook.d.ts";
 import type { RuntimeConfig } from "nuxt/schema";
 
 interface RouteLike {
@@ -17,6 +18,15 @@ declare global {
   }
   function useRuntimeConfig(event?: H3Event): RuntimeConfig;
   function getHeader(event: H3Event, name: string): string | undefined;
+  function readRawBody(event: H3Event): Promise<string | undefined>;
+  function useNitroApp(): {
+    hooks: {
+      callHook(
+        name: "clerk:webhook",
+        payload: ClerkWebhookPayload,
+      ): Promise<void>;
+    };
+  };
   function createError(input: {
     statusCode: number;
     statusMessage: string;

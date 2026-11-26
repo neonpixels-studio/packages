@@ -38,6 +38,8 @@
     "@clerk/backend": "^3.0.0",
     "@clerk/nuxt": "^3.0.0",
     "@clerk/vue": "^2.0.0",
+    "@sentry/nuxt": "^11.0.0",
+    "nitropack": "^2.10.0",
     "nuxt": "^4.0.0",
     "vue": "^3.5.0"
   },
@@ -46,10 +48,17 @@
     "@clerk/nuxt": "3.1.30",
     "@clerk/vue": "2.5.28",
     "@nuxt/kit": "^4.7.0",
+    "@sentry/nuxt": "11.16.0",
     "h3": "^1.15.4",
     "happy-dom": "^21.0.4",
+    "nitropack": "^2.14.0",
     "nuxt": "^4.7.0",
     "ofetch": "^1.5.1",
     "vue": "^3.5.46"
+  },
+  "peerDependenciesMeta": {
+    "nitropack": {
+      "optional": true
+    }
   }
 }

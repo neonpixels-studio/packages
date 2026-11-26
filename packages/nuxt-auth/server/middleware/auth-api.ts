@@ -4,6 +4,7 @@ import {
   pathnameOf,
 } from "../../shared/lib/bearer.ts";
 import { assertUserId } from "../../shared/lib/user-resolution.ts";
+import { isClerkWebhookRequest } from "../../shared/lib/webhook.ts";
 import {
   AuthHttpError,
   HTTP_UNAUTHORIZED,
@@ -53,6 +54,10 @@ async function authenticateOther(
 // Pages are handled by auth-pages.ts.
 export default defineEventHandler(async (event) => {
   if (!isApiPath(event.path)) {
+    return;
+  }
+  // The webhook route verifies its own signature.
+  if (isClerkWebhookRequest(event.path, event.method)) {
     return;
   }
   const store = await withNitroErrors(() => authStoreRegistry.require());
