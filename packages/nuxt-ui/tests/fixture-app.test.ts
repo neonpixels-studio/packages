@@ -98,8 +98,12 @@ beforeAll(async () => {
   await startServer();
 }, BUILD_TIMEOUT_MS);
 
-afterAll(() => {
-  server?.kill();
+afterAll(async () => {
+  if (server) {
+    const exited = new Promise((done) => server?.once("exit", done));
+    server.kill();
+    await exited;
+  }
   for (const name of GENERATED) {
     rmSync(resolve(FIXTURE_DIRECTORY, name), { recursive: true, force: true });
   }

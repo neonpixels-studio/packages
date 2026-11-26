@@ -4,20 +4,20 @@ export type Theme = (typeof THEMES)[number];
 export type ResolvedTheme = Exclude<Theme, "system">;
 
 export interface LegacyKeys {
-  theme?: string[];
-  accent?: string[];
+  theme?: readonly string[];
+  accent?: readonly string[];
 }
 
 export interface AppearanceConfigInput {
   storagePrefix?: string;
-  accents?: string[];
+  accents?: readonly string[];
   defaultAccent?: string;
   legacyKeys?: LegacyKeys;
 }
 
 export interface AppearanceConfig {
   storagePrefix: string;
-  accents: string[];
+  accents: readonly string[];
   defaultAccent: string;
   legacyKeys: Required<LegacyKeys>;
 }

@@ -10,7 +10,7 @@ The layer is consumed as source, not built. `main` points at `nuxt.config.ts`, a
 pnpm add @neon-pixels/nuxt-ui
 ```
 
-Peer dependencies: `nuxt` 4 and `vue` 3.
+Peer dependencies: `nuxt` 4, `vue` 3, and `@sentry/nuxt` 11 (required by `@neon-pixels/nuxt-base`).
 
 ## Adopt it
 

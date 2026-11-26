@@ -73,6 +73,7 @@ export function createAppearanceController(
   const queue = createSaveQueue(currentSender, warn);
   let root: Element | undefined;
   let localChanges = 0;
+  let pendingAccountValues: AppearanceValues | null = null;
 
   // Called as a method of the adapter, so an adapter that uses `this` works.
   function currentSender() {
@@ -127,6 +128,11 @@ export function createAppearanceController(
   // The account's values win over the device's, and are not sent back.
   function applyFromAccount(values: AppearanceValues | null): void {
     if (!values) {
+      return;
+    }
+    // Before start, the page is still hydrating: applying now would not match the server.
+    if (!root) {
+      pendingAccountValues = values;
       return;
     }
     if (isTheme(values.theme)) {
@@ -207,6 +213,8 @@ export function createAppearanceController(
     };
     state.systemDark.value = query.matches;
     readDevice();
+    applyFromAccount(pendingAccountValues);
+    pendingAccountValues = null;
     applyToDocument();
     query.addEventListener("change", onSystemChange);
     browser.addEventListener("storage", applyStorageEvent);

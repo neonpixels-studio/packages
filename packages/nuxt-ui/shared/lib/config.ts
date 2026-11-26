@@ -5,7 +5,7 @@ function fail(message: string): never {
   throw new Error(`${PACKAGE_LABEL}: ${message}`);
 }
 
-function nonEmptyStrings(value: unknown, name: string): string[] {
+function nonEmptyStrings(value: unknown, name: string): readonly string[] {
   if (value === undefined) {
     return [];
   }
@@ -18,10 +18,13 @@ function nonEmptyStrings(value: unknown, name: string): string[] {
   if (!everyName) {
     return fail(`appConfig.appearance.${name} must hold non-empty strings.`);
   }
-  return Object.freeze([...value]) as string[];
+  return Object.freeze([...value]);
 }
 
-function checkDefaultAccent(accents: string[], defaultAccent: string): void {
+function checkDefaultAccent(
+  accents: readonly string[],
+  defaultAccent: string,
+): void {
   if (accents.length === 0 || accents.includes(defaultAccent)) {
     return;
   }

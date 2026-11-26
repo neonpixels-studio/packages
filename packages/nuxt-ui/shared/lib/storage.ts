@@ -48,9 +48,23 @@ export function createAppearanceStorage(
       return null;
     }
     const value = storage.getItem(legacyKey) as string;
-    storage.setItem(keys[kind], value);
-    storage.removeItem(legacyKey);
+    moveLegacyValue(storage, legacyKey, keys[kind], value);
     return value;
+  }
+
+  // The value is applied even when the move fails, as the pre-paint script does.
+  function moveLegacyValue(
+    storage: StorageLike,
+    legacyKey: string,
+    key: string,
+    value: string,
+  ): void {
+    try {
+      storage.setItem(key, value);
+      storage.removeItem(legacyKey);
+    } catch {
+      // The legacy key stays; the next visit tries again.
+    }
   }
 
   function readFromStorage(storage: StorageLike, kind: Kind): string | null {

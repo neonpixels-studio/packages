@@ -379,3 +379,17 @@ describe("an app without accents", () => {
     expect(state.theme.value).toBe("dark");
   });
 });
+
+describe("account values that arrive before hydration", () => {
+  it("wait for start so the first client render matches the server", async () => {
+    const adapter = {
+      load: vi.fn(async () => ({ theme: "dark" as const })),
+      save: vi.fn(async () => undefined),
+    };
+    const { controller, state } = setup({}, CONFIG, adapter);
+    await controller.syncFromAccount();
+    expect(state.theme.value).toBe("system");
+    controller.start(fakeBrowser().browser);
+    expect(state.theme.value).toBe("dark");
+  });
+});

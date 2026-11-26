@@ -61,3 +61,14 @@ describe("appearance storage", () => {
     expect(storage.readAccent()).toBe("teal");
   });
 });
+
+describe("a legacy move that fails", () => {
+  it("still returns the legacy value", () => {
+    const backing = memoryStorage({ "old-theme": "dark" });
+    backing.setItem = () => {
+      throw new DOMException("quota", "QuotaExceededError");
+    };
+    const storage = createAppearanceStorage(CONFIG, () => backing);
+    expect(storage.readTheme()).toBe("dark");
+  });
+});
