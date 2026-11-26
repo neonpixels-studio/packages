@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/nuxt-ui",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Nuxt layer with light and dark mode, accent colors, and a script that sets them before the first paint. Shipped as source.",
   "license": "MIT",
   "type": "module",
