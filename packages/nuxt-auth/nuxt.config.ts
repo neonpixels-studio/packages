@@ -39,7 +39,10 @@ const LAYER_MIDDLEWARE_DIRECTORY = toForwardSlashes(
 );
 
 function isLayerMiddleware(handlerPath: string): boolean {
-  return toForwardSlashes(dirname(handlerPath)) === LAYER_MIDDLEWARE_DIRECTORY;
+  return (
+    toForwardSlashes(realpathSync(dirname(handlerPath))) ===
+    LAYER_MIDDLEWARE_DIRECTORY
+  );
 }
 
 // Nitro scans the handlers again after its own hooks run, so the order is set
@@ -65,7 +68,8 @@ function runLayerMiddlewareFirst(nitro: NitroInfo): void {
 }
 
 // `nuxt prepare` (often a postinstall step) and `nuxt dev` are not builds, so
-// only a real build requires the site URL. // `hooks` entry, because a layer's hook would replace the base layer's.
+// only a real build requires the site URL. This is a module rather than a
+// `hooks` entry, so it never competes with the base layer's hooks.
 function setUpAuthBuild(_options: unknown, nuxt: BuildInfo) {
   nuxt.hook("nitro:init", runLayerMiddlewareFirst);
   if (nuxt.options.dev || nuxt.options._prepare) {

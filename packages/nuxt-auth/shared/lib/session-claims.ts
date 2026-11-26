@@ -59,11 +59,19 @@ export function parseFactorVerificationAges(
   return [first, second];
 }
 
-type RawClaims = { sub?: unknown; fva?: unknown };
+// Clerk marks a session that still has required steps (such as setting up a
+// second factor) as pending. Clerk's own request authentication treats it as
+// signed out by default, and so does this layer.
+export const PENDING_SESSION_STATUS = "pending";
 
-/** `null` when the token has no usable subject. */
+type RawClaims = { sub?: unknown; fva?: unknown; sts?: unknown };
+
+/** `null` when the token has no usable subject or its session is pending. */
 export function readSessionClaims(claims: RawClaims): SessionClaims | null {
   if (typeof claims.sub !== "string" || !claims.sub) {
+    return null;
+  }
+  if (claims.sts === PENDING_SESSION_STATUS) {
     return null;
   }
   return {

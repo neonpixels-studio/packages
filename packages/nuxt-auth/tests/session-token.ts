@@ -24,6 +24,7 @@ export type TestTokenClaims = {
   sub?: string;
   azp?: string;
   fva?: unknown;
+  sts?: string;
   /** Seconds relative to now. */
   expiresIn?: number;
   notBeforeIn?: number;
@@ -40,6 +41,7 @@ export function signSessionToken(
     sub: claims.sub,
     azp: claims.azp,
     fva: claims.fva,
+    sts: claims.sts,
     iat: nowSeconds - 1,
     nbf: nowSeconds + (claims.notBeforeIn ?? -1),
     exp: nowSeconds + (claims.expiresIn ?? TOKEN_LIFETIME_SECONDS),

@@ -107,6 +107,13 @@ describe("readSessionClaims", () => {
     ).toBeNull();
   });
 
+  it("returns null for a pending session and accepts an active one", () => {
+    expect(readSessionClaims({ sub: "user_1", sts: "pending" })).toBeNull();
+    expect(
+      readSessionClaims({ sub: "user_1", sts: "active" })?.providerId,
+    ).toBe("user_1");
+  });
+
   it.each([undefined, "", 7, null])(
     "returns null for the subject %j",
     (sub) => {

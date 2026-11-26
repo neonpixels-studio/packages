@@ -210,6 +210,16 @@ describe("verifySessionToken with the real verifier and a JWT key", () => {
     expect(await verifySessionToken(token)).toBeNull();
   });
 
+  it("rejects a token whose session is pending", async () => {
+    stubNitro({ jwtKey: keys.publicKeyPem });
+    const token = signSessionToken(keys.privateKeyPem, {
+      sub: "user_1",
+      sts: "pending",
+    });
+    const verifySessionToken = await load();
+    expect(await verifySessionToken(token)).toBeNull();
+  });
+
   it("rejects a malformed token", async () => {
     stubNitro({ jwtKey: keys.publicKeyPem });
     const verifySessionToken = await load();
