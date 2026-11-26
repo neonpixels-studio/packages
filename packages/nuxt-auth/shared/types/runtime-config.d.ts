@@ -6,6 +6,7 @@ declare module "nuxt/schema" {
   }
   interface PublicRuntimeConfig {
     clerk: { publishableKey: string };
+    auth: { deferredPaths: string[] };
   }
 }
 

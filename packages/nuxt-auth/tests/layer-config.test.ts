@@ -35,7 +35,11 @@ interface LoadedConfig {
     clerk: Record<string, string>;
     disableSignups: boolean;
     auth: { authorizedParties: string[] };
-    public: { clerk: { publishableKey: string }; siteUrl: string };
+    public: {
+      clerk: { publishableKey: string };
+      auth: { deferredPaths: string[] };
+      siteUrl: string;
+    };
   };
 }
 
@@ -90,6 +94,15 @@ describe("the merged config of an app that extends the layer", () => {
         "https://example.com",
       ]);
       expect(runtimeConfig.public.siteUrl).toBe("https://example.com");
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+
+  it(
+    "defers no page by default, so Clerk loads on every page",
+    async () => {
+      const { runtimeConfig } = await loadFixtureConfig();
+      expect(runtimeConfig.public.auth.deferredPaths).toEqual([]);
     },
     CONFIG_LOAD_TIMEOUT_MS,
   );
