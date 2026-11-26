@@ -34,9 +34,15 @@ vi.mock("../server/lib/report-error.ts", () => ({
 
 type TestEvent = { headers: Record<string, string>; rawBody?: string };
 
+const PLACEHOLDER_HEADERS = {
+  "svix-id": "msg_1",
+  "svix-timestamp": "1",
+  "svix-signature": SIGNATURE,
+};
+
 function eventWith(
   rawBody: string | undefined,
-  headers: Record<string, string> = {},
+  headers: Record<string, string> = PLACEHOLDER_HEADERS,
 ): never {
   return { headers, rawBody } as TestEvent as never;
 }
@@ -98,7 +104,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
     stubWebhookGlobals("");
     verifyWebhookMock.mockResolvedValue(deletedPayload);
     const handle = await load();
-    const failure = await handle(eventWith("{}", {})).catch(
+    const failure = await handle(eventWith("{}")).catch(
       (error: Error) => error,
     );
     expect(failure).toMatchObject({ statusCode: 503 });
@@ -112,9 +118,9 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
   it("answers 400 when verification fails, without echoing anything sent", async () => {
     verifyWebhookMock.mockRejectedValue(new Error("bad signature xyz"));
     const handle = await load();
-    const failure = await handle(
-      eventWith('{"secret":"body-value"}', { "svix-signature": SIGNATURE }),
-    ).catch((error: Error) => error);
+    const failure = await handle(eventWith('{"secret":"body-value"}')).catch(
+      (error: Error) => error,
+    );
     expect(failure).toMatchObject({ statusCode: 400 });
     for (const leaked of [SIGNING_SECRET, SIGNATURE, "body-value", "xyz"]) {
       expect(serializedFailure(failure)).not.toContain(leaked);
@@ -154,7 +160,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
   it("clears the deleted user, then hands the event to the hook, and answers 200", async () => {
     verifyWebhookMock.mockResolvedValue({ ...deletedPayload, object: "event" });
     const handle = await load();
-    const result = await handle(eventWith("{}", {}));
+    const result = await handle(eventWith("{}"));
     expect(result).toEqual({ received: true });
     expect(clearAuthUserMock).toHaveBeenCalledWith("user_gone");
     expect(callHookMock).toHaveBeenCalledWith("clerk:webhook", deletedPayload);
@@ -167,7 +173,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
       data: { deleted: true },
     });
     const handle = await load();
-    await handle(eventWith("{}", {}));
+    await handle(eventWith("{}"));
     expect(clearAuthUserMock).not.toHaveBeenCalled();
     expect(callHookMock).toHaveBeenCalledOnce();
   });
@@ -176,7 +182,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
     const created = { type: "user.created", data: { id: "user_new" } };
     verifyWebhookMock.mockResolvedValue(created);
     const handle = await load();
-    expect(await handle(eventWith("{}", {}))).toEqual({ received: true });
+    expect(await handle(eventWith("{}"))).toEqual({ received: true });
     expect(clearAuthUserMock).not.toHaveBeenCalled();
     expect(callHookMock).toHaveBeenCalledWith("clerk:webhook", created);
   });
@@ -184,14 +190,18 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
   it("answers 500 and reports the error when a handler throws", async () => {
     verifyWebhookMock.mockResolvedValue(deletedPayload);
     const handlerError = new Error("database says secret-detail");
-    callHookMock.mockRejectedValue(handlerError);
+    callHookMock.mockImplementation(async () => {
+      callOrder.push("hook");
+      throw handlerError;
+    });
     const handle = await load();
-    const failure = await handle(eventWith("{}", {})).catch(
+    const failure = await handle(eventWith("{}")).catch(
       (error: Error) => error,
     );
     expect(failure).toMatchObject({ statusCode: 500 });
     expect(serializedFailure(failure)).not.toContain("secret-detail");
     expect(console.error).toHaveBeenCalled();
+    expect(callOrder).toEqual(["clear", "hook", "clear"]);
     expect(reportErrorMock).toHaveBeenCalledWith(handlerError, {
       source: "clerk-webhook",
       eventType: "user.deleted",
@@ -230,15 +240,26 @@ describe("the Clerk webhook handler with a real signature", () => {
 
   it("rejects a delivery with no signature headers", async () => {
     const handle = await load();
+    const readRawBody = vi.fn();
+    vi.stubGlobal("readRawBody", readRawBody);
     await expect(handle(eventWith("{}", {}))).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(readRawBody).not.toHaveBeenCalled();
+  });
+
+  it("rejects a delivery with one signature header missing", async () => {
+    const handle = await load();
+    const { "svix-id": _omitted, ...partial } = signedHeaders("{}");
+    await expect(handle(eventWith("{}", partial))).rejects.toMatchObject({
       statusCode: 400,
     });
   });
 
-  it("rejects a missing body even when its headers are signed", async () => {
+  it("rejects a missing body whose headers were signed over a body", async () => {
     const handle = await load();
     await expect(
-      handle(eventWith(undefined, signedHeaders(""))),
+      handle(eventWith(undefined, signedHeaders('{"type":"user.deleted"}'))),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(callHookMock).not.toHaveBeenCalled();
   });

@@ -124,6 +124,8 @@ export default defineNitroPlugin((nitroApp) => {
 
 The hook's payload is typed by the layer (`ClerkWebhookPayload`, narrowed by `type`), through an augmentation of `NitroRuntimeHooks` from `nitropack/types`.
 
+**Upgrading an app that has its own route.** An app's own `server/api/webhooks/clerk.post.ts` takes priority over the layer's, so the layer's cache clearing and `clerk:webhook` dispatch never run, and the middleware now treats that path as public. Delete the app's route and move its logic into a `clerk:webhook` handler.
+
 **Handlers must be safe to run twice.** Clerk retries any delivery that did not get a 200, and it can deliver an event more than once, so a handler that already ran for an event has to leave the same result when it runs again. The example above is safe because it sets a flag instead of toggling it. Every handler runs in the one request, so a slow or failing handler delays and fails the whole delivery: keep each one short, and move slow work to a queue.
 
 ## What the middleware does
