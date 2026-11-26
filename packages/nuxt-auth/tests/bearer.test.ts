@@ -46,9 +46,11 @@ describe("looksLikeJwt", () => {
 });
 
 describe("isApiPath and pathnameOf", () => {
-  it("treats only paths under /api/ as the API", () => {
+  it("treats /api and the paths under it as the API", () => {
     expect(isApiPath("/api/records")).toBe(true);
     expect(isApiPath("/api/records?x=1")).toBe(true);
+    expect(isApiPath("/api")).toBe(true);
+    expect(isApiPath("/api?x=1")).toBe(true);
     expect(isApiPath("/")).toBe(false);
     expect(isApiPath("/apiary")).toBe(false);
     expect(isApiPath("/pages/api/x")).toBe(false);

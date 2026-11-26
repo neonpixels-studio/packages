@@ -7,7 +7,10 @@ import {
   AuthHttpError,
   HTTP_UNAUTHORIZED,
 } from "../../shared/lib/http-error.ts";
-import { authStoreRegistry } from "../lib/auth-users.ts";
+import {
+  authStoreRegistry,
+  type AppAuthUsersStore,
+} from "../lib/auth-users.ts";
 import { toNitroError, withNitroErrors } from "../lib/http-errors.ts";
 import { readBearerToken } from "../utils/readBearerToken.ts";
 import { resolveAuthUser } from "../utils/resolveAuthUser.ts";
@@ -36,8 +39,8 @@ async function authenticateSession(token: string): Promise<AuthContext> {
 async function authenticateOther(
   token: string,
   event: H3Event,
+  store: AppAuthUsersStore,
 ): Promise<AuthContext> {
-  const store = await withNitroErrors(() => authStoreRegistry.require());
   const result = await store.authenticateOtherBearer?.(token, event);
   if (!result) {
     return unauthorized();
@@ -62,6 +65,6 @@ export default defineEventHandler(async (event) => {
   event.context.auth = (
     looksLikeJwt(token)
       ? await authenticateSession(token)
-      : await authenticateOther(token, event)
+      : await authenticateOther(token, event, store)
   ) as never;
 });

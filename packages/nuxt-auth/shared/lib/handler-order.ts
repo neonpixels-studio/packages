@@ -11,6 +11,11 @@ export function moveHandlersToFront<Entry extends HandlerEntry>(
 ): Entry[] {
   const matches = (entry: Entry): boolean =>
     typeof entry.handler === "string" && isFirst(entry.handler);
+  if (!handlers.some(matches)) {
+    throw new Error(
+      "@neon-pixels/nuxt-auth: its server middleware was not found among Nitro's handlers, so it cannot run before the app's own middleware.",
+    );
+  }
   return [
     ...handlers.filter(matches),
     ...handlers.filter((entry) => !matches(entry)),

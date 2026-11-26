@@ -13,6 +13,9 @@ export default defineNitroPlugin(() => {
   defineAuthUsers({
     async findByProviderId(providerId) {
       calls.find += 1;
+      if (providerId === "user_broken") {
+        throw new Error("the database is down");
+      }
       return users.get(providerId) ?? null;
     },
     async create(providerId) {

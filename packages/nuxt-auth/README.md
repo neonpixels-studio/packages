@@ -86,7 +86,7 @@ export default defineNitroPlugin(() => {
 
 ## What the middleware does
 
-Paths under `/api/` are the API. Everything else is a page. The layer's two middleware files run before the app's own server middleware and route handlers.
+`/api` and the paths under it are the API. Everything else is a page. The layer's two middleware files run before the app's own server middleware and route handlers.
 
 **API requests** (`server/middleware/auth-api.ts`). It does nothing when `isPublicApiPath` returns `true`. Otherwise it reads the `Authorization: Bearer` header and never reads a cookie.
 
@@ -147,7 +147,7 @@ These are auto-imported in `server/`.
 
 ## Environment variables
 
-Values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time.
+Values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time. Nuxt also lets a `NUXT_`-prefixed variable override its runtime config key at run time on a host that passes it; `CLERK_WEBHOOK_SIGNING_SECRET`, `CONTEXT`, and `DEPLOY_PRIME_URL` are only read at build time.
 
 | Variable                            | Runtime config                | What it is                                                                                                                                                                                                       |
 | ----------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

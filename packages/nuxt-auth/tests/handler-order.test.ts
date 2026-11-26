@@ -23,8 +23,10 @@ describe("moveHandlersToFront", () => {
     ]);
   });
 
-  it("keeps everything when nothing matches", () => {
-    expect(moveHandlersToFront(handlers, () => false)).toEqual(handlers);
+  it("fails loudly when nothing matches", () => {
+    expect(() => moveHandlersToFront(handlers, () => false)).toThrow(
+      "was not found",
+    );
   });
 
   it("does not change the list it was given", () => {

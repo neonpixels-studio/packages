@@ -26,13 +26,20 @@ interface BuildInfo {
   hook(name: "nitro:init", handler: (nitro: NitroInfo) => void): void;
 }
 
-const LAYER_MIDDLEWARE_DIRECTORY = resolve(
-  realpathSync(dirname(fileURLToPath(import.meta.url))),
-  "server/middleware",
+// Nitro handler paths use forward slashes on every platform.
+function toForwardSlashes(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+const LAYER_MIDDLEWARE_DIRECTORY = toForwardSlashes(
+  resolve(
+    realpathSync(dirname(fileURLToPath(import.meta.url))),
+    "server/middleware",
+  ),
 );
 
 function isLayerMiddleware(handlerPath: string): boolean {
-  return dirname(handlerPath) === LAYER_MIDDLEWARE_DIRECTORY;
+  return toForwardSlashes(dirname(handlerPath)) === LAYER_MIDDLEWARE_DIRECTORY;
 }
 
 // Nitro scans the handlers again after its own hooks run, so the order is set

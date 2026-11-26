@@ -212,6 +212,17 @@ describe("the API middleware", () => {
     expect((await stats(signupsDisabledOrigin)).create).toBe(before.create);
   });
 
+  it("answers 401 for /api itself without a token", async () => {
+    expect((await get("/api")).status).toBe(401);
+    expect((await get("/api", sessionToken("user_index"))).status).toBe(200);
+  });
+
+  it("does not turn a store failure into a 401", async () => {
+    expect((await get("/api/me", sessionToken("user_broken"))).status).toBe(
+      500,
+    );
+  });
+
   it("leaves a public API path alone", async () => {
     const response = await get("/api/public");
     expect(response.status).toBe(200);

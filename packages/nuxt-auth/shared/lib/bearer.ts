@@ -20,13 +20,15 @@ export function looksLikeJwt(token: string): boolean {
   return JWT_PATTERN.test(token);
 }
 
-const API_PATH_PREFIX = "/api/";
+const API_PATH = "/api";
 
 /** The path of a request target, without its query string or fragment. */
 export function pathnameOf(path: string): string {
   return path.split(/[?#]/, 1)[0] ?? "";
 }
 
+/** `/api` itself counts, because Nitro serves `server/api/index.ts` there. */
 export function isApiPath(path: string): boolean {
-  return pathnameOf(path).startsWith(API_PATH_PREFIX);
+  const pathname = pathnameOf(path);
+  return pathname === API_PATH || pathname.startsWith(`${API_PATH}/`);
 }
