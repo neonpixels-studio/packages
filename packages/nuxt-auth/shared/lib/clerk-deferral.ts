@@ -72,3 +72,19 @@ export function shouldDeferClerk(
     isDeferredPath(path, deferredPaths) && !hasClerkSessionCookie(cookieHeader)
   );
 }
+
+/**
+ * Where a navigation must load as a full document, or `null` to stay in the
+ * app. Leaving a deferred page does, so the destination starts with Clerk
+ * installed. The absolute URL keeps a "//host" path on the site.
+ */
+export function reloadTargetFor(
+  destination: { path: string; fullPath: string },
+  origin: string,
+  deferredPaths: readonly string[],
+): string | null {
+  if (isDeferredPath(destination.path, deferredPaths)) {
+    return null;
+  }
+  return `${origin}${destination.fullPath}`;
+}

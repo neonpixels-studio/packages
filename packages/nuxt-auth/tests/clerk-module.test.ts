@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertSingleClerkVue,
+  packageRootOf,
   removeClerkAutoImports,
   removeClerkModulePlugin,
   type ImportRecord,
@@ -78,5 +80,62 @@ describe("removeClerkAutoImports", () => {
       from: "/node_modules/@clerk/nuxt/dist/runtime/elsewhere.js",
     }));
     expect(() => removeClerkAutoImports(imports, VERSION)).toThrow();
+  });
+});
+
+describe("removeClerkAutoImports with duplicates", () => {
+  it("removes every copy of a name", () => {
+    const imports = [...clerkImports(), { name: "useAuth", from: COMPOSABLES }];
+    removeClerkAutoImports(imports, VERSION);
+    expect(imports.map((entry) => entry.name)).toEqual(["useOrganization"]);
+  });
+
+  it("fails the build when one name is missing even if another appears twice", () => {
+    const imports = [
+      ...clerkImports().filter((entry) => entry.name !== "useClerk"),
+      { name: "useAuth", from: COMPOSABLES },
+    ];
+    expect(() => removeClerkAutoImports(imports, VERSION)).toThrow(
+      "@clerk/nuxt 9.9.9",
+    );
+  });
+});
+
+describe("packageRootOf", () => {
+  it("finds the package directory in an entry path", () => {
+    expect(
+      packageRootOf("/a/node_modules/@clerk/vue/dist/index.js", "@clerk/vue"),
+    ).toBe("/a/node_modules/@clerk/vue");
+  });
+
+  it("uses the innermost copy and accepts Windows paths", () => {
+    expect(
+      packageRootOf(
+        "C:\\a\\node_modules\\x\\node_modules\\@clerk\\vue\\dist\\index.js",
+        "@clerk/vue",
+      ),
+    ).toBe("C:/a/node_modules/x/node_modules/@clerk/vue");
+  });
+
+  it("returns null for another package", () => {
+    expect(
+      packageRootOf("/a/node_modules/vue/index.js", "@clerk/vue"),
+    ).toBeNull();
+  });
+});
+
+describe("assertSingleClerkVue", () => {
+  const APP = "/store/@clerk+vue@2.9.0/node_modules/@clerk/vue/dist/index.js";
+  const CLERK_NUXT =
+    "/store/@clerk+vue@2.5.28/node_modules/@clerk/vue/dist/index.js";
+
+  it("passes when both resolve to one copy", () => {
+    expect(() => assertSingleClerkVue(APP, APP, VERSION)).not.toThrow();
+  });
+
+  it("fails the build, naming the version, when there are two copies", () => {
+    expect(() => assertSingleClerkVue(APP, CLERK_NUXT, VERSION)).toThrow(
+      /two copies of @clerk\/vue.*@clerk\/nuxt 9\.9\.9/,
+    );
   });
 });

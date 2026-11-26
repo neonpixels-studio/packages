@@ -112,15 +112,36 @@ describe("useSignOut", () => {
   });
 
   it("sets the error and never throws when sign-out fails", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     const { signOut, signOutStatus, signOutError } = await setUp(async () => {
       throw new Error("network");
     });
     await expect(signOut()).resolves.toBeUndefined();
     expect(signOutStatus.value).toBe("error");
     expect(signOutError.value).toBe("Couldn't sign out. Please try again.");
+    expect(logged).toHaveBeenCalledWith("Sign-out failed", expect.any(Error));
+    logged.mockRestore();
+  });
+
+  it("ignores a second sign-out while one is in progress", async () => {
+    let finish: () => void = () => undefined;
+    const clerkSignOut = vi.fn(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    const { signOut } = await setUp(clerkSignOut);
+    const first = signOut();
+    const second = signOut();
+    finish();
+    await Promise.all([first, second]);
+    expect(clerkSignOut).toHaveBeenCalledTimes(1);
   });
 
   it("clears an earlier error when it is tried again", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     let fail = true;
     const { signOut, signOutStatus, signOutError } = await setUp(async () => {
       if (fail) {
@@ -132,6 +153,7 @@ describe("useSignOut", () => {
     await signOut();
     expect(signOutError.value).toBeNull();
     expect(signOutStatus.value).toBe("idle");
+    logged.mockRestore();
   });
 });
 

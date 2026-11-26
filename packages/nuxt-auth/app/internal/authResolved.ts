@@ -7,6 +7,16 @@ export type AuthResolvedOptions = {
   timeoutMs: number;
 };
 
+function startTimeout(timedOut: Ref<boolean>, timeoutMs: number): void {
+  const timer = setTimeout(() => {
+    timedOut.value = true;
+  }, timeoutMs);
+  if (!getCurrentScope()) {
+    return;
+  }
+  onScopeDispose(() => clearTimeout(timer));
+}
+
 // Resolved on the server because there is nothing to wait for during
 // rendering: Clerk's state comes from the request, not from a script.
 export function createAuthResolved(
@@ -14,12 +24,7 @@ export function createAuthResolved(
 ): ComputedRef<boolean> {
   const timedOut = ref(false);
   if (!options.isServer && !options.isLoaded.value) {
-    const timer = setTimeout(() => {
-      timedOut.value = true;
-    }, options.timeoutMs);
-    if (getCurrentScope()) {
-      onScopeDispose(() => clearTimeout(timer));
-    }
+    startTimeout(timedOut, options.timeoutMs);
   }
   return computed(
     () => options.isServer || options.isLoaded.value || timedOut.value,

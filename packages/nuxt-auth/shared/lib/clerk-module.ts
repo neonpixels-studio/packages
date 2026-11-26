@@ -51,7 +51,8 @@ export function removeClerkAutoImports(
       REPLACED_CLERK_IMPORTS.has(entry.name) &&
       CLERK_MODULE_COMPOSABLES.test(toForwardSlashes(entry.from)),
   );
-  if (found.length !== REPLACED_CLERK_IMPORTS.size) {
+  const foundNames = new Set(found.map((entry) => entry.name));
+  if (foundNames.size !== REPLACED_CLERK_IMPORTS.size) {
     throw new Error(
       upgradeMessage(
         clerkVersion,
@@ -62,4 +63,40 @@ export function removeClerkAutoImports(
   for (const entry of found) {
     imports.splice(imports.indexOf(entry), 1);
   }
+}
+
+const CLERK_VUE_PACKAGE = "@clerk/vue";
+
+/** The directory of `packageName` in an entry path such as `.../node_modules/@clerk/vue/dist/index.js`. */
+export function packageRootOf(
+  entryPath: string,
+  packageName: string,
+): string | null {
+  const normalized = toForwardSlashes(entryPath);
+  const marker = `/node_modules/${packageName}/`;
+  const index = normalized.lastIndexOf(marker);
+  if (index === -1) {
+    return null;
+  }
+  return normalized.slice(0, index + marker.length - 1);
+}
+
+/**
+ * The layer installs Clerk with the app's `@clerk/vue`, while the composables
+ * come from the copy `@clerk/nuxt` depends on. Two copies would not share
+ * Clerk's injection key, so no composable would find the installed Clerk.
+ */
+export function assertSingleClerkVue(
+  appEntry: string,
+  clerkNuxtEntry: string,
+  clerkVersion: string,
+): void {
+  const appRoot = packageRootOf(appEntry, CLERK_VUE_PACKAGE);
+  const clerkNuxtRoot = packageRootOf(clerkNuxtEntry, CLERK_VUE_PACKAGE);
+  if (appRoot === clerkNuxtRoot) {
+    return;
+  }
+  throw new Error(
+    `@neon-pixels/nuxt-auth found two copies of @clerk/vue (${appRoot} and ${clerkNuxtRoot}). @clerk/nuxt ${clerkVersion} uses its own, so Clerk's composables would not find the Clerk this layer installs. Install a @clerk/vue version that @clerk/nuxt accepts so the package manager keeps one copy.`,
+  );
 }

@@ -11,12 +11,16 @@ export function useSignOut() {
   const signOutError = ref<string | null>(null);
 
   async function signOut(): Promise<void> {
+    if (signOutStatus.value === "signingOut") {
+      return;
+    }
     signOutStatus.value = "signingOut";
     signOutError.value = null;
     try {
       await clerkSignOut.value();
       signOutStatus.value = "idle";
-    } catch {
+    } catch (error) {
+      console.error("Sign-out failed", error);
       signOutError.value = SIGN_OUT_FALLBACK_ERROR;
       signOutStatus.value = "error";
     }

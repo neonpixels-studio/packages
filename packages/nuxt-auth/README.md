@@ -151,7 +151,7 @@ These are auto-imported in `server/`.
 
 ### Clerk loading and deferral
 
-`@clerk/nuxt` installs a client plugin that loads Clerk on every page. The layer removes it and installs Clerk from its own plugin, which runs before every other plugin, so a public page can skip Clerk for a signed-out visitor. If the module's plugin cannot be found at build time, the build fails with a message naming the `@clerk/nuxt` version, so an upgrade never leaves two plugins running.
+`@clerk/nuxt` installs a client plugin that loads Clerk on every page. The layer removes it and installs Clerk from its own plugin, which runs before every other plugin, so a public page can skip Clerk for a signed-out visitor. If the module's plugin cannot be found at build time, the build fails with a message naming the `@clerk/nuxt` version, so an upgrade never leaves two plugins running. The build also fails when your `@clerk/vue` is a different copy from the one `@clerk/nuxt` depends on, because two copies do not share Clerk's state; keep `@clerk/vue` on a version `@clerk/nuxt` accepts.
 
 Set the pages that may skip Clerk in your own config. The list is exact paths, empty by default, and with an empty list Clerk loads on every page:
 
@@ -171,7 +171,7 @@ On a deferred page:
 - The composables below report a settled signed-out state: loaded, not signed in, no user.
 - Navigating to any page that is not deferred is a full page load, so the destination starts with Clerk installed.
 
-Pages must not list a page that shows signed-in content. A visitor whose session cookie is missing or expired sees the deferred, signed-out version of a listed page.
+Do not list a page that shows signed-in content, or a page whose HTML is prerendered or cached across visitors (`routeRules` `prerender`, `swr`, or `isr`): the decision is made again in the browser from its own cookies, so cached HTML rendered for one kind of visitor would not match what another one needs. The layer also assumes `app.baseURL` is `/`. A visitor whose session cookie is missing or expired sees the deferred, signed-out version of a listed page.
 
 ### Composables
 

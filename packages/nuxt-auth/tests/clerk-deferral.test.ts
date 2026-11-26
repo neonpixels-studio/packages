@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasClerkSessionCookie,
   isDeferredPath,
+  reloadTargetFor,
   shouldDeferClerk,
 } from "../shared/lib/clerk-deferral.ts";
 
@@ -90,5 +91,45 @@ describe("isDeferredPath", () => {
   it("compares whole paths", () => {
     expect(isDeferredPath("/docs", DEFERRED)).toBe(true);
     expect(isDeferredPath("/docs2", DEFERRED)).toBe(false);
+  });
+});
+
+describe("reloadTargetFor", () => {
+  const ORIGIN = "https://app.example.com";
+
+  it("stays in the app for another deferred page", () => {
+    expect(
+      reloadTargetFor(
+        { path: "/docs", fullPath: "/docs?x=1" },
+        ORIGIN,
+        DEFERRED,
+      ),
+    ).toBeNull();
+  });
+
+  it("loads the full document for a page that is not deferred, keeping the query and hash", () => {
+    expect(
+      reloadTargetFor(
+        { path: "/trips", fullPath: "/trips?tab=2#top" },
+        ORIGIN,
+        DEFERRED,
+      ),
+    ).toBe("https://app.example.com/trips?tab=2#top");
+  });
+
+  it("keeps a path that begins with two slashes on the site", () => {
+    expect(
+      reloadTargetFor(
+        { path: "//evil.example", fullPath: "//evil.example" },
+        ORIGIN,
+        DEFERRED,
+      ),
+    ).toBe("https://app.example.com//evil.example");
+  });
+
+  it("reloads for every page when nothing is deferred", () => {
+    expect(reloadTargetFor({ path: "/", fullPath: "/" }, ORIGIN, [])).toBe(
+      "https://app.example.com/",
+    );
   });
 });

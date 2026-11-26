@@ -1,7 +1,7 @@
 import { clerkPlugin } from "@clerk/vue";
 import { setErrorThrowerOptions } from "@clerk/vue/internal";
 import {
-  isDeferredPath,
+  reloadTargetFor,
   shouldDeferClerk,
 } from "../../shared/lib/clerk-deferral.ts";
 import {
@@ -14,9 +14,11 @@ setErrorThrowerOptions({ packageName: "@clerk/nuxt" });
 const RELOAD_MIDDLEWARE_NAME = "neon-pixels-auth-deferral-reload";
 
 type ClerkRuntimeConfig = Record<string, unknown>;
+type KeylessContext = { claimUrl: string; apiKeysUrl: string };
+type ServerContext = Record<string, unknown>;
 type NuxtAppWithSsr = {
   vueApp: { use: (plugin: unknown, options: unknown) => void };
-  ssrContext?: { event: { context: Record<string, unknown> } };
+  ssrContext?: { event: { context: ServerContext } };
 };
 
 function currentPath(): string {
@@ -34,17 +36,16 @@ function currentCookieHeader(): string {
 // Clerk is not installed in this document, so any page that may need it gets
 // a fresh document load, which installs Clerk on boot. Global middleware runs
 // before page middleware, so a target page's own middleware never sees the
-// signed-out stand-ins. The absolute URL keeps a "//host" path on the site.
+// signed-out stand-ins.
 function reloadWhenLeavingDeferredPages(deferredPaths: string[]): void {
   addRouteMiddleware(
     RELOAD_MIDDLEWARE_NAME,
     (to) => {
-      if (isDeferredPath(to.path, deferredPaths)) {
+      const target = reloadTargetFor(to, window.location.origin, deferredPaths);
+      if (target === null) {
         return;
       }
-      return navigateTo(`${window.location.origin}${to.fullPath}`, {
-        external: true,
-      });
+      return navigateTo(target, { external: true });
     },
     { global: true },
   );
@@ -58,26 +59,34 @@ function startDeferredClerk(deferredPaths: string[]): DeferredClerk {
   return createDeferredClerk();
 }
 
-// Installs Clerk the way @clerk/nuxt's own plugin does, including the server's
-// initial state, so signed-in visitors are server-rendered as signed in.
-function installClerk(nuxtApp: NuxtAppWithSsr): null {
+// The server's Clerk state reaches the client through the serialized payload;
+// ssrContext only exists during SSR.
+function readServerClerkState(nuxtApp: NuxtAppWithSsr) {
   const initialState = useState<unknown>(
     "clerk-initial-state",
     () => undefined,
   );
-  const keylessContext = useState<
-    { claimUrl: string; apiKeysUrl: string } | undefined
-  >("clerk-keyless-context", () => undefined);
-  // ssrContext only exists during SSR; the client reads the serialized state.
+  const keylessContext = useState<KeylessContext | undefined>(
+    "clerk-keyless-context",
+    () => undefined,
+  );
   if (nuxtApp.ssrContext) {
     const { context } = nuxtApp.ssrContext.event;
     initialState.value = context.__clerk_initial_state;
     keylessContext.value = context.__clerk_keyless as
-      { claimUrl: string; apiKeysUrl: string } | undefined;
+      KeylessContext | undefined;
   }
-  const clerkConfig = (useRuntimeConfig().public.clerk ??
-    {}) as ClerkRuntimeConfig;
-  nuxtApp.vueApp.use(clerkPlugin, {
+  return {
+    initialState: initialState.value,
+    keylessContext: keylessContext.value,
+  };
+}
+
+function buildClerkOptions(
+  clerkConfig: ClerkRuntimeConfig,
+  state: ReturnType<typeof readServerClerkState>,
+) {
+  return {
     ...clerkConfig,
     __internal_clerkJSUrl: clerkConfig.jsUrl,
     __internal_clerkUIUrl: clerkConfig.uiUrl,
@@ -85,16 +94,27 @@ function installClerk(nuxtApp: NuxtAppWithSsr): null {
     __internal_clerkUIVersion: clerkConfig.clerkUIVersion,
     routerPush: (to: string) => navigateTo(to),
     routerReplace: (to: string) => navigateTo(to, { replace: true }),
-    initialState: initialState.value,
-    ...(keylessContext.value
+    initialState: state.initialState,
+    ...(state.keylessContext
       ? {
           __internal_keyless_claimKeylessApplicationUrl:
-            keylessContext.value.claimUrl,
+            state.keylessContext.claimUrl,
           __internal_keyless_copyInstanceKeysUrl:
-            keylessContext.value.apiKeysUrl,
+            state.keylessContext.apiKeysUrl,
         }
       : {}),
-  });
+  };
+}
+
+// Installs Clerk the way @clerk/nuxt's own plugin does, including the server's
+// initial state, so signed-in visitors are server-rendered as signed in.
+function installClerk(nuxtApp: NuxtAppWithSsr): null {
+  const clerkConfig = (useRuntimeConfig().public.clerk ??
+    {}) as ClerkRuntimeConfig;
+  nuxtApp.vueApp.use(
+    clerkPlugin,
+    buildClerkOptions(clerkConfig, readServerClerkState(nuxtApp)),
+  );
   return null;
 }
 

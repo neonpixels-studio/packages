@@ -1,9 +1,11 @@
 import { requireSiteUrlForBuild } from "@neon-pixels/nuxt-base/build";
 import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineNuxtConfig } from "nuxt/config";
 import {
+  assertSingleClerkVue,
   removeClerkAutoImports,
   removeClerkModulePlugin,
   type ImportRecord,
@@ -111,6 +113,13 @@ function clerkModuleVersion(nuxt: BuildInfo): string {
 // The layer installs Clerk from its own plugin, so public pages can skip it,
 // and replaces `useAuth`, `useUser`, and `useClerk`, which break on those pages.
 function replaceClerkClientSide(nuxt: BuildInfo): void {
+  const requireFromLayer = createRequire(import.meta.url);
+  const clerkNuxtEntry = requireFromLayer.resolve("@clerk/nuxt");
+  assertSingleClerkVue(
+    requireFromLayer.resolve("@clerk/vue"),
+    createRequire(clerkNuxtEntry).resolve("@clerk/vue"),
+    clerkModuleVersion(nuxt),
+  );
   nuxt.hook("app:resolve", (app) => {
     removeClerkModulePlugin(app.plugins, clerkModuleVersion(nuxt));
   });

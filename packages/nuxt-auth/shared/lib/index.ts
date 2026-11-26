@@ -49,6 +49,7 @@ export type {
 export {
   hasClerkSessionCookie,
   isDeferredPath,
+  reloadTargetFor,
   shouldDeferClerk,
 } from "./clerk-deferral.ts";
 export {
@@ -71,4 +72,5 @@ export {
   isReverificationRequired,
   type ReverificationDependencies,
 } from "./reverification-client.ts";
+export { assertSingleClerkVue, packageRootOf } from "./clerk-module.ts";
 export { AUTH_RESOLVE_TIMEOUT_MS } from "./auth-resolved.ts";
