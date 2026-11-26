@@ -1,5 +1,5 @@
 import { addNonceToScripts, nonceForContext } from "@neon-pixels/security";
-import { CSP_HEADER, buildCspHeaders } from "../../shared/lib/csp.ts";
+import { buildCspHeaders } from "../../shared/lib/csp.ts";
 
 // Only the sections that hold nothing but unhead's own tags. "body" is app
 // markup and "bodyPrepend" also holds <Teleport to="body"> output; both can
@@ -33,7 +33,7 @@ function sendContentSecurityPolicy(event: ServerEvent, nonce?: string): void {
 // stamps that nonce on every script unhead resolves (all positions, including
 // bodyOpen); the pass below is only a fallback for scripts unhead does not own,
 // so the header and the markup cannot drift apart.
-// Everything else (API routes, redirects, error fallbacks) gets the same policy
+// Everything else (API routes, redirects) gets the same policy
 // without a nonce, so no dynamic response is left unprotected.
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook("render:html", (html, { event }) => {
@@ -41,10 +41,9 @@ export default defineNitroPlugin((nitroApp) => {
     sendContentSecurityPolicy(event, nonce);
     stampNonceOnScripts(html, nonce);
   });
-  nitroApp.hooks.hook("beforeResponse", (event) => {
-    if (getResponseHeader(event, CSP_HEADER)) {
-      return;
-    }
+  // Runs first for every request, so redirects and responses a handler sends
+  // itself (which skip beforeResponse) are covered. A rendered page overwrites it above.
+  nitroApp.hooks.hook("request", (event) => {
     sendContentSecurityPolicy(event);
   });
 });

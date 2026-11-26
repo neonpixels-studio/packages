@@ -13,7 +13,7 @@ declare global {
         context: { event: ServerEvent },
       ) => void,
     ): void;
-    hook(name: "beforeResponse", handler: (event: ServerEvent) => void): void;
+    hook(name: "request", handler: (event: ServerEvent) => void): void;
   }
   interface ServerEvent {
     context: Record<string, unknown>;

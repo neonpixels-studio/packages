@@ -102,13 +102,32 @@ describe("buildCspHeaders", () => {
     expect(elementDirective).toContain(`'nonce-${NONCE}'`);
   });
 
+  it("includes the app's script-src additions in an inherited script-src-elem", () => {
+    const policy = policyOf({
+      directives: {
+        "script-src": ["https://a.example.invalid"],
+        "script-src-elem": ["https://b.example.invalid"],
+      },
+    });
+    const elementDirective =
+      policy.split("; ").find((part) => part.startsWith("script-src-elem ")) ??
+      "";
+    expect(elementDirective).toContain("https://a.example.invalid");
+    expect(elementDirective).toContain("https://b.example.invalid");
+  });
+
   it("throws for a directive that is not a list of sources", () => {
     expect(() =>
       buildCspHeaders(
         config({ directives: { "script-src": "'self'" } as never }),
         { development: false },
       ),
-    ).toThrow('csp.directives["script-src"] must be an array');
+    ).toThrow('csp.directives["script-src"] must be an array of strings');
+    expect(() =>
+      buildCspHeaders(config({ directives: { "script-src": [1] } as never }), {
+        development: false,
+      }),
+    ).toThrow("must be an array of strings");
   });
 
   it("adds reporting only when an endpoint is set", () => {

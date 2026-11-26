@@ -173,6 +173,16 @@ describe("an error response", () => {
   });
 });
 
+describe("a redirect", () => {
+  it("gets the policy without a nonce", async () => {
+    const response = await fetch(`${origin}/api/old`, { redirect: "manual" });
+    const policy = response.headers.get("content-security-policy") ?? "";
+    expect(response.status).toBe(302);
+    expect(policy).toContain("default-src 'self'");
+    expect(policy).not.toContain("nonce-");
+  });
+});
+
 describe("the static security headers", () => {
   it.each(["/", "/api/ping"])("are set on %s", async (path) => {
     const response = await fetch(`${origin}${path}`);

@@ -30,9 +30,12 @@ export interface CspHeaderOptions {
 
 function directiveEntries(directives: CspDirectives) {
   return Object.entries(directives).map(([name, sources]) => {
-    if (!Array.isArray(sources)) {
+    if (
+      !Array.isArray(sources) ||
+      !sources.every((source) => typeof source === "string")
+    ) {
       throw new TypeError(
-        `runtimeConfig.csp.directives["${name}"] must be an array of sources.`,
+        `runtimeConfig.csp.directives["${name}"] must be an array of strings.`,
       );
     }
     return [name, sources as readonly string[]] as const;
@@ -78,19 +81,20 @@ function optionalString(
   return typeof current === "string" && current !== "" ? current : undefined;
 }
 
-// A script-src-elem or script-src-attr the layer does not set would replace
-// script-src for those scripts, dropping 'self' and the nonce, so it starts from script-src.
+// A script-src-elem the layer does not set would replace script-src for script
+// elements, dropping 'self' and the nonce, so an app's one starts from the
+// merged script-src. (script-src-attr takes no nonce and is not inherited.)
 function inheritedElementDirectives(
   base: CspDirectives,
   appDirectives: CspDirectives,
 ): CspDirectives {
-  const inherited: Record<string, readonly string[]> = {};
-  for (const name of ["script-src-elem"] as const) {
-    if (appDirectives[name] && !base[name] && base["script-src"]) {
-      inherited[name] = base["script-src"];
-    }
+  if (!appDirectives["script-src-elem"] || base["script-src-elem"]) {
+    return {};
   }
-  return inherited;
+  const scriptSources = mergeCspDirectives(base, {
+    "script-src": appDirectives["script-src"] ?? [],
+  })["script-src"];
+  return scriptSources ? { "script-src-elem": scriptSources } : {};
 }
 
 /**

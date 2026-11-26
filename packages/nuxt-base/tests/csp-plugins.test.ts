@@ -75,18 +75,22 @@ describe("the Nitro plugin", () => {
     expect(nonces[0]).not.toBe(nonces[1]);
   });
 
-  it("sends the policy without a nonce when nothing was rendered", async () => {
+  it("sends the policy without a nonce at the start of every request", async () => {
     const { handlers, headers } = await load();
-    (handlers.beforeResponse as (...args: unknown[]) => void)({ context: {} });
+    (handlers.request as (...args: unknown[]) => void)({ context: {} });
     expect(headers["Content-Security-Policy"]).toContain("default-src 'self'");
     expect(headers["Content-Security-Policy"]).not.toContain("nonce-");
   });
 
-  it("leaves a rendered page's policy alone", async () => {
+  it("replaces that policy with a nonce policy when a page renders", async () => {
     const { handlers, headers } = await load();
-    headers["Content-Security-Policy"] = "already-set";
-    (handlers.beforeResponse as (...args: unknown[]) => void)({ context: {} });
-    expect(headers["Content-Security-Policy"]).toBe("already-set");
+    const event = { context: {} };
+    (handlers.request as (...args: unknown[]) => void)(event);
+    (handlers["render:html"] as (...args: unknown[]) => void)(
+      { head: [], bodyAppend: [] },
+      { event },
+    );
+    expect(headers["Content-Security-Policy"]).toContain("'nonce-");
   });
 });
 
