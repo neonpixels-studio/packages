@@ -1,5 +1,12 @@
 # @neon-pixels/nuxt-base
 
+## 0.6.0
+
+### Patch Changes
+
+- @neon-pixels/security@0.6.0
+  - @neon-pixels/sentry@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
