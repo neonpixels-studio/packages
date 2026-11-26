@@ -91,15 +91,15 @@ The layer serves `POST /api/webhooks/clerk`. The API middleware treats that one 
 
 1. Create a webhook endpoint in the Clerk dashboard pointing at `https://<your site>/api/webhooks/clerk`, subscribe it to the events you want, and set its signing secret as `CLERK_WEBHOOK_SIGNING_SECRET`.
 2. The route verifies the delivery with `verifyWebhook` from `@clerk/backend/webhooks` and `runtimeConfig.clerk.webhookSigningSecret`.
-3. For a verified `user.deleted` event, the layer first calls `clearAuthUser` with the deleted user's Clerk id.
+3. For a verified `user.deleted` event, the layer first calls `clearAuthUser` with the deleted user's Clerk id, and calls it again once the handlers finish, because a request with a still-valid token can cache the user again while a handler runs. Like `clearAuthUser` everywhere, this only clears the instance that received the delivery.
 4. Every verified event, `user.deleted` included, is then passed to the Nitro hook `clerk:webhook` as `{ type, data }`. The layer decides nothing about your data; your handlers do.
 
-| Response | When                                                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------------- |
-| 200      | The signature is valid and every handler finished, or there are none.                                    |
-| 400      | A signature header is missing, or the signature does not match the body.                                 |
-| 503      | The signing secret is empty. Clerk retries, so a delivery is not lost while the app is being configured. |
-| 500      | A handler threw. The error is reported to Sentry (`@sentry/nuxt`) and Clerk retries.                     |
+| Response | When                                                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200      | The signature is valid and every handler finished, or there are none.                                                                                          |
+| 400      | A signature header is missing, or the signature does not match the body.                                                                                       |
+| 503      | The signing secret was empty at build time. Set it and redeploy; Clerk retries for a limited window, so deliveries sent before the redeploy can still be lost. |
+| 500      | A handler threw. The error is reported to Sentry (`@sentry/nuxt`) and Clerk retries.                                                                           |
 
 No response includes the secret, the signature, the request body, or a handler's error message.
 

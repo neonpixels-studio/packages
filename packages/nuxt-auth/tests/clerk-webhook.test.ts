@@ -75,6 +75,7 @@ function serializedFailure(failure: unknown): string {
 
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
   callOrder.length = 0;
   verifyWebhookMock.mockReset();
   clearAuthUserMock.mockReset().mockImplementation(() => {
@@ -101,7 +102,9 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
       (error: Error) => error,
     );
     expect(failure).toMatchObject({ statusCode: 503 });
-    expect(serializedFailure(failure)).not.toContain(SIGNING_SECRET);
+    expect((failure as Error).message).toBe(
+      "Clerk webhook signing secret is not configured",
+    );
     expect(verifyWebhookMock).not.toHaveBeenCalled();
     expect(callHookMock).not.toHaveBeenCalled();
   });
@@ -155,7 +158,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
     expect(result).toEqual({ received: true });
     expect(clearAuthUserMock).toHaveBeenCalledWith("user_gone");
     expect(callHookMock).toHaveBeenCalledWith("clerk:webhook", deletedPayload);
-    expect(callOrder).toEqual(["clear", "hook"]);
+    expect(callOrder).toEqual(["clear", "hook", "clear"]);
   });
 
   it("does not clear anything for a user.deleted payload without an id", async () => {
@@ -188,6 +191,7 @@ describe("the Clerk webhook handler with a mocked verifier", () => {
     );
     expect(failure).toMatchObject({ statusCode: 500 });
     expect(serializedFailure(failure)).not.toContain("secret-detail");
+    expect(console.error).toHaveBeenCalled();
     expect(reportErrorMock).toHaveBeenCalledWith(handlerError, {
       source: "clerk-webhook",
       eventType: "user.deleted",

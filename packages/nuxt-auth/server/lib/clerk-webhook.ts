@@ -68,7 +68,9 @@ async function verifyDelivery(
   }
 }
 
-// A deleted user has to leave the cache before any app handler runs.
+// A deleted user leaves the cache before the app's handlers run, so they see
+// fresh data, and again after, because a request with a still-valid token can
+// cache the user again while a handler is marking the row deleted.
 function forgetDeletedUser(payload: ClerkWebhookPayload): void {
   const providerId = deletedUserProviderId(payload);
   if (providerId) {
@@ -80,6 +82,8 @@ async function runAppHandlers(payload: ClerkWebhookPayload): Promise<void> {
   try {
     await useNitroApp().hooks.callHook(CLERK_WEBHOOK_HOOK, payload);
   } catch (error) {
+    // Sentry does nothing when it is not initialized, so log it as well.
+    console.error("[clerk-webhook] handler failed:", payload.type, error);
     reportError(error, { source: "clerk-webhook", eventType: payload.type });
     // 500 so Clerk retries. The message never carries the handler's error.
     throw new AuthHttpError(HTTP_INTERNAL_SERVER_ERROR, MESSAGE_HANDLER_FAILED);
@@ -90,6 +94,7 @@ async function verifyAndDispatch(event: H3Event): Promise<{ received: true }> {
   const payload = await verifyDelivery(event, requireSigningSecret());
   forgetDeletedUser(payload);
   await runAppHandlers(payload);
+  forgetDeletedUser(payload);
   return { received: true };
 }
 
