@@ -1,0 +1,23 @@
+.ui-control {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--ui-ink);
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+
+.ui-control:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
+}
+
+.ui-control[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+
+.ui-control:disabled {
+  opacity: 0.6;
+}

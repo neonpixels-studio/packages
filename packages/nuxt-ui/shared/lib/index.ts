@@ -58,3 +58,24 @@ export {
   type ConsentState,
 } from "./consent-controller.ts";
 export { createResilientStorage } from "./consent-storage.ts";
+export {
+  UI_TOKENS,
+  findMissingTokens,
+  warnAboutMissingTokens,
+  type ReadToken,
+  type UiToken,
+} from "./ui-tokens.ts";
+export { findInitialFocus, listFocusable, wrapTabFocus } from "./focus.ts";
+export {
+  createModalStack,
+  getModalStack,
+  type ModalHandle,
+  type ModalStack,
+} from "./modal-stack.ts";
+export { describeConsent, type ConsentCopy } from "./consent-copy.ts";
+export type {
+  ButtonSize,
+  ButtonVariant,
+  InputType,
+  ModalCloseReason,
+} from "./ui-types.ts";

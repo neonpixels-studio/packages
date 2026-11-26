@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LAYER_ENVIRONMENT_NAMES } from "../../nuxt-base/tests/helpers.ts";
 import { buildAppearanceScript } from "../shared/lib/index.ts";
 import { CONFIG, FIXTURE_DIRECTORY, LAYER_DIRECTORY } from "./helpers.ts";
+import { describeComponentsInBrowser } from "./ui-browser.ts";
 
 const BUILD_TIMEOUT_MS = 240_000;
 const FAKE_MEASUREMENT_ID = "G-FIXTURE1";
@@ -165,3 +166,5 @@ describe("a rendered page of an app that extends the layer", () => {
     expect(html).toContain("system light violet");
   });
 });
+
+describeComponentsInBrowser(() => origin);

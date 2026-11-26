@@ -1,0 +1,48 @@
+/* An app's own variables, which change with the `dark` class. */
+:root {
+  --app-paper: #ffffff;
+  --app-card: #f4f4f6;
+  --app-text: #17171c;
+  --app-soft: #5b5b66;
+  --app-line: #c9c9d1;
+  --app-brand: #4f46e5;
+  --app-brand-text: #ffffff;
+  --app-bad: #b00020;
+  --app-round: 0.5rem;
+  --app-shade: rgb(0 0 0 / 55%);
+}
+
+:root.dark {
+  --app-paper: #101014;
+  --app-card: #1b1b22;
+  --app-text: #f1f1f4;
+  --app-soft: #a5a5b0;
+  --app-line: #34343f;
+  --app-brand: #8b85ff;
+  --app-brand-text: #101014;
+  --app-bad: #ff6b81;
+}
+
+/* The mapping block: one line per token. Light and dark need no second block. */
+:root {
+  --ui-bg: var(--app-paper);
+  --ui-surface: var(--app-card);
+  --ui-ink: var(--app-text);
+  --ui-muted: var(--app-soft);
+  --ui-border: var(--app-line);
+  --ui-accent: var(--app-brand);
+  --ui-on-accent: var(--app-brand-text);
+  --ui-danger: var(--app-bad);
+  --ui-radius: var(--app-round);
+  --ui-backdrop: var(--app-shade);
+}
+
+body {
+  color: var(--app-text);
+  background: var(--app-paper);
+  font-family: system-ui, sans-serif;
+}
+
+.tall {
+  height: 3000px;
+}

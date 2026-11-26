@@ -11,6 +11,6 @@
       "@neon-pixels/consent/testing": ["../consent/src/testing.ts"]
     }
   },
-  "include": ["*.ts", "app", "shared", "tests/*.ts"],
+  "include": ["*.ts", "app", "shared", "testing", "tests/*.ts"],
   "exclude": ["tests/fixtures"]
 }
