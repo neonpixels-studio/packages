@@ -146,7 +146,7 @@ describe("grant", () => {
     expect(harness.loadAnalytics).not.toHaveBeenCalled();
   });
 
-  it("keeps working when the analytics loader or replay throws", () => {
+  it("keeps working when the analytics loader or replay throws", async () => {
     const harness = createHarness();
     harness.loadAnalytics.mockImplementation(() => {
       throw new Error("script blocked");
@@ -155,15 +155,47 @@ describe("grant", () => {
     harness.controller.start(harness.browser);
     expect(() => harness.controller.grant()).not.toThrow();
     expect(harness.state.status.value).toBe("granted");
+    await Promise.resolve();
     expect(harness.warn).toHaveBeenCalledWith(
       expect.stringContaining("Google Analytics"),
       expect.any(Error),
     );
+    expect(harness.warn).toHaveBeenCalledWith(
+      expect.stringContaining("session replay failed to start"),
+      expect.any(Error),
+    );
+  });
+
+  it("reports a replay that fails to stop, and still records the denial", async () => {
+    const harness = createHarness();
+    harness.stopReplay.mockRejectedValue(new Error("no replay"));
+    harness.controller.start(harness.browser);
+    harness.controller.grant();
+    harness.controller.deny();
+    await Promise.resolve();
+    expect(harness.state.status.value).toBe("denied");
+    expect(harness.warn).toHaveBeenCalledWith(
+      expect.stringContaining("session replay failed to stop"),
+      expect.any(Error),
+    );
+  });
+
+  it("asks again when storage refuses writes and only an old bare grant is stored", () => {
+    const harness = createHarness({
+      settings: { ...ANALYTICS_AND_REPLAY, legacyKey: "old-consent" },
+      stored: { "old-consent": "accepted" },
+    });
+    harness.storage.setItem = () => {
+      throw new DOMException("full", "QuotaExceededError");
+    };
+    harness.controller.start(harness.browser);
+    expect(harness.state.status.value).toBe("unset");
+    expect(harness.loadAnalytics).not.toHaveBeenCalled();
   });
 });
 
 describe("deny", () => {
-  it("stops replay and switches analytics off after a grant", async () => {
+  it("stops replay and switches analytics off after a grant", () => {
     const harness = createHarness();
     harness.controller.start(harness.browser);
     harness.controller.grant();
@@ -260,8 +292,9 @@ describe.each([
       signal,
       stored: { [CONSENT_KEY]: stored! },
     });
+    const write = vi.spyOn(second.storage, "setItem");
     second.controller.start(second.browser);
-    expect(second.storage.entries.get(CONSENT_KEY)).toBe(stored);
+    expect(write).not.toHaveBeenCalled();
   });
 });
 

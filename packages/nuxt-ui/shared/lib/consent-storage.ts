@@ -32,8 +32,11 @@ export function createResilientStorage(
       try {
         resolveStorage().setItem(key, value);
         memory.delete(key);
-      } catch {
+      } catch (error) {
         memory.set(key, value);
+        // The caller must know the write failed, as `readConsent` keeps a
+        // legacy value it could not move. The value stays readable here.
+        throw error;
       }
     },
     removeItem(key) {

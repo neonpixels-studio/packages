@@ -16,7 +16,7 @@ describe("createResilientStorage", () => {
   it("keeps a choice in memory when storage is blocked, and never throws", () => {
     const storage = createResilientStorage(() => blockedStorage());
     expect(storage.getItem("key")).toBeNull();
-    expect(() => storage.setItem("key", "value")).not.toThrow();
+    expect(() => storage.setItem("key", "value")).toThrow();
     expect(storage.getItem("key")).toBe("value");
     expect(() => storage.removeItem("key")).not.toThrow();
     expect(storage.getItem("key")).toBeNull();
@@ -26,7 +26,7 @@ describe("createResilientStorage", () => {
     const storage = createResilientStorage(() => {
       throw new DOMException("blocked", "SecurityError");
     });
-    expect(() => storage.setItem("key", "value")).not.toThrow();
+    expect(() => storage.setItem("key", "value")).toThrow();
     expect(storage.getItem("key")).toBe("value");
   });
 
@@ -36,7 +36,7 @@ describe("createResilientStorage", () => {
     const storage = createResilientStorage(() =>
       blocked ? blockedStorage() : real,
     );
-    storage.setItem("current", "granted");
+    expect(() => storage.setItem("current", "granted")).toThrow();
     blocked = false;
     storage.removeItem("legacy");
     expect(real.values.get("legacy")).toBe("accepted");
