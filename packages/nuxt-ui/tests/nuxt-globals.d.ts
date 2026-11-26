@@ -1,8 +1,12 @@
 import type {
+  ConsentController,
+  ConsentSettings,
+  ConsentState,
   AppearanceConfig,
   AppearanceController,
   AppearanceConfigInput,
   AppearanceState,
+  ConsentConfigInput,
   SyncRegistry,
 } from "../shared/lib/index.ts";
 
@@ -11,6 +15,9 @@ interface AppearanceNuxtApp {
   $appearanceSync: SyncRegistry;
   $appearanceConfig: AppearanceConfig;
   $appearanceState: AppearanceState;
+  $consentController: ConsentController;
+  $consentSettings: ConsentSettings;
+  $consentState: ConsentState;
   hook: (name: "app:mounted", handler: () => void) => void;
 }
 
@@ -25,6 +32,7 @@ declare global {
   }
   function defineAppConfig(config: {
     appearance: AppearanceConfigInput;
+    consent?: ConsentConfigInput;
   }): unknown;
   function defineNuxtPlugin(
     plugin: (nuxtApp: AppearanceNuxtApp) => void | {
@@ -32,7 +40,19 @@ declare global {
     },
   ): unknown;
   function useNuxtApp(): AppearanceNuxtApp;
-  function useAppConfig(): { appearance: AppearanceConfigInput };
+  function useAppConfig(): {
+    appearance: AppearanceConfigInput;
+    consent?: ConsentConfigInput;
+  };
+  function useRuntimeConfig(): {
+    public: {
+      analytics?: { measurementId: string };
+      sentry?: { dsn: string };
+    };
+  };
+  // Auto-imported from the app directory of `@neon-pixels/nuxt-base`.
+  function startSentryReplay(): Promise<void>;
+  function stopSentryReplay(): Promise<void>;
   function useState<Value>(key: string, init: () => Value): Ref<Value>;
   function useHead(input: {
     script: Array<{

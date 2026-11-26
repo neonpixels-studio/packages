@@ -1,8 +1,16 @@
 import { requireSiteUrlForBuild } from "@neon-pixels/nuxt-base/build";
 import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineNuxtConfig } from "nuxt/config";
+import {
+  assertSingleClerkVue,
+  removeClerkAutoImports,
+  removeClerkModulePlugin,
+  type ImportRecord,
+  type PluginRecord,
+} from "./shared/lib/clerk-module.ts";
 import { moveHandlersToFront } from "./shared/lib/handler-order.ts";
 import { buildAuthRuntimeConfig } from "./shared/lib/runtime-config.ts";
 
@@ -22,9 +30,37 @@ interface NitroInfo {
 }
 
 interface BuildInfo {
-  options: { dev: boolean; _prepare: boolean };
+  options: {
+    dev: boolean;
+    _prepare: boolean;
+    _installedModules?: { meta?: { name?: string; version?: string } }[];
+  };
   hook(name: "nitro:init", handler: (nitro: NitroInfo) => void): void;
+  hook(
+    name: "app:resolve",
+    handler: (app: { plugins: PluginRecord[] }) => void,
+  ): void;
+  hook(
+    name: "imports:extend",
+    handler: (imports: ImportRecord[]) => void,
+  ): void;
 }
+
+const CLERK_MODULE_NAME = "@clerk/nuxt";
+const UNKNOWN_VERSION = "(unknown version)";
+
+const LAYER_DIRECTORY = realpathSync(dirname(fileURLToPath(import.meta.url)));
+
+// What app code uses without importing it. The pure helpers live in
+// shared/lib so they can also be imported from `@neon-pixels/nuxt-auth/build`.
+const AUTO_IMPORTS = [
+  { name: "buildLoginPath", file: "shared/lib/return-path.ts" },
+  { name: "getSafeReturnPath", file: "shared/lib/return-path.ts" },
+  {
+    name: "ReverificationCancelledError",
+    file: "shared/lib/reverification-client.ts",
+  },
+];
 
 // Nitro handler paths use forward slashes on every platform.
 function toForwardSlashes(path: string): string {
@@ -67,11 +103,54 @@ function runLayerMiddlewareFirst(nitro: NitroInfo): void {
   });
 }
 
+function resolvePeer(requireFromLayer: NodeJS.Require, name: string): string {
+  try {
+    return requireFromLayer.resolve(name);
+  } catch (cause) {
+    throw new Error(
+      `@neon-pixels/nuxt-auth needs ${name} installed as a peer dependency (pnpm add ${name}).`,
+      { cause },
+    );
+  }
+}
+
+function clerkModuleVersion(nuxt: BuildInfo): string {
+  const clerkModule = nuxt.options._installedModules?.find(
+    (installed) => installed.meta?.name === CLERK_MODULE_NAME,
+  );
+  return clerkModule?.meta?.version ?? UNKNOWN_VERSION;
+}
+
+// The layer installs Clerk from its own plugin, so public pages can skip it,
+// and replaces `useAuth`, `useUser`, and `useClerk`, which break on those pages.
+function replaceClerkClientSide(nuxt: BuildInfo): void {
+  const requireFromLayer = createRequire(import.meta.url);
+  const clerkNuxtEntry = resolvePeer(requireFromLayer, "@clerk/nuxt");
+  assertSingleClerkVue(
+    resolvePeer(requireFromLayer, "@clerk/vue"),
+    createRequire(clerkNuxtEntry).resolve("@clerk/vue"),
+    clerkModuleVersion(nuxt),
+  );
+  nuxt.hook("app:resolve", (app) => {
+    removeClerkModulePlugin(app.plugins, clerkModuleVersion(nuxt));
+  });
+  nuxt.hook("imports:extend", (imports) => {
+    removeClerkAutoImports(imports, clerkModuleVersion(nuxt));
+    for (const { name, file } of AUTO_IMPORTS) {
+      imports.push({
+        name,
+        from: toForwardSlashes(resolve(LAYER_DIRECTORY, file)),
+      });
+    }
+  });
+}
+
 // `nuxt prepare` (often a postinstall step) and `nuxt dev` are not builds, so
 // only a real build requires the site URL. This is a module rather than a
 // `hooks` entry, so it never competes with the base layer's hooks.
 function setUpAuthBuild(_options: unknown, nuxt: BuildInfo) {
   nuxt.hook("nitro:init", runLayerMiddlewareFirst);
+  replaceClerkClientSide(nuxt);
   if (nuxt.options.dev || nuxt.options._prepare) {
     return;
   }

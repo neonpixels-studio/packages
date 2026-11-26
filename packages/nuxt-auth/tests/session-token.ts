@@ -22,6 +22,7 @@ function encode(value: object): string {
 
 export type TestTokenClaims = {
   sub?: string;
+  sid?: string;
   azp?: string;
   fva?: unknown;
   sts?: string;
@@ -39,6 +40,7 @@ export function signSessionToken(
   const header = { alg: "RS256", typ: "JWT", cat: SESSION_TOKEN_CATEGORY };
   const payload = {
     sub: claims.sub,
+    sid: claims.sid,
     azp: claims.azp,
     fva: claims.fva,
     sts: claims.sts,

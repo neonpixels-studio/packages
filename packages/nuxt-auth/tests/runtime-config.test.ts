@@ -10,7 +10,7 @@ describe("buildAuthRuntimeConfig", () => {
       clerk: { secretKey: "", jwtKey: "", webhookSigningSecret: "" },
       disableSignups: false,
       auth: { authorizedParties: [] },
-      public: { clerk: { publishableKey: "" } },
+      public: { clerk: { publishableKey: "" }, auth: { deferredPaths: [] } },
     });
   });
 
