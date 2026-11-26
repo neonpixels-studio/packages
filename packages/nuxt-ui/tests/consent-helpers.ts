@@ -47,11 +47,12 @@ export interface HarnessOptions {
   stored?: Record<string, string>;
   signal?: PrivacySignalStubOptions;
   state?: ConsentState;
+  cookies?: string;
 }
 
 export function createHarness(options: HarnessOptions = {}) {
   const storage = createMemoryStorage(options.stored);
-  const fakeWindow = createFakeWindow();
+  const fakeWindow = createFakeWindow({ cookies: options.cookies });
   const listeners = new Set<(event: StorageEventLike) => void>();
   const browserWindow = Object.assign(fakeWindow, {
     addEventListener: (
