@@ -191,6 +191,25 @@ describe("the Content-Security-Policy config", () => {
   );
 
   it(
+    "does not repeat a header the app set in another letter case",
+    async () => {
+      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);
+      const nitroConfig = {
+        dev: false,
+        routeRules: { "/**": { headers: { "x-frame-options": "SAMEORIGIN" } } },
+      };
+      config.hooks["nitro:config"]?.(nitroConfig);
+      expect(Object.keys(nitroConfig.routeRules["/**"].headers)).toEqual(
+        expect.arrayContaining(["x-frame-options"]),
+      );
+      expect(nitroConfig.routeRules["/**"].headers).not.toHaveProperty(
+        "X-Frame-Options",
+      );
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+
+  it(
     "keeps an app's own header for a route rule it already set",
     async () => {
       const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);

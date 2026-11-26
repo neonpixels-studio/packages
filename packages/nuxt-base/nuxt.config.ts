@@ -54,12 +54,15 @@ function addSecurityHeaderRules(config: NitroConfig): void {
   const nitroConfig = config as NitroConfigInfo;
   const routeRules = nitroConfig.routeRules ?? {};
   const existing = routeRules[EVERY_ROUTE] ?? {};
+  const appHeaderNames = new Set(
+    Object.keys(existing.headers ?? {}).map((name) => name.toLowerCase()),
+  );
+  const layerHeaders = Object.entries(
+    securityHeaders({ production: !nitroConfig.dev }),
+  ).filter(([name]) => !appHeaderNames.has(name.toLowerCase()));
   routeRules[EVERY_ROUTE] = {
     ...existing,
-    headers: {
-      ...securityHeaders({ production: !nitroConfig.dev }),
-      ...existing.headers,
-    },
+    headers: { ...Object.fromEntries(layerHeaders), ...existing.headers },
   };
   nitroConfig.routeRules = routeRules;
 }

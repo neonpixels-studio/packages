@@ -89,6 +89,28 @@ describe("buildCspHeaders", () => {
     ).toThrow("script-src allows 'unsafe-eval'");
   });
 
+  it("starts an app's script-src-elem from script-src so it keeps the nonce", () => {
+    const policy = policyOf(
+      { directives: { "script-src-elem": ["https://cdn.example.invalid"] } },
+      { nonce: NONCE },
+    );
+    const elementDirective =
+      policy.split("; ").find((part) => part.startsWith("script-src-elem ")) ??
+      "";
+    expect(elementDirective).toContain("'self'");
+    expect(elementDirective).toContain("https://cdn.example.invalid");
+    expect(elementDirective).toContain(`'nonce-${NONCE}'`);
+  });
+
+  it("throws for a directive that is not a list of sources", () => {
+    expect(() =>
+      buildCspHeaders(
+        config({ directives: { "script-src": "'self'" } as never }),
+        { development: false },
+      ),
+    ).toThrow('csp.directives["script-src"] must be an array');
+  });
+
   it("adds reporting only when an endpoint is set", () => {
     const withEndpoint = buildCspHeaders(
       config({ reportEndpoint: "/csp-report" }),

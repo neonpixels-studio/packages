@@ -29,9 +29,14 @@ export interface CspHeaderOptions {
 }
 
 function directiveEntries(directives: CspDirectives) {
-  return Object.entries(directives).filter(
-    (entry): entry is [string, readonly string[]] => Array.isArray(entry[1]),
-  );
+  return Object.entries(directives).map(([name, sources]) => {
+    if (!Array.isArray(sources)) {
+      throw new TypeError(
+        `runtimeConfig.csp.directives["${name}"] must be an array of sources.`,
+      );
+    }
+    return [name, sources as readonly string[]] as const;
+  });
 }
 
 /**
@@ -55,7 +60,7 @@ export function assertNoUnsafeScriptSources(
     return;
   }
   throw new Error(
-    `runtimeConfig.csp.directives is not allowed to weaken script protection: ${offenders.join(", ")}. Scripts get a per-response nonce instead.`,
+    `runtimeConfig.csp.directives must not allow 'unsafe-inline' or 'unsafe-eval' for scripts: ${offenders.join(", ")}. Scripts get a per-response nonce instead.`,
   );
 }
 
@@ -71,6 +76,21 @@ function optionalString(
     current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" && current !== "" ? current : undefined;
+}
+
+// A script-src-elem or script-src-attr the layer does not set would replace
+// script-src for those scripts, dropping 'self' and the nonce, so it starts from script-src.
+function inheritedElementDirectives(
+  base: CspDirectives,
+  appDirectives: CspDirectives,
+): CspDirectives {
+  const inherited: Record<string, readonly string[]> = {};
+  for (const name of ["script-src-elem"] as const) {
+    if (appDirectives[name] && !base[name] && base["script-src"]) {
+      inherited[name] = base["script-src"];
+    }
+  }
+  return inherited;
 }
 
 /**
@@ -96,9 +116,11 @@ export function buildCspHeaders(
     development: options.development,
     nonce: options.nonce,
   });
+  const appDirectives = config.csp?.directives ?? {};
   const directives = mergeCspDirectives(
     base.directives,
-    config.csp?.directives ?? {},
+    inheritedElementDirectives(base.directives, appDirectives),
+    appDirectives,
   );
   const policy = buildContentSecurityPolicy(directives);
   const reportEndpoint = config.csp?.reportEndpoint;
