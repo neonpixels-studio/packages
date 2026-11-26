@@ -301,3 +301,52 @@ describe("the sync adapter", () => {
     ).toThrow(/load and a save/);
   });
 });
+
+describe("edge cases found in review", () => {
+  it("calls save as a method of the adapter", async () => {
+    class ClassAdapter implements AppearanceSyncAdapter {
+      saved: unknown[] = [];
+      async load() {
+        return null;
+      }
+      async save(values: unknown) {
+        this.saved.push(values);
+      }
+    }
+    const adapter = new ClassAdapter();
+    const { controller, warn } = setup({}, CONFIG, adapter);
+    controller.setTheme("dark");
+    await vi.waitFor(() => expect(adapter.saved).toHaveLength(1));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("keeps a choice made while load was running", async () => {
+    let finishLoad: (value: { theme: "light" }) => void = () => undefined;
+    const adapter = {
+      load: () =>
+        new Promise<{ theme: "light" }>((resolve) => {
+          finishLoad = resolve;
+        }),
+      save: vi.fn(async () => undefined),
+    };
+    const { controller, state } = setup({}, CONFIG, adapter);
+    const loading = controller.syncFromAccount();
+    controller.setTheme("dark");
+    finishLoad({ theme: "light" });
+    await loading;
+    expect(state.theme.value).toBe("dark");
+  });
+
+  it("resets when another tab clears all of storage", () => {
+    const { controller, state } = setup({
+      "fixture:theme": "dark",
+      "fixture:accent": "teal",
+    });
+    const page = fakeBrowser();
+    controller.start(page.browser);
+    page.fireStorage({ key: null, newValue: null });
+    expect(state.theme.value).toBe("system");
+    expect(state.accent.value).toBe("violet");
+    expect(page.classes.has("dark")).toBe(false);
+  });
+});

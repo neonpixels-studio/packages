@@ -3,7 +3,12 @@ import {
   resolveAppearanceConfig,
   themeStorageKey,
 } from "./config.ts";
-import { ACCENT_ATTRIBUTE, DARK_CLASS, DARK_QUERY } from "./constants.ts";
+import {
+  ACCENT_ATTRIBUTE,
+  DARK_CLASS,
+  DARK_QUERY,
+  THEMES,
+} from "./constants.ts";
 import type { AppearanceConfigInput } from "./types.ts";
 
 // A JSON value is safe inside a script element once the characters that could
@@ -33,7 +38,7 @@ if(valid(old)){put(key,old);drop(legacy[index]);return old}
 return null;
 }
 function systemDark(){try{return window.matchMedia(c.query).matches}catch(e){return false}}
-var theme=read(c.themeKey,c.legacyTheme,function(v){return v==="light"||v==="dark"||v==="system"});
+var theme=read(c.themeKey,c.legacyTheme,function(v){return c.themes.indexOf(v)!==-1});
 var dark=theme==="dark"||(theme!=="light"&&systemDark());
 root.classList.toggle(c.darkClass,dark);
 if(c.accents.length){
@@ -50,6 +55,7 @@ export function buildAppearanceScript(input: AppearanceConfigInput): string {
     accentKey: accentStorageKey(config),
     legacyTheme: config.legacyKeys.theme,
     legacyAccent: config.legacyKeys.accent,
+    themes: THEMES,
     accents: config.accents,
     defaultAccent: config.defaultAccent,
     darkClass: DARK_CLASS,

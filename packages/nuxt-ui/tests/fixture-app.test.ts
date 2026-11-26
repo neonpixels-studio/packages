@@ -124,10 +124,13 @@ describe("a rendered page of an app that extends the layer", () => {
     expect(nonce).toBeTruthy();
     expect(policy).not.toMatch(/script-src [^;]*'unsafe-(inline|eval)'/);
 
-    const appearanceTag = scriptTags(html).find((tag) =>
-      tag.includes(`nonce="${nonce}"`),
+    const scriptAt = html.indexOf(buildAppearanceScript(CONFIG));
+    expect(scriptAt).toBeGreaterThan(-1);
+    const openingTag = html.slice(
+      html.lastIndexOf("<script", scriptAt),
+      scriptAt,
     );
-    expect(appearanceTag).toBeDefined();
+    expect(openingTag).toContain(`nonce="${nonce}"`);
     for (const tag of scriptTags(html)) {
       expect(tag).toContain(`nonce="${nonce}"`);
     }

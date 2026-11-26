@@ -18,7 +18,7 @@ function nonEmptyStrings(value: unknown, name: string): string[] {
   if (!everyName) {
     return fail(`appConfig.appearance.${name} must hold non-empty strings.`);
   }
-  return [...value];
+  return Object.freeze([...value]) as string[];
 }
 
 function checkDefaultAccent(accents: string[], defaultAccent: string): void {

@@ -1,4 +1,9 @@
-import { ACCENT_ATTRIBUTE, DARK_CLASS, DARK_QUERY } from "./constants.ts";
+import {
+  ACCENT_ATTRIBUTE,
+  DARK_CLASS,
+  DARK_QUERY,
+  DEFAULT_THEME,
+} from "./constants.ts";
 import { accentStorageKey, themeStorageKey } from "./config.ts";
 import { createSaveQueue } from "./save-queue.ts";
 import type { AppearanceStorage } from "./storage.ts";
@@ -65,8 +70,18 @@ export function createAppearanceController(
 ): AppearanceController {
   const { config, state, storage, sync } = dependencies;
   const warn = dependencies.warn ?? console.warn;
-  const queue = createSaveQueue(() => sync.current()?.save, warn);
+  const queue = createSaveQueue(currentSender, warn);
   let root: Element | undefined;
+  let localChanges = 0;
+
+  // Called as a method of the adapter, so an adapter that uses `this` works.
+  function currentSender() {
+    const adapter = sync.current();
+    if (!adapter) {
+      return undefined;
+    }
+    return (values: AppearanceSnapshot) => adapter.save(values);
+  }
 
   function snapshot(): AppearanceSnapshot {
     return { theme: state.theme.value, accent: state.accent.value };
@@ -91,6 +106,7 @@ export function createAppearanceController(
     if (!isTheme(theme)) {
       return;
     }
+    localChanges += 1;
     state.theme.value = theme;
     applyToDocument();
     storage.writeTheme(theme);
@@ -101,6 +117,7 @@ export function createAppearanceController(
     if (!acceptsAccent(accent)) {
       return;
     }
+    localChanges += 1;
     state.accent.value = accent;
     applyToDocument();
     storage.writeAccent(accent);
@@ -108,7 +125,10 @@ export function createAppearanceController(
   }
 
   // The account's values win over the device's, and are not sent back.
-  function applyFromAccount(values: AppearanceValues): void {
+  function applyFromAccount(values: AppearanceValues | null): void {
+    if (!values) {
+      return;
+    }
     if (isTheme(values.theme)) {
       state.theme.value = values.theme;
       storage.writeTheme(values.theme);
@@ -125,19 +145,30 @@ export function createAppearanceController(
     if (!adapter) {
       return;
     }
+    const changesBefore = localChanges;
     try {
       const values = await adapter.load();
-      if (values) {
-        applyFromAccount(values);
-      }
+      // A choice made while load was running is newer than the account's.
+      applyFromAccount(localChanges === changesBefore ? values : null);
     } catch (error) {
       warn("Could not load appearance from the account.", error);
     }
   }
 
+  function resetToDefaults(): void {
+    state.theme.value = DEFAULT_THEME;
+    state.accent.value = config.defaultAccent;
+  }
+
   function applyStorageEvent(event: StorageEventLike): void {
+    // A key of null means the other tab cleared all of storage.
+    if (event.key === null) {
+      resetToDefaults();
+    }
     if (event.key === themeStorageKey(config)) {
-      state.theme.value = isTheme(event.newValue) ? event.newValue : "system";
+      state.theme.value = isTheme(event.newValue)
+        ? event.newValue
+        : DEFAULT_THEME;
     }
     if (event.key === accentStorageKey(config)) {
       state.accent.value = acceptsAccent(event.newValue)
@@ -150,7 +181,7 @@ export function createAppearanceController(
   // Stored values are applied here, after hydration, so the server and the
   // first client render agree.
   function readDevice(): void {
-    state.theme.value = storage.readTheme() ?? "system";
+    state.theme.value = storage.readTheme() ?? DEFAULT_THEME;
     const storedAccent = storage.readAccent();
     state.accent.value = storedAccent ?? config.defaultAccent;
   }

@@ -7,6 +7,7 @@ export {
   ACCENT_ATTRIBUTE,
   DARK_CLASS,
   DARK_QUERY,
+  DEFAULT_THEME,
   THEMES,
 } from "./constants.ts";
 export {

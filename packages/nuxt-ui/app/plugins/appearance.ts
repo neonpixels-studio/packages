@@ -2,6 +2,7 @@ import {
   createAppearanceController,
   createAppearanceStorage,
   createSyncRegistry,
+  DEFAULT_THEME,
   resolveAppearanceConfig,
   type AppearanceState,
   type BrowserWindow,
@@ -14,7 +15,7 @@ import {
 export default defineNuxtPlugin((nuxtApp) => {
   const config = resolveAppearanceConfig(useAppConfig().appearance);
   const state: AppearanceState = {
-    theme: useState<Theme>("appearance:theme", () => "system"),
+    theme: useState<Theme>("appearance:theme", () => DEFAULT_THEME),
     accent: useState<string>("appearance:accent", () => config.defaultAccent),
     systemDark: useState<boolean>("appearance:system-dark", () => false),
   };

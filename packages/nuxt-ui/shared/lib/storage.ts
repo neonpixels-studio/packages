@@ -41,15 +41,16 @@ export function createAppearanceStorage(
   }
 
   function migrateLegacy(storage: StorageLike, kind: Kind): string | null {
-    for (const legacyKey of config.legacyKeys[kind]) {
-      const value = storage.getItem(legacyKey);
-      if (isValid(kind, value)) {
-        storage.setItem(keys[kind], value);
-        storage.removeItem(legacyKey);
-        return value;
-      }
+    const legacyKey = config.legacyKeys[kind].find((key) =>
+      isValid(kind, storage.getItem(key)),
+    );
+    if (legacyKey === undefined) {
+      return null;
     }
-    return null;
+    const value = storage.getItem(legacyKey) as string;
+    storage.setItem(keys[kind], value);
+    storage.removeItem(legacyKey);
+    return value;
   }
 
   function readFromStorage(storage: StorageLike, kind: Kind): string | null {
@@ -63,13 +64,11 @@ export function createAppearanceStorage(
   function read(kind: Kind): string | null {
     try {
       const storage = getStorage();
-      if (storage) {
-        return readFromStorage(storage, kind);
-      }
+      return storage ? readFromStorage(storage, kind) : (memory[kind] ?? null);
     } catch {
       // Storage is blocked: fall back to what this page remembers.
+      return memory[kind] ?? null;
     }
-    return memory[kind] ?? null;
   }
 
   function write(kind: Kind, value: string): void {
