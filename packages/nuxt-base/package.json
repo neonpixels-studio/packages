@@ -34,6 +34,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@neon-pixels/security": "workspace:*",
     "@neon-pixels/sentry": "workspace:*"
   },
   "peerDependencies": {

@@ -28,6 +28,7 @@ interface LoadedConfig {
     sourcemaps?: { filesToDeleteAfterUpload?: string[] };
   };
   runtimeConfig: unknown;
+  hooks: Record<string, ((nitroConfig: object) => void) | undefined>;
 }
 
 async function loadFixtureConfig(
@@ -85,6 +86,7 @@ describe("the merged config of an app that extends the layer", () => {
       const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);
       expect(config.runtimeConfig).toMatchObject({
         databaseUrl: "fixture-database",
+        csp: { directives: {}, reportEndpoint: "" },
         public: {
           siteUrl: "https://example.com",
           sentry: {
@@ -147,6 +149,59 @@ describe("the merged config of an app that extends the layer", () => {
       await expect(
         loadNuxtReady(FIXTURE_DIRECTORIES.configOnly, overrides),
       ).resolves.toBeUndefined();
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+});
+
+describe("the Content-Security-Policy config", () => {
+  it(
+    "fails the build with a message naming the directive",
+    async () => {
+      await expect(
+        loadNuxtReady(FIXTURE_DIRECTORIES.unsafeCsp, {
+          dev: false,
+          _prepare: false,
+        }),
+      ).rejects.toThrow("script-src allows 'unsafe-inline'");
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+
+  it.each([
+    [false, true],
+    [true, false],
+  ])(
+    "adds the static security headers to every route (dev: %s)",
+    async (dev, production) => {
+      const config = await loadFixtureConfig(
+        FIXTURE_DIRECTORIES.configOnly,
+        dev,
+      );
+      const nitroConfig: {
+        dev: boolean;
+        routeRules?: Record<string, { headers?: Record<string, string> }>;
+      } = { dev };
+      config.hooks["nitro:config"]?.(nitroConfig);
+      const headers = nitroConfig.routeRules?.["/**"]?.headers ?? {};
+      expect(headers["X-Content-Type-Options"]).toBe("nosniff");
+      expect("Strict-Transport-Security" in headers).toBe(production);
+    },
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps an app's own header for a route rule it already set",
+    async () => {
+      const config = await loadFixtureConfig(FIXTURE_DIRECTORIES.configOnly);
+      const nitroConfig = {
+        dev: false,
+        routeRules: { "/**": { headers: { "X-Frame-Options": "SAMEORIGIN" } } },
+      };
+      config.hooks["nitro:config"]?.(nitroConfig);
+      expect(nitroConfig.routeRules["/**"].headers["X-Frame-Options"]).toBe(
+        "SAMEORIGIN",
+      );
     },
     CONFIG_LOAD_TIMEOUT_MS,
   );

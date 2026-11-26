@@ -308,6 +308,9 @@ importers:
 
   packages/nuxt-base:
     dependencies:
+      '@neon-pixels/security':
+        specifier: workspace:*
+        version: link:../security
       '@neon-pixels/sentry':
         specifier: workspace:*
         version: link:../sentry

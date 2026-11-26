@@ -12,7 +12,12 @@ export const FIXTURE_DIRECTORIES = {
   configOnly: resolve(FIXTURES_DIRECTORY, "config-only"),
   overrides: resolve(FIXTURES_DIRECTORY, "overrides"),
   ownStartup: resolve(FIXTURES_DIRECTORY, "own-startup"),
+  unsafeCsp: resolve(FIXTURES_DIRECTORY, "unsafe-csp"),
 };
+
+// Built and served by its own test file, so fixture-build's cleanup must not
+// delete its output while that file runs.
+export const CSP_FIXTURE_DIRECTORY = resolve(FIXTURES_DIRECTORY, "csp");
 
 // Every variable the layer reads or retires, so a test never depends on the
 // environment it runs in.
@@ -35,9 +40,11 @@ export const LAYER_ENVIRONMENT_NAMES = [
 
 const FIXTURE_GENERATED = [".nuxt", ".output", "dist", "node_modules"];
 
-export function cleanFixtureOutput(): void {
-  const generatedPaths = Object.values(FIXTURE_DIRECTORIES).flatMap(
-    (directory) => FIXTURE_GENERATED.map((name) => resolve(directory, name)),
+export function cleanFixtureOutput(
+  directories: string[] = Object.values(FIXTURE_DIRECTORIES),
+): void {
+  const generatedPaths = directories.flatMap((directory) =>
+    FIXTURE_GENERATED.map((name) => resolve(directory, name)),
   );
   for (const generatedPath of generatedPaths) {
     rmSync(generatedPath, { recursive: true, force: true });

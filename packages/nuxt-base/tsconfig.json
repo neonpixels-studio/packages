@@ -7,6 +7,7 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "paths": {
+      "@neon-pixels/security": ["../security/src/index.ts"],
       "@neon-pixels/sentry": ["../sentry/src/index.ts"]
     }
   },

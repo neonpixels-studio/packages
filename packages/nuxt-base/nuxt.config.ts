@@ -1,4 +1,7 @@
+import { securityHeaders, type CspDirectives } from "@neon-pixels/security";
 import { defineNuxtConfig } from "nuxt/config";
+import type { NitroConfig } from "nuxt/schema";
+import { assertNoUnsafeScriptSources } from "./shared/lib/csp.ts";
 import { assertNoRetiredEnv } from "./shared/lib/environment.ts";
 import {
   buildRuntimeConfig,
@@ -11,8 +14,19 @@ assertNoRetiredEnv(process.env);
 
 const runtimeConfig = buildRuntimeConfig(process.env);
 
+const EVERY_ROUTE = "/**";
+
 interface CommandInfo {
-  options: { dev: boolean; _prepare: boolean };
+  options: {
+    dev: boolean;
+    _prepare: boolean;
+    runtimeConfig: { csp?: { directives?: CspDirectives } };
+  };
+}
+
+interface NitroConfigInfo {
+  dev?: boolean;
+  routeRules?: Record<string, { headers?: Record<string, string> }>;
 }
 
 // `nuxt prepare` (often a postinstall step) and `nuxt dev` are not builds, so
@@ -24,13 +38,39 @@ function checkSiteUrlForBuild(nuxt: CommandInfo): void {
   assertSiteUrlForBuild(process.env);
 }
 
+// Runs after every layer is merged, so it sees the app's own directives.
+function checkAppCspDirectives(nuxt: CommandInfo): void {
+  assertNoUnsafeScriptSources(nuxt.options.runtimeConfig.csp?.directives);
+}
+
+function onReady(nuxt: CommandInfo): void {
+  checkSiteUrlForBuild(nuxt);
+  checkAppCspDirectives(nuxt);
+}
+
+// The app's own header rules win over the layer's.
+function addSecurityHeaderRules(config: NitroConfig): void {
+  // Nitro's own types are not a dependency of the layer, so Nuxt's fallback type has no `dev` or `routeRules`.
+  const nitroConfig = config as NitroConfigInfo;
+  const routeRules = nitroConfig.routeRules ?? {};
+  const existing = routeRules[EVERY_ROUTE] ?? {};
+  routeRules[EVERY_ROUTE] = {
+    ...existing,
+    headers: {
+      ...securityHeaders({ production: !nitroConfig.dev }),
+      ...existing.headers,
+    },
+  };
+  nitroConfig.routeRules = routeRules;
+}
+
 const nitro: Record<string, unknown> = {
   preset: "netlify",
   replace: buildServerReplacements(runtimeConfig.public.sentry),
 };
 
 export default defineNuxtConfig({
-  hooks: { ready: checkSiteUrlForBuild },
+  hooks: { ready: onReady, "nitro:config": addSecurityHeaderRules },
   compatibilityDate: "2024-11-01",
   future: { compatibilityVersion: 4 },
   modules: ["@sentry/nuxt/module"],
