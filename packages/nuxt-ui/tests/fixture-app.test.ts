@@ -8,6 +8,7 @@ import { buildAppearanceScript } from "../shared/lib/index.ts";
 import { CONFIG, FIXTURE_DIRECTORY, LAYER_DIRECTORY } from "./helpers.ts";
 
 const BUILD_TIMEOUT_MS = 240_000;
+const FAKE_MEASUREMENT_ID = "G-FIXTURE1";
 const FAKE_DSN = "https://fixture@sentry.example.invalid/1";
 const STARTUP_ATTEMPTS = 100;
 const STARTUP_POLL_MS = 100;
@@ -22,7 +23,17 @@ function withoutLayerEnvironment(): NodeJS.ProcessEnv {
   for (const name of LAYER_ENVIRONMENT_NAMES) {
     delete remaining[name];
   }
+  delete remaining.NUXT_PUBLIC_GA_MEASUREMENT_ID;
   return remaining;
+}
+
+// The layer reads `@neon-pixels/consent` from its built output, and `pnpm test:ci`
+// runs before `pnpm build`.
+function buildConsentPackage(): void {
+  execFileSync("pnpm", ["--filter", "@neon-pixels/consent", "run", "build"], {
+    cwd: LAYER_DIRECTORY,
+    stdio: "pipe",
+  });
 }
 
 function buildFixture(): void {
@@ -33,6 +44,7 @@ function buildFixture(): void {
       ...withoutLayerEnvironment(),
       NITRO_PRESET: "node-server",
       SENTRY_DSN: FAKE_DSN,
+      NUXT_PUBLIC_GA_MEASUREMENT_ID: FAKE_MEASUREMENT_ID,
       NUXT_TELEMETRY_DISABLED: "1",
     },
   });
@@ -94,6 +106,7 @@ function headOf(html: string): string {
 }
 
 beforeAll(async () => {
+  buildConsentPackage();
   buildFixture();
   await startServer();
 }, BUILD_TIMEOUT_MS);
@@ -138,6 +151,13 @@ describe("a rendered page of an app that extends the layer", () => {
     for (const tag of scriptTags(html)) {
       expect(tag).toContain(`nonce="${nonce}"`);
     }
+  });
+
+  it("renders the consent defaults on the server: configured services, no prompt, not hydrated", async () => {
+    const html = await (await fetch(origin)).text();
+    expect(html).toMatch(
+      /analytics,sessionReplay\s+false\s+false\s+false\s+false/,
+    );
   });
 
   it("renders the server defaults: system theme and the default accent", async () => {
