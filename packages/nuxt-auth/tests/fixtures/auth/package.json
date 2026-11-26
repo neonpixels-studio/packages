@@ -1,0 +1,5 @@
+{
+  "name": "nuxt-auth-fixture",
+  "private": true,
+  "type": "module"
+}
