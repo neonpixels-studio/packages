@@ -314,6 +314,11 @@ describe("dropExpectedClientErrors with isExpected", () => {
       { originalException: { statusCode: 500 } },
       { isExpected },
     );
+    dropExpectedClientErrors(
+      event,
+      { originalException: { statusCode: 401, unhandled: true } },
+      { isExpected },
+    );
     expect(isExpected).not.toHaveBeenCalled();
   });
 });

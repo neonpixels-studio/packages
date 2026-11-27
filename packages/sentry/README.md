@@ -88,12 +88,12 @@ By shape alone it also drops an upstream failure you report on purpose, such as 
 
 ```ts
 import { dropExpectedClientErrors } from "@neon-pixels/sentry";
-import { FetchError } from "ofetch";
 
 const beforeSend = (event, hint) =>
   dropExpectedClientErrors(event, hint, {
-    // A 401 from an upstream $fetch is a real failure: keep it.
-    isExpected: (error) => !(error instanceof FetchError),
+    // A 401 from an upstream $fetch is a real failure: keep it. Match by name,
+    // because instanceof fails when two copies of ofetch are installed.
+    isExpected: (error) => (error as { name?: string })?.name !== "FetchError",
   });
 ```
 
