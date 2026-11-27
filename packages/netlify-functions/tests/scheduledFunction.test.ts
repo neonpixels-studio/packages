@@ -63,6 +63,24 @@ describe("scheduledFunction", () => {
     );
   });
 
+  it("passes beforeSendTransaction and maxValueLength to Sentry", async () => {
+    const { scheduledFunction } = await import("../src/index.ts");
+    const beforeSendTransaction = vi.fn();
+    const handler = scheduledFunction(
+      {
+        name: "nightly",
+        environment: () => "x",
+        beforeSendTransaction,
+        maxValueLength: 8192,
+      },
+      async () => new Response("ok"),
+    );
+    await handler(REQUEST, CONTEXT);
+    expect(sentry.init).toHaveBeenCalledWith(
+      expect.objectContaining({ beforeSendTransaction, maxValueLength: 8192 }),
+    );
+  });
+
   it("captures, flushes, then rethrows when the job throws", async () => {
     const { scheduledFunction } = await import("../src/index.ts");
     const failure = new Error("boom");

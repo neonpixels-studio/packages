@@ -37,6 +37,68 @@ describe("initFunctionSentry", () => {
     });
   });
 
+  it("passes beforeSendTransaction and maxValueLength to the SDK", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    const beforeSend = vi.fn();
+    const beforeSendTransaction = vi.fn();
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      beforeSend,
+      beforeSendTransaction,
+      maxValueLength: 8192,
+      tracesSampleRate: 0.1,
+    });
+    expect(sentry.init).toHaveBeenCalledWith(
+      expect.objectContaining({ beforeSendTransaction, maxValueLength: 8192 }),
+    );
+  });
+
+  it("warns once but still starts when tracing runs without beforeSendTransaction", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      beforeSend: vi.fn(),
+      tracesSampleRate: 0.1,
+    });
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0]?.[0]).toContain("beforeSendTransaction");
+    expect(sentry.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not warn when tracing is off or transactions are scrubbed", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      beforeSend: vi.fn(),
+    });
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("does not warn when beforeSendTransaction is given", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      beforeSend: vi.fn(),
+      beforeSendTransaction: vi.fn(),
+      tracesSampleRate: 0.1,
+    });
+    expect(logged).not.toHaveBeenCalled();
+  });
+
   it("logs once and does nothing without a DSN", async () => {
     const logged = vi
       .spyOn(console, "error")

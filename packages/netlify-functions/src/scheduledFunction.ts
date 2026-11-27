@@ -19,6 +19,8 @@ export type ScheduledFunctionOptions = {
   // Maps the deploy context to the Sentry environment name.
   environment: (deployContext: DeployContext) => string;
   beforeSend?: FunctionSentryOptions["beforeSend"];
+  beforeSendTransaction?: FunctionSentryOptions["beforeSendTransaction"];
+  maxValueLength?: FunctionSentryOptions["maxValueLength"];
   tracesSampleRate?: number;
 };
 
@@ -59,6 +61,8 @@ export function scheduledFunction(
         dsn: process.env.SENTRY_DSN,
         environment: options.environment(deployContext),
         beforeSend: options.beforeSend,
+        beforeSendTransaction: options.beforeSendTransaction,
+        maxValueLength: options.maxValueLength,
         tracesSampleRate: options.tracesSampleRate,
       });
       return await runJob(options, job, { request, context, deployContext });
