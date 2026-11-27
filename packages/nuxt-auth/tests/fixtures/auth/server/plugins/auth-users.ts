@@ -8,6 +8,7 @@ const calls = { find: 0, create: 0 };
 const API_KEY = "key_good";
 const PUBLIC_PATH = "/api/public";
 const STATS_PATH = "/api/stats";
+const UNAUTHORIZED_STATUS = 401;
 
 export default defineNitroPlugin(() => {
   defineAuthUsers({
@@ -32,6 +33,13 @@ export default defineNitroPlugin(() => {
     },
     isPublicApiPath(path) {
       return path === PUBLIC_PATH || path === STATS_PATH;
+    },
+    // Only a 401 is reshaped, so the other responses prove the default stays.
+    errorData({ statusCode, statusMessage }) {
+      if (statusCode !== UNAUTHORIZED_STATUS) {
+        return undefined;
+      }
+      return { errors: [{ status: String(statusCode), title: statusMessage }] };
     },
   });
   // Lets the tests read the counters from outside the server process.

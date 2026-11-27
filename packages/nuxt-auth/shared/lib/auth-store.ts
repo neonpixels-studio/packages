@@ -4,6 +4,8 @@ import type { AuthUsersStore } from "../types/auth.ts";
 export type AuthStoreRegistry<Event> = {
   define(store: AuthUsersStore<Event>): void;
   require(): AuthUsersStore<Event>;
+  /** The registered store, or `undefined` before `defineAuthUsers` ran. */
+  current(): AuthUsersStore<Event> | undefined;
 };
 
 export function createAuthStoreRegistry<Event>(): AuthStoreRegistry<Event> {
@@ -14,6 +16,9 @@ export function createAuthStoreRegistry<Event>(): AuthStoreRegistry<Event> {
         throw new Error("defineAuthUsers was already called.");
       }
       registered = store;
+    },
+    current() {
+      return registered;
     },
     require() {
       if (!registered) {
