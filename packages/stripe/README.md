@@ -73,7 +73,8 @@ const owner = await resolveSubscriptionOwner(event, {
 // lastEventCreatedAt is the `created` time of the last event you applied
 if (owner && !isStaleEvent(event, owner.lastEventCreatedAt)) {
   const payload = event.data.object as Stripe.Subscription;
-  // `created` has one-second resolution. On a tie the order is unknown, so
+  // Only customer.subscription.* events reach here (guarded above). `created`
+  // has one-second resolution. On a tie the order is unknown, so
   // re-fetch the current state; apply the payload only when strictly newer.
   const subscription = isSameSecondEvent(event, owner.lastEventCreatedAt)
     ? await stripe.subscriptions.retrieve(payload.id)
@@ -91,7 +92,7 @@ if (owner && !isStaleEvent(event, owner.lastEventCreatedAt)) {
 - `resolveSubscriptionOwner(event, { findByCustomerId, findByUserId })` looks the owner up by the Stripe customer id first, then by `metadata.userId`. Works on events whose object is a subscription or checkout session (it reads `customer` and `metadata.userId`). Resolves to `undefined` when neither matches.
 - `isEntitledStatus(status)` is `true` for `active`, `trialing`, and `past_due`.
 - `isStaleEvent(event, lastAppliedAt)` is `true` when the event is strictly older than the last one you applied. Pass that event's `created` time (`new Date(event.created * 1000)`), not when you processed it. An equal timestamp is not stale, so this cannot order two events from the same second; use `isSameSecondEvent` for that.
-- `isSameSecondEvent(event, lastAppliedAt)` is `true` when the event's `created` second equals `lastAppliedAt` (same contract as `isStaleEvent`), and `false` when nothing was applied yet. On a tie, re-fetch with `stripe.subscriptions.retrieve` instead of applying the event payload, as in the webhook example.
+- `isSameSecondEvent(event, lastAppliedAt)` is `true` when the event's `created` second equals `lastAppliedAt` (same contract as `isStaleEvent`), and `false` when nothing was applied yet. On a tie, re-fetch with `stripe.subscriptions.retrieve` instead of applying the event payload, as in the webhook example. This assumes events for one owner are applied one at a time; serialize concurrent handlers per owner.
 - `createCheckoutSession(stripe, params)` creates a subscription checkout session and writes `userId` to `client_reference_id`, session metadata, and subscription metadata. A trial is added only when `trialDays` is a positive whole number. `buildCheckoutSessionParams` returns the parameters without calling Stripe.
 - `createBillingPortalSession(stripe, { customerId, returnUrl })` returns `{ url }`.
 - `PlanLimitError(message, { plan, limit })` has `status` 403, `code` `plan_limit_reached`, `plan`, and `limit`. You write the message.
