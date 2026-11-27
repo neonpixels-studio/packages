@@ -57,7 +57,7 @@ describe("buildServerSentryOptions", () => {
   it("drops an expected client error", () => {
     const options = buildServerSentryOptions(production);
     const event = { type: undefined };
-    const hint = { originalException: { statusCode: 404 } };
+    const hint = { originalException: createError({ statusCode: 404 }) };
     expect(dropExpectedClientErrors(event, hint)).toBeNull();
     expect(options.beforeSend(event, hint)).toBeNull();
   });
@@ -121,9 +121,13 @@ describe("buildServerSentryOptions with an h3 error", () => {
     expect(options.beforeSend(unhandledEvent, hint)).not.toBeNull();
   });
 
-  it("still drops a handled error that only has a statusCode", () => {
+  it("keeps a handled error that only has a statusCode, since it is not an h3 error", () => {
     const hint = { originalException: { statusCode: 404 } };
-    expect(options.beforeSend(event, hint)).toBeNull();
+    expect(options.beforeSend(event, hint)).not.toBeNull();
+  });
+
+  it("still drops a handled h3 error", () => {
+    expect(options.beforeSend(event, unhandledH3Error(404))).toBeNull();
   });
 });
 

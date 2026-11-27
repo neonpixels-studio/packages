@@ -21,22 +21,51 @@ function isMarkedUnhandled(error: unknown, event: Event): boolean {
   );
 }
 
+export interface ExpectedClientErrorOptions {
+  /**
+   * Narrows which errors count as expected. An error is dropped only when it
+   * has a 300 to 499 `statusCode` and this returns `true`. A predicate that
+   * throws counts as `false`, so the event is kept.
+   */
+  isExpected?: (error: unknown) => boolean;
+}
+
+function isExpectedByPredicate(
+  error: unknown,
+  isExpected: (error: unknown) => boolean,
+): boolean {
+  try {
+    return isExpected(error) === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Returns `null` for a handled error whose `statusCode` is 300 to 499 (a 404
  * or a validation failure thrown on purpose), so it never reaches Sentry.
- * Detected by shape, so it works with any framework's error class. Use it
- * inside `beforeSend`.
+ * Detected by shape, so it works with any framework's error class. Pass
+ * `options.isExpected` to drop only the errors you threw on purpose, and keep
+ * the rest (an upstream `$fetch` 401, say). Use it inside `beforeSend`.
  */
 export function dropExpectedClientErrors<T extends Event>(
   event: T,
   hint?: EventHint,
+  options?: ExpectedClientErrorOptions,
 ): T | null {
   const error = hint?.originalException;
   const statusCode = readStatusCode(error);
   if (statusCode === undefined || isMarkedUnhandled(error, event)) {
     return event;
   }
-  const expected =
+  const inRange =
     statusCode >= MIN_EXPECTED_STATUS && statusCode <= MAX_EXPECTED_STATUS;
-  return expected ? null : event;
+  if (!inRange) {
+    return event;
+  }
+  const isExpected = options?.isExpected;
+  if (isExpected && !isExpectedByPredicate(error, isExpected)) {
+    return event;
+  }
+  return null;
 }
