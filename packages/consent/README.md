@@ -30,7 +30,7 @@ const consent = createConsent({
 
 consent.status; // "granted" | "denied" | "unset" | "signal"
 consent.shouldPrompt; // show your banner
-consent.hadGrant; // true after any earlier grant, even an expired one
+consent.hadGrant; // true when storage holds a grant, even an expired one
 consent.services; // ["analytics", "sessionReplay"]: name only these in the banner
 
 if (consent.status === "granted") {
