@@ -84,6 +84,7 @@ describe("the page middleware", () => {
   it("reads the runtime config lazily and builds clerkMiddleware once", async () => {
     configureParties(["https://app.example"]);
     const module = await import("../server/middleware/auth-pages.ts");
+    expect(readRuntimeConfig).not.toHaveBeenCalled();
     expect(clerk.create).not.toHaveBeenCalled();
     const handler = module.default as unknown as (event: PageEvent) => unknown;
     await handler({ path: "/account", headers: {} });
