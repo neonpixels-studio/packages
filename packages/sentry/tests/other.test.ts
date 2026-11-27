@@ -279,6 +279,11 @@ describe("dropExpectedClientErrors with isExpected", () => {
     expect(isExpected).toHaveBeenCalledWith(hint.originalException);
   });
 
+  it("treats a truthy non-boolean return as not expected", () => {
+    const isExpected = (() => 1) as unknown as (error: unknown) => boolean;
+    expect(dropExpectedClientErrors(event, hint, { isExpected })).toBe(event);
+  });
+
   it("keeps the event when the predicate throws, and never throws", () => {
     const isExpected = () => {
       throw new Error("predicate failed");

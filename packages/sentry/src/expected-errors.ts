@@ -24,7 +24,7 @@ function isMarkedUnhandled(error: unknown, event: Event): boolean {
 export interface ExpectedClientErrorOptions {
   /**
    * Narrows which errors count as expected. An error is dropped only when it
-   * has a 300 to 499 `statusCode` and this returns `true`. A predicate that
+   * has a 300 to 499 `statusCode` and this returns exactly `true` (any other value counts as `false`). A predicate that
    * throws counts as `false`, so the event is kept.
    */
   isExpected?: (error: unknown) => boolean;

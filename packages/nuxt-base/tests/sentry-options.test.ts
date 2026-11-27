@@ -124,9 +124,14 @@ describe("buildServerSentryOptions with an h3 error", () => {
     expect(options.beforeSend(event, hint)).not.toBeNull();
   });
 
-  it("drops a handled h3 error", () => {
-    const hint = { originalException: createError({ statusCode: 404 }) };
-    expect(options.beforeSend(event, hint)).toBeNull();
+  it("keeps a handled FetchError-shaped upstream failure", () => {
+    const upstream = Object.assign(new Error("upstream"), {
+      name: "FetchError",
+      statusCode: 401,
+    });
+    expect(
+      options.beforeSend(event, { originalException: upstream }),
+    ).not.toBeNull();
   });
 });
 
