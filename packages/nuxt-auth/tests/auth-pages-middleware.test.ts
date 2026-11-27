@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const clerk = vi.hoisted(() => ({ authenticate: vi.fn(() => "clerk ran") }));
-vi.mock("@clerk/nuxt/server", () => ({
-  clerkMiddleware: () => clerk.authenticate,
-}));
+const clerk = vi.hoisted(() => {
+  const authenticate = vi.fn(() => "clerk ran");
+  return { authenticate, create: vi.fn((_options?: unknown) => authenticate) };
+});
+vi.mock("@clerk/nuxt/server", () => ({ clerkMiddleware: clerk.create }));
 
 type PageEvent = { path: string; headers: Record<string, string> };
 
@@ -12,11 +13,20 @@ async function runMiddleware(event: PageEvent): Promise<unknown> {
   return (module.default as unknown as (event: PageEvent) => unknown)(event);
 }
 
-beforeEach(() => {
-  vi.stubGlobal("defineEventHandler", (handler: unknown) => handler);
-  vi.stubGlobal("useRuntimeConfig", () => ({
+const readRuntimeConfig = vi.fn();
+
+function configureParties(authorizedParties: string[]): void {
+  readRuntimeConfig.mockReturnValue({
+    auth: { authorizedParties },
     public: { auth: { deferredPaths: ["/pricing"] } },
-  }));
+  });
+}
+
+beforeEach(() => {
+  vi.resetModules();
+  configureParties([]);
+  vi.stubGlobal("defineEventHandler", (handler: unknown) => handler);
+  vi.stubGlobal("useRuntimeConfig", readRuntimeConfig);
   vi.stubGlobal(
     "getHeader",
     (event: PageEvent, name: string) => event.headers[name],
@@ -56,5 +66,35 @@ describe("the page middleware", () => {
   it("never runs clerkMiddleware for /api", async () => {
     await runMiddleware({ path: "/api/trips", headers: {} });
     expect(clerk.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("passes the configured authorized parties to clerkMiddleware", async () => {
+    configureParties(["https://app.example", "https://preview.example"]);
+    await runMiddleware({ path: "/account", headers: {} });
+    expect(clerk.create).toHaveBeenCalledWith({
+      authorizedParties: ["https://app.example", "https://preview.example"],
+    });
+  });
+
+  it("calls clerkMiddleware with no options when no party is configured", async () => {
+    await runMiddleware({ path: "/account", headers: {} });
+    expect(clerk.create).toHaveBeenCalledWith();
+  });
+
+  it("reads the runtime config lazily and builds clerkMiddleware once", async () => {
+    configureParties(["https://app.example"]);
+    const module = await import("../server/middleware/auth-pages.ts");
+    expect(readRuntimeConfig).not.toHaveBeenCalled();
+    expect(clerk.create).not.toHaveBeenCalled();
+    const handler = module.default as unknown as (event: PageEvent) => unknown;
+    await handler({ path: "/account", headers: {} });
+    await handler({ path: "/other", headers: {} });
+    expect(clerk.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not build clerkMiddleware for a request that skips Clerk", async () => {
+    await runMiddleware({ path: "/api/trips", headers: {} });
+    await runMiddleware({ path: "/pricing", headers: {} });
+    expect(clerk.create).not.toHaveBeenCalled();
   });
 });
