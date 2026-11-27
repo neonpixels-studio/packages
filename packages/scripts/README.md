@@ -202,9 +202,10 @@ It touches only these files, and refuses any path that is a symlink or resolves 
 | `.husky/pre-commit`      | none                                                         |
 | `.husky/pre-push`        | `nuxt` runs `nuxt prepare` and `lint:ci`                     |
 | `.husky/post-merge`      | none                                                         |
+| `.husky/post-checkout`   | none                                                         |
 | `package.json` `engines` | none; sets `engines.node` and leaves every other field alone |
 
-`engines.node` is a range that accepts the version pinned in `.nvmrc`. The Node 22 floor is 22.18.0 because Node runs TypeScript files directly (`node file.ts`) without a flag from that release, and synced projects run `.ts` scripts that way. Odd-numbered releases (Node 23 and 25) are left out on purpose, since they are short-lived and never reach long-term support; the open-ended `>=26.0.0` keeps later majors working without a template change. Tooling that checks `engines` can reject an unsupported Node version (npm and pnpm only warn unless `engine-strict=true` is set in `.npmrc`, which this sync does not manage). The hooks assume npm; the pre-push hooks run `lint`, `typecheck`, and `test:ci` scripts.
+`engines.node` is a range that accepts the version pinned in `.nvmrc`. The Node 22 floor is 22.18.0 because Node runs TypeScript files directly (`node file.ts`) without a flag from that release, and synced projects run `.ts` scripts that way. Odd-numbered releases (Node 23 and 25) are left out on purpose, since they are short-lived and never reach long-term support; the open-ended `>=26.0.0` keeps later majors working without a template change. Tooling that checks `engines` can reject an unsupported Node version (npm and pnpm only warn unless `engine-strict=true` is set in `.npmrc`, which this sync does not manage). The hooks assume npm; the pre-push hooks run `lint`, `typecheck`, and `test:ci` scripts. `post-merge` and `post-checkout` run `npm install` when `package.json` or `package-lock.json` changed, so `node_modules` stays current after a pull or a branch switch (`post-merge` alone misses branch switches).
 
 ### Repo-specific sections
 
