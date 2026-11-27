@@ -165,7 +165,7 @@ A pattern that is not a valid regular expression fails the build with a message 
 
 ### Deliberate HTTP errors on the server
 
-`@sentry/nuxt` captures an error thrown in server middleware as unhandled, so `dropExpectedClientErrors` would keep a 401 or 429 you threw on purpose. On the server, `beforeSend` first drops any h3 error (`isError` from `h3`) with a status from 300 to 499, whatever `mechanism.handled` says. An object that merely has a `statusCode` is not an h3 error and is left to `dropExpectedClientErrors`. A 5xx is never dropped. `h3` is a peer dependency, and `nuxt` already installs it.
+`@sentry/nuxt` captures an error thrown in server middleware as unhandled, so `dropExpectedClientErrors` would keep a 401 or 429 you threw on purpose. On the server, `beforeSend` first drops any h3 error (`isError` from `h3`) with a status from 300 to 499, whatever `mechanism.handled` says. An object that merely has a `statusCode` is not an h3 error and is left to `dropExpectedClientErrors`, and so is an error h3 wrapped itself from another thrown value (marked `unhandled`), such as a failed upstream request. A 5xx is never dropped. `h3` is a peer dependency, and `nuxt` already installs it.
 
 ### Session Replay
 

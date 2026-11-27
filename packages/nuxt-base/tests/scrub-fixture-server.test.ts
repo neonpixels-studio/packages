@@ -163,8 +163,9 @@ describe("an app that configures scrub patterns", () => {
     await waitForEnvelope("boom-on-purpose");
     // A dropped 401 sends nothing, so give a wrongly kept one time to arrive.
     await new Promise((done) => setTimeout(done, LATE_ENVELOPE_MS));
-    for (const name of ["denied-on-purpose", "denied-in-middleware"]) {
-      expect(envelopes.some((envelope) => envelope.includes(name))).toBe(false);
+    for (const name of ["denied-on-purpose", "limited-by-middleware"]) {
+      const hit = envelopes.find((envelope) => envelope.includes(name));
+      expect(hit?.slice(0, 3000), name).toBeUndefined();
     }
   });
 

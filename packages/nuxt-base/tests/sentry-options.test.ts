@@ -106,6 +106,16 @@ describe("buildServerSentryOptions with an h3 error", () => {
     expect(options.beforeSend(event, unhandledH3Error(500))).not.toBeNull();
   });
 
+  it("keeps an error h3 wrapped from a thrown upstream failure", () => {
+    const wrapped = createError(
+      Object.assign(new Error("upstream"), { statusCode: 401 }),
+    );
+    wrapped.unhandled = true;
+    expect(
+      options.beforeSend(unhandledEvent, { originalException: wrapped }),
+    ).not.toBeNull();
+  });
+
   it("keeps an unhandled error that only has a statusCode", () => {
     const hint = { originalException: { statusCode: 404 } };
     expect(options.beforeSend(unhandledEvent, hint)).not.toBeNull();

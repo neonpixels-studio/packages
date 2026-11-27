@@ -9,14 +9,17 @@ const MAX_EXPECTED_STATUS = 499;
  * it is marked handled: `@sentry/nuxt` reports an error thrown in server
  * middleware as unhandled, so a deliberate 401 or 429 would otherwise be sent.
  * Only a real h3 error counts; an object that merely has a `statusCode` is
- * left to `dropExpectedClientErrors`. A 5xx is never dropped.
+ * left to `dropExpectedClientErrors`, and so is an error h3 wrapped itself
+ * (`unhandled`). A 5xx is never dropped.
  */
 export function dropDeliberateH3Errors(
   event: ErrorEvent,
   hint: EventHint | undefined,
 ): ErrorEvent | null {
   const error = hint?.originalException;
-  if (!isError(error)) {
+  // h3 wraps anything else a handler throws (an upstream fetch failure with a
+  // 401, say) in an H3Error and marks it `unhandled`: that is not deliberate.
+  if (!isError(error) || error.unhandled) {
     return event;
   }
   const expected =

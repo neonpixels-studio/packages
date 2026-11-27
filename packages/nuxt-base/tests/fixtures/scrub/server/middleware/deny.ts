@@ -3,7 +3,7 @@ export default defineEventHandler((event) => {
   if (event.path === "/api/denied-in-middleware") {
     throw createError({
       statusCode: 429,
-      statusMessage: "denied-in-middleware",
+      statusMessage: "limited-by-middleware",
     });
   }
 });
