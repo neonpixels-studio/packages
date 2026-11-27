@@ -1,8 +1,12 @@
-import type { ConsentStorage } from "@neon-pixels/consent";
+import type { ConsentStorage } from "./types.ts";
 
-// Storage can be blocked (privacy modes). The choice still applies for the
-// page through an in-memory copy; it just does not persist.
-export function createResilientStorage(
+/**
+ * Wraps browser storage so blocked storage never breaks consent. The resolver
+ * runs on every call, because merely reading the storage property can throw.
+ * A write that storage refuses is kept in memory for the page, so the choice
+ * still applies; it just does not persist. Never throws.
+ */
+export function createBrowserStorage(
   resolveStorage: () => ConsentStorage,
 ): ConsentStorage {
   const memory = new Map<string, string>();

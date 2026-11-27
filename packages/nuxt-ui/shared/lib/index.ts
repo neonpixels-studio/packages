@@ -57,7 +57,6 @@ export {
   type ConsentControllerDependencies,
   type ConsentState,
 } from "./consent-controller.ts";
-export { createResilientStorage } from "./consent-storage.ts";
 export {
   UI_TOKENS,
   findMissingTokens,

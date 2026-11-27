@@ -13,12 +13,16 @@ pnpm add @neon-pixels/consent
 ## Usage
 
 ```ts
-import { createConsent, loadGoogleAnalytics } from "@neon-pixels/consent";
+import {
+  createBrowserStorage,
+  createConsent,
+  loadGoogleAnalytics,
+} from "@neon-pixels/consent";
 
 const consent = createConsent({
   app: "my-site", // stored under "my-site:analytics-consent"
   services: { analytics: { measurementId: "G-XXXXXXX" }, sessionReplay: true },
-  storage: window.localStorage,
+  storage: createBrowserStorage(() => window.localStorage),
   navigator,
   window,
   // legacyKey: "old-key", // migrate an older key, if the app had one
@@ -57,6 +61,10 @@ Stores the denial and sets `ga-disable-<measurementId>` for the page. When an ea
 ### `loadGoogleAnalytics(measurementId, { document, window })`
 
 Injects gtag.js once per window however often it is called, with Google signals and ad personalization turned off. It sends no Consent Mode commands: call it only after a grant. It defines no `window.gtag`: push to `window.dataLayer` yourself to send events. A second measurement id on the same window is configured without a second tag. Calling it again after `deny()` clears the disable flag without adding a second tag.
+
+### `createBrowserStorage(resolveStorage)`
+
+Wraps storage so a blocked browser never breaks consent: Safari with all cookies blocked throws on reading `window.localStorage` itself, so the resolver runs on each call, and a refused write is kept in memory for the page (the choice still applies, it just does not persist). It never throws.
 
 ### `hasPrivacySignal({ navigator, window })`
 
