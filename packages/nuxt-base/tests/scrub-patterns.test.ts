@@ -42,6 +42,12 @@ describe("serializeScrubPatterns and parseScrubPatterns", () => {
     expect(parseScrubPatterns(JSON.parse(literal))).toEqual(sources);
   });
 
+  it("names the variable when the value is not JSON", () => {
+    expect(() => parseScrubPatterns("not json")).toThrow(
+      "SENTRY_SCRUB_PATTERNS is not a JSON array",
+    );
+  });
+
   it("treats an unset value as no patterns", () => {
     expect(parseScrubPatterns(undefined)).toEqual([]);
     expect(parseScrubPatterns("")).toEqual([]);

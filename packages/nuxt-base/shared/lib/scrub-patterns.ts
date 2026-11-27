@@ -43,5 +43,15 @@ export function serializeScrubPatterns(sources: readonly string[]): string {
 
 /** Reads the value `serializeScrubPatterns` baked in; unset means no patterns. */
 export function parseScrubPatterns(raw: string | undefined): string[] {
-  return raw ? (JSON.parse(raw) as string[]) : [];
+  if (!raw) {
+    return [];
+  }
+  try {
+    return JSON.parse(raw) as string[];
+  } catch (error) {
+    throw new SyntaxError(
+      `SENTRY_SCRUB_PATTERNS is not a JSON array of strings: ${describeFailure(error)}`,
+      { cause: error },
+    );
+  }
 }

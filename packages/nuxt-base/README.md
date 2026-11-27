@@ -159,7 +159,9 @@ export default defineNuxtConfig({
 
 Every match is replaced with `[redacted]` in `beforeSend`, `beforeSendTransaction`, and `beforeSendSpan` on the client and the server, in the replay event processor, and in the recording hook `startSentryReplay()` sets. The default is `[]`, which changes nothing. The key is typed by the layer.
 
-A pattern that is not a valid regular expression fails the build with a message naming `runtimeConfig.public.sentry.scrubPatterns` and the pattern's position in the list. The server start-up file runs before `useRuntimeConfig()` exists, so the layer bakes the merged list into the server bundle with a `nitro.replace` literal for `process.env.SENTRY_SCRUB_PATTERNS`. You do not set that entry yourself. Set the list in `nuxt.config.ts`, not through a `NUXT_PUBLIC_SENTRY_SCRUB_PATTERNS` variable at run time: the client would read the run-time value while the server keeps the build-time one, and the run-time value is never validated.
+These sources are public: the list is part of the runtime config sent to every browser. List formats, never a literal secret value. Use syntax every browser you support accepts, because the client compiles the patterns again.
+
+A pattern that is not a valid regular expression fails the build with a message naming `runtimeConfig.public.sentry.scrubPatterns` and the pattern's position in the list. The server start-up file runs before `useRuntimeConfig()` exists, so the layer bakes the merged list into the server bundle with a `nitro.replace` literal for `process.env.SENTRY_SCRUB_PATTERNS`. You do not set that entry yourself. Set the list in `nuxt.config.ts`, not through a `NUXT_PUBLIC_SENTRY_SCRUB_PATTERNS` variable at run time: the client would read the run-time value while the server keeps the build-time one, and a run-time value that is not a valid list throws in the browser, which disables client error reporting.
 
 ### Deliberate HTTP errors on the server
 

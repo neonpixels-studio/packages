@@ -156,15 +156,16 @@ describe("an app that configures scrub patterns", () => {
     }
   });
 
-  it("drops a deliberate 401 and keeps a 500", async () => {
+  it("drops a deliberate 401 and a middleware 429, and keeps a 500", async () => {
     await fetch(`${origin}/api/denied`);
+    await fetch(`${origin}/api/denied-in-middleware`);
     await fetch(`${origin}/api/boom`);
     await waitForEnvelope("boom-on-purpose");
     // A dropped 401 sends nothing, so give a wrongly kept one time to arrive.
     await new Promise((done) => setTimeout(done, LATE_ENVELOPE_MS));
-    expect(
-      envelopes.some((envelope) => envelope.includes("denied-on-purpose")),
-    ).toBe(false);
+    for (const name of ["denied-on-purpose", "denied-in-middleware"]) {
+      expect(envelopes.some((envelope) => envelope.includes(name))).toBe(false);
+    }
   });
 
   it("gives the client the patterns through the runtime config", async () => {
