@@ -11,15 +11,24 @@ export {
   type RetiredEnvironmentName,
 } from "./environment.ts";
 export {
+  SCRUB_PATTERNS_ENVIRONMENT_NAME,
   buildRuntimeConfig,
   buildServerReplacements,
   type LayerRuntimeConfig,
 } from "./runtime-config.ts";
 export {
+  SCRUB_PATTERNS_KEY,
+  compileScrubPatterns,
+  parseScrubPatterns,
+  serializeScrubPatterns,
+} from "./scrub-patterns.ts";
+export { dropDeliberateH3Errors } from "./expected-http-errors.ts";
+export { resolveScrubber } from "./sentry-scrubber.ts";
+export {
   buildClientSentryOptions,
-  buildServerSentryOptions,
   type SentryOptionsInput,
 } from "./sentry-options.ts";
+export { buildServerSentryOptions } from "./sentry-server-options.ts";
 export {
   assertSiteUrlForBuild,
   isSecureOrigin,

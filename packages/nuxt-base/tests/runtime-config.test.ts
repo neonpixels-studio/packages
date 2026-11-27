@@ -11,7 +11,7 @@ describe("buildRuntimeConfig", () => {
       csp: { directives: {}, reportEndpoint: "" },
       public: {
         siteUrl: "",
-        sentry: { dsn: "", environment: "development" },
+        sentry: { dsn: "", environment: "development", scrubPatterns: [] },
       },
     });
   });

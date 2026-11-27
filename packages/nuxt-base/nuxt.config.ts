@@ -4,9 +4,14 @@ import type { NitroConfig } from "nuxt/schema";
 import { assertNoUnsafeScriptSources } from "./shared/lib/csp.ts";
 import { assertNoRetiredEnv } from "./shared/lib/environment.ts";
 import {
+  SCRUB_PATTERNS_ENVIRONMENT_NAME,
   buildRuntimeConfig,
   buildServerReplacements,
 } from "./shared/lib/runtime-config.ts";
+import {
+  compileScrubPatterns,
+  serializeScrubPatterns,
+} from "./shared/lib/scrub-patterns.ts";
 import { assertSiteUrlForBuild } from "./shared/lib/site-url.ts";
 
 // Runs in every Nuxt command (dev, build, prepare) because the config loads in all of them.
@@ -17,15 +22,20 @@ const runtimeConfig = buildRuntimeConfig(process.env);
 const EVERY_ROUTE = "/**";
 
 interface CommandInfo {
+  hook: (name: "nitro:config", handler: (config: NitroConfig) => void) => void;
   options: {
     dev: boolean;
     _prepare: boolean;
-    runtimeConfig: { csp?: { directives?: CspDirectives } };
+    runtimeConfig: {
+      csp?: { directives?: CspDirectives };
+      public?: { sentry?: { scrubPatterns?: string[] } };
+    };
   };
 }
 
 interface NitroConfigInfo {
   dev?: boolean;
+  replace?: Record<string, string>;
   routeRules?: Record<string, { headers?: Record<string, string> }>;
 }
 
@@ -41,6 +51,27 @@ function checkSiteUrlForBuild(nuxt: CommandInfo): void {
 // Runs after every layer is merged, so it sees the app's own directives.
 function checkAppCspDirectives(nuxt: CommandInfo): void {
   assertNoUnsafeScriptSources(nuxt.options.runtimeConfig.csp?.directives);
+}
+
+function bakeScrubPatterns(config: NitroConfig, sources: string[]): void {
+  const nitroConfig = config as NitroConfigInfo;
+  nitroConfig.replace = {
+    ...nitroConfig.replace,
+    [SCRUB_PATTERNS_ENVIRONMENT_NAME]: serializeScrubPatterns(sources),
+  };
+}
+
+// The server start-up file cannot read the runtime config, so the app's merged
+// patterns are baked into the server bundle. A module sees the merged options
+// before the nitro:config hook fires, which the ready hook does not. Compiling
+// every pattern makes an invalid one fail the build, naming its position.
+function scrubPatternsModule(_options: unknown, nuxt: CommandInfo): void {
+  const sources =
+    nuxt.options.runtimeConfig.public?.sentry?.scrubPatterns ?? [];
+  compileScrubPatterns(sources);
+  nuxt.hook("nitro:config", (config: NitroConfig) =>
+    bakeScrubPatterns(config, sources),
+  );
 }
 
 function onReady(nuxt: CommandInfo): void {
@@ -76,7 +107,7 @@ export default defineNuxtConfig({
   hooks: { ready: onReady, "nitro:config": addSecurityHeaderRules },
   compatibilityDate: "2024-11-01",
   future: { compatibilityVersion: 4 },
-  modules: ["@sentry/nuxt/module"],
+  modules: ["@sentry/nuxt/module", scrubPatternsModule],
   app: { head: { htmlAttrs: { lang: "en" } } },
   sourcemap: { client: "hidden" },
   sentry: {

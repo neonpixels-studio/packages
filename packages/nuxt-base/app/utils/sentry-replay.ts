@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nuxt";
-import { scrubRecordingEvent } from "@neon-pixels/sentry";
+import { resolveScrubber } from "../../shared/lib/sentry-scrubber.ts";
 
 // Defaults are already true in the SDK; kept explicit so a future SDK default
 // change cannot weaken privacy.
@@ -53,7 +53,7 @@ function restartReplay(
   }
 }
 
-function startReplayNow(): void {
+function startReplayNow(scrubPatterns: readonly string[]): void {
   const existingReplay = Sentry.getReplay();
   if (existingReplay) {
     restartReplay(existingReplay);
@@ -62,7 +62,8 @@ function startReplayNow(): void {
   Sentry.addIntegration(
     Sentry.replayIntegration({
       ...REPLAY_PRIVACY_OPTIONS,
-      beforeAddRecordingEvent: scrubRecordingEvent,
+      beforeAddRecordingEvent:
+        resolveScrubber(scrubPatterns).scrubRecordingEvent,
     }),
   );
 }
@@ -82,7 +83,9 @@ export function startSentryReplay(): Promise<void> {
   if (!isSentryEnabled()) {
     return Promise.resolve();
   }
-  return enqueue(startReplayNow);
+  // Read here: useRuntimeConfig() needs the Nuxt context, which the queue may have left.
+  const { scrubPatterns } = useRuntimeConfig().public.sentry;
+  return enqueue(() => startReplayNow(scrubPatterns));
 }
 
 /**

@@ -29,8 +29,9 @@ Peer dependencies: `nuxt` 4 and `@sentry/nuxt` 11. `@neon-pixels/sentry` and `@n
 4. Delete your own site URL helpers and use `useSiteUrl()` (below).
 5. Rename any retired environment variable (below).
 6. Delete your own Content-Security-Policy and security header code (see "Content-Security-Policy" below).
+7. Move your own Sentry scrub patterns into `runtimeConfig.public.sentry.scrubPatterns` (see "Extra scrub patterns"), and delete your own server error filter: the layer drops deliberate h3 errors with a 300 to 499 status.
 
-Every value the layer sets can still be overridden in your own `nuxt.config.ts`. The server start-up file reads the DSN and environment from the `nitro.replace` literals, not from the runtime config, so an app that overrides `runtimeConfig.public.sentry` must override those two `nitro.replace` entries as well. Arrays merge instead of being replaced, so a `modules` or `filesToDeleteAfterUpload` entry in your config is added to the layer's.
+Every value the layer sets can still be overridden in your own `nuxt.config.ts`. The server start-up file reads the DSN and environment from the `nitro.replace` literals, not from the runtime config, so an app that overrides `runtimeConfig.public.sentry.dsn` or `.environment` must override those two `nitro.replace` entries as well. `runtimeConfig.public.sentry.scrubPatterns` is the exception: the layer bakes the merged list into the server bundle itself. Arrays merge instead of being replaced, so a `modules` or `filesToDeleteAfterUpload` entry in your config is added to the layer's.
 
 ## What the layer sets
 
@@ -48,6 +49,7 @@ Every value the layer sets can still be overridden in your own `nuxt.config.ts`.
 | `runtimeConfig.public.siteUrl`                                                    | `NUXT_PUBLIC_SITE_URL`, else `""`                                                                        |
 | `runtimeConfig.public.sentry.dsn`                                                 | `SENTRY_DSN`, else `""`                                                                                  |
 | `runtimeConfig.public.sentry.environment`                                         | `resolveSentryEnvironment()` from `@neon-pixels/sentry`, using Netlify's `CONTEXT`                       |
+| `runtimeConfig.public.sentry.scrubPatterns`                                       | `[]`                                                                                                     |
 | `nitro.replace` for `process.env.SENTRY_DSN` and `process.env.SENTRY_ENVIRONMENT` | The same two values, as string literals                                                                  |
 
 These values are read from `process.env` when the config loads, so they are fixed at build time. Netlify does not pass build-time variables to functions at run time. The server start-up file runs before `useRuntimeConfig()` exists, which is why it reads `process.env` and why `nitro.replace` swaps those two reads for literals.
@@ -137,9 +139,33 @@ requireSiteUrlForBuild(process.env);
 The layer ships `sentry.client.config.ts` and `sentry.server.config.ts`.
 
 - Both: `dsn` and `environment` come from the runtime config values above, `tracesSampleRate` is `0.1` in production and `1.0` otherwise, `maxValueLength` is `MAX_SCRUB_LENGTH`, `beforeSendTransaction` is `scrubEvent`, and `beforeSendSpan` is `scrubSpan`.
-- Server: `beforeSend` runs `dropExpectedClientErrors` and then `scrubEvent`. An empty environment falls back to `development`, never to Sentry's default of `production`.
+- Server: `beforeSend` drops deliberate h3 errors (see below), then runs `dropExpectedClientErrors`, then the scrubber. An empty environment falls back to `development`, never to Sentry's default of `production`.
 - Client: `beforeSend` is `scrubEvent`, `ignoreErrors` is `IGNORED_ERRORS`, `denyUrls` is `DENIED_URLS`, and the only integration is `browserTracingIntegration()`. `replaysOnErrorSampleRate` is `1.0` and `replaysSessionSampleRate` is `0.1` in production and `1.0` otherwise. `scrubReplayEvent` is registered as an event processor.
 - With an empty DSN nothing is sent and nothing throws.
+- The scrubber is `createScrubber()` from `@neon-pixels/sentry`, built once per bundle with your extra patterns (below). With none, it behaves like the default `scrubEvent`, `scrubSpan`, `scrubReplayEvent`, and `scrubRecordingEvent`.
+
+### Extra scrub patterns
+
+The built-in patterns do not know your own token formats. List them as regular expression sources (strings, no slashes or flags) in your `nuxt.config.ts`:
+
+```ts
+export default defineNuxtConfig({
+  extends: ["@neon-pixels/nuxt-base"],
+  runtimeConfig: {
+    public: { sentry: { scrubPatterns: ["acme_live_[A-Za-z0-9]{24}"] } },
+  },
+});
+```
+
+Every match is replaced with `[redacted]` in `beforeSend`, `beforeSendTransaction`, and `beforeSendSpan` on the client and the server, in the replay event processor, and in the recording hook `startSentryReplay()` sets. The default is `[]`, which changes nothing. The key is typed by the layer.
+
+These sources are public: the list is part of the runtime config sent to every browser. List formats, never a literal secret value. Use syntax every browser you support accepts, because the client compiles the patterns again.
+
+A pattern that is not a valid regular expression fails the build with a message naming `runtimeConfig.public.sentry.scrubPatterns` and the pattern's position in the list. The server start-up file runs before `useRuntimeConfig()` exists, so the layer bakes the merged list into the server bundle with a `nitro.replace` literal for `process.env.SENTRY_SCRUB_PATTERNS`. You do not set that entry yourself. Set the list in `nuxt.config.ts`, not through a `NUXT_PUBLIC_SENTRY_SCRUB_PATTERNS` variable at run time: the client would read the run-time value while the server keeps the build-time one, and a run-time value that is not a valid list throws in the browser, which disables client error reporting.
+
+### Deliberate HTTP errors on the server
+
+`@sentry/nuxt` captures an error thrown in server middleware as unhandled, so `dropExpectedClientErrors` would keep a 401 or 429 you threw on purpose. On the server, `beforeSend` first drops any h3 error (`isError` from `h3`) with a status from 300 to 499, whatever `mechanism.handled` says. An object that merely has a `statusCode` is not an h3 error and is left to `dropExpectedClientErrors`, and so is an error h3 wrapped itself from another thrown value (marked `unhandled`), such as a failed upstream request. A 5xx is never dropped. `h3` is a peer dependency, and `nuxt` already installs it.
 
 ### Session Replay
 
@@ -177,4 +203,4 @@ export default defineNuxtPlugin(() => {
 
 ## Build-time helpers
 
-`@neon-pixels/nuxt-base/build` exports plain functions with no Nuxt import, so they can be used from a config file or unit tested directly: `assertNoRetiredEnv`, `validateSiteUrl`, `requireSiteUrlForBuild`, `assertSiteUrlForBuild`, `buildRuntimeConfig`, `buildServerReplacements`, `buildClientSentryOptions`, and `buildServerSentryOptions`.
+`@neon-pixels/nuxt-base/build` exports plain functions with no Nuxt import, so they can be used from a config file or unit tested directly: `assertNoRetiredEnv`, `validateSiteUrl`, `requireSiteUrlForBuild`, `assertSiteUrlForBuild`, `buildRuntimeConfig`, `buildServerReplacements`, `compileScrubPatterns`, `resolveScrubber`, `dropDeliberateH3Errors`, `buildClientSentryOptions`, and `buildServerSentryOptions`. Both option builders take `scrubPatterns` (an array of sources) in their input.

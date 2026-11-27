@@ -131,3 +131,24 @@ describe("the Sentry start-up files", () => {
     BUILD_TIMEOUT_MS,
   );
 });
+
+describe("the scrub patterns", () => {
+  it(
+    "fail the build naming the key and the position of an invalid pattern",
+    async () => {
+      await expect(
+        loadNuxt({
+          cwd: FIXTURE_DIRECTORIES.app,
+          overrides: {
+            _prepare: true,
+            telemetry: false,
+            runtimeConfig: {
+              public: { sentry: { scrubPatterns: ["fine", "("] } },
+            },
+          },
+        }),
+      ).rejects.toThrow("runtimeConfig.public.sentry.scrubPatterns[1]");
+    },
+    BUILD_TIMEOUT_MS,
+  );
+});

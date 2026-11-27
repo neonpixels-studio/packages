@@ -2,12 +2,17 @@ import { resolveSentryEnvironment } from "@neon-pixels/sentry";
 import type { EnvironmentRecord } from "./environment.ts";
 import { buildDefaultCspConfig, type LayerCspConfig } from "./csp.ts";
 
+// Kept out of scrub-patterns.ts: the server bundle includes that file, and
+// nitro.replace would rewrite this text there too.
+export const SCRUB_PATTERNS_ENVIRONMENT_NAME =
+  "process.env.SENTRY_SCRUB_PATTERNS";
+
 export type LayerRuntimeConfig = {
   databaseUrl: string;
   csp: LayerCspConfig;
   public: {
     siteUrl: string;
-    sentry: { dsn: string; environment: string };
+    sentry: { dsn: string; environment: string; scrubPatterns: string[] };
   };
 };
 
@@ -29,6 +34,7 @@ export function buildRuntimeConfig(
           netlifyContext: environment.CONTEXT,
           isE2e: Boolean(environment.E2E_DATABASE_URL),
         }),
+        scrubPatterns: [],
       },
     },
   };
@@ -37,9 +43,11 @@ export function buildRuntimeConfig(
 /**
  * The server start-up file runs before `useRuntimeConfig()` exists, so it reads
  * `process.env` and these literals replace those reads in the server bundle.
+ * The pattern list is baked separately, from the merged config, see
+ * `scrubPatternsModule` in nuxt.config.ts.
  */
 export function buildServerReplacements(
-  sentry: LayerRuntimeConfig["public"]["sentry"],
+  sentry: Pick<LayerRuntimeConfig["public"]["sentry"], "dsn" | "environment">,
 ): Record<string, string> {
   return {
     "process.env.SENTRY_DSN": JSON.stringify(sentry.dsn),

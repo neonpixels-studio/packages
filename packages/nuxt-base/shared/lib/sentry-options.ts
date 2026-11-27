@@ -1,13 +1,11 @@
-import type { ErrorEvent, EventHint } from "@sentry/nuxt";
+import type { Scrubber } from "@neon-pixels/sentry";
 import {
   DENIED_URLS,
   IGNORED_ERRORS,
   MAX_SCRUB_LENGTH,
   SENTRY_ENVIRONMENT_DEVELOPMENT,
-  dropExpectedClientErrors,
-  scrubEvent,
-  scrubSpan,
 } from "@neon-pixels/sentry";
+import { resolveScrubber } from "./sentry-scrubber.ts";
 
 export const PRODUCTION_TRACES_SAMPLE_RATE = 0.1;
 export const DEVELOPMENT_TRACES_SAMPLE_RATE = 1.0;
@@ -19,6 +17,8 @@ export interface SentryOptionsInput {
   dsn: string | undefined;
   environment: string | undefined;
   isProduction: boolean;
+  /** Regular expression sources for values the built-in patterns do not know. */
+  scrubPatterns?: readonly string[];
 }
 
 function pickRate(
@@ -29,7 +29,10 @@ function pickRate(
   return isProduction ? productionRate : developmentRate;
 }
 
-function buildSharedOptions(input: SentryOptionsInput) {
+export function buildSharedOptions(
+  input: SentryOptionsInput,
+  scrubber: Scrubber,
+) {
   return {
     // An empty DSN disables the SDK, so nothing is sent and nothing throws.
     dsn: input.dsn || undefined,
@@ -40,22 +43,8 @@ function buildSharedOptions(input: SentryOptionsInput) {
       DEVELOPMENT_TRACES_SAMPLE_RATE,
     ),
     maxValueLength: MAX_SCRUB_LENGTH,
-    beforeSendTransaction: scrubEvent,
-    beforeSendSpan: scrubSpan,
-  };
-}
-
-/**
- * Server options. An empty environment falls back to development, never to
- * Sentry's own default of production.
- */
-export function buildServerSentryOptions(input: SentryOptionsInput) {
-  return {
-    ...buildSharedOptions(input),
-    beforeSend: (event: ErrorEvent, hint: EventHint) => {
-      const kept = dropExpectedClientErrors(event, hint);
-      return kept ? scrubEvent(kept) : null;
-    },
+    beforeSendTransaction: scrubber.scrubEvent,
+    beforeSendSpan: scrubber.scrubSpan,
   };
 }
 
@@ -65,9 +54,10 @@ export function buildServerSentryOptions(input: SentryOptionsInput) {
  * `startSentryReplay()`.
  */
 export function buildClientSentryOptions(input: SentryOptionsInput) {
+  const scrubber = resolveScrubber(input.scrubPatterns);
   return {
-    ...buildSharedOptions(input),
-    beforeSend: scrubEvent,
+    ...buildSharedOptions(input, scrubber),
+    beforeSend: scrubber.scrubEvent,
     ignoreErrors: [...IGNORED_ERRORS],
     denyUrls: [...DENIED_URLS],
     replaysOnErrorSampleRate: REPLAY_ON_ERROR_SAMPLE_RATE,
