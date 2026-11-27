@@ -81,6 +81,12 @@ function findUnusedDependencies(projectDir: string): string[] {
     ["dead-code", "--format", "json", "--quiet"],
     { cwd: projectDir, encoding: "utf8", timeout: FALLOW_TIMEOUT_MS },
   );
+  if (result.error) {
+    throw result.error;
+  }
+  if (!result.stdout) {
+    throw new Error(`fallow dead-code produced no output: ${result.stderr}`);
+  }
   const report = JSON.parse(result.stdout);
   return UNUSED_DEPENDENCY_KEYS.flatMap((key) =>
     (report[key] ?? []).map(
@@ -190,12 +196,11 @@ describe("unused dependency check on a consumer", () => {
     const projectDir = createConsumerProject({});
     const unused = findUnusedDependencies(projectDir);
 
-    expect(unused).toEqual(
-      expect.arrayContaining([
-        "@neon-pixels/fallow-config",
-        "@neon-pixels/prettier-config",
-      ]),
-    );
+    expect(unused).toEqual([
+      "@neon-pixels/fallow-config",
+      "@neon-pixels/prettier-config",
+      "vue",
+    ]);
   });
 
   it("keeps the preset's packages used when the consumer repeats them", () => {

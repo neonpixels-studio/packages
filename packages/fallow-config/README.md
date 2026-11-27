@@ -49,7 +49,7 @@ Because arrays are replaced, setting your own `ignoreDependencies` drops the bas
 
 ### Packages treated as used
 
-`ignoreDependencies` lists the `@neon-pixels` packages that an app references only from non-JavaScript config, so fallow cannot see an import and `fallow fix` would otherwise delete them from `package.json`:
+`ignoreDependencies` lists the `@neon-pixels` packages that an app references only from non-JavaScript config, so fallow sees no import and `fallow fix` would otherwise delete them from `package.json`:
 
 | Package                        | Referenced from                        |
 | ------------------------------ | -------------------------------------- |
@@ -57,7 +57,7 @@ Because arrays are replaced, setting your own `ignoreDependencies` drops the bas
 | `@neon-pixels/prettier-config` | the `prettier` key in `package.json`   |
 | `@neon-pixels/tsconfig`        | `extends` in `tsconfig.json`           |
 
-Packages imported from JavaScript or TypeScript (such as `eslint-config` from `eslint.config.js`) are not listed, because fallow sees those imports.
+fallow follows a root `tsconfig.json` `extends` on its own, so `@neon-pixels/tsconfig` is listed as a safeguard for other tsconfig files (for example `tsconfig.app.json`). Packages imported from JavaScript or TypeScript (such as `eslint-config` from `eslint.config.js`) are not listed, because fallow sees those imports.
 
 Entry points, ignores, and rule severities depend on the app, so each repo sets its own.
 
