@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/notifications",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Send one notification to Slack, Discord, and email (Resend) with per-channel escaping, limits, timeouts, and a single retry.",
   "license": "MIT",
   "type": "module",

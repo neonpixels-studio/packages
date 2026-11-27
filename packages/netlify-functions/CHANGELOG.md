@@ -1,5 +1,11 @@
 # @neon-pixels/netlify-functions
 
+## 0.8.0
+
+### Minor Changes
+
+- c2167b6: `initFunctionSentry` and `scheduledFunction` accept `beforeSendTransaction` and `maxValueLength`, and `initFunctionSentry` logs an error when tracing is on with `beforeSend` but no `beforeSendTransaction`.
+
 ## 0.7.0
 
 No changes in this release.

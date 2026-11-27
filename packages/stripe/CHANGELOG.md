@@ -1,5 +1,11 @@
 # @neon-pixels/stripe
 
+## 0.8.0
+
+### Minor Changes
+
+- f40b052: Add `isSameSecondEvent` to detect events that tie with the last applied event's `created` second, and update the webhook example to re-fetch the subscription on a tie.
+
 ## 0.7.0
 
 No changes in this release.
