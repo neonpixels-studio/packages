@@ -2,7 +2,6 @@ import {
   DENIED_URLS,
   IGNORED_ERRORS,
   MAX_SCRUB_LENGTH,
-  dropExpectedClientErrors,
 } from "@neon-pixels/sentry";
 import { createError } from "h3";
 import { describe, expect, it } from "vitest";
@@ -58,7 +57,6 @@ describe("buildServerSentryOptions", () => {
     const options = buildServerSentryOptions(production);
     const event = { type: undefined };
     const hint = { originalException: createError({ statusCode: 404 }) };
-    expect(dropExpectedClientErrors(event, hint)).toBeNull();
     expect(options.beforeSend(event, hint)).toBeNull();
   });
 

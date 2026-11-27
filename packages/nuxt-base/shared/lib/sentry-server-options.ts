@@ -23,6 +23,8 @@ export function buildServerSentryOptions(input: SentryOptionsInput) {
       if (!withoutDeliberate) {
         return null;
       }
+      // Only an h3 error counts as expected here, so an object that merely
+      // carries a statusCode (an upstream $fetch failure) is kept.
       const reportable = dropExpectedClientErrors(withoutDeliberate, hint, {
         isExpected: isError,
       });
