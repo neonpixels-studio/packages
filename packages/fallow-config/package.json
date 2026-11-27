@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/fallow-config",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Shared fallow configuration for Neon Pixels projects.",
   "license": "MIT",
   "type": "module",

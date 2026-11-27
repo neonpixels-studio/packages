@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/vitest-preset",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Shared Vitest presets for Neon Pixels Node, VitePress, and Nuxt projects.",
   "license": "MIT",
   "type": "module",

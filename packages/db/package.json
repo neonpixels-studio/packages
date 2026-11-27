@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/db",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Neon HTTP drizzle client, URL resolvers, batch helper, audit timestamps, offset pagination, and a PGlite test database.",
   "license": "MIT",
   "type": "module",

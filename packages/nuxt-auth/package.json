@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/nuxt-auth",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Nuxt layer with Clerk authentication for Neon Pixels apps: bearer token middleware, session verification, user resolution, reverification, and the client plugin, composables, and route guard. Shipped as source.",
   "license": "MIT",
   "type": "module",

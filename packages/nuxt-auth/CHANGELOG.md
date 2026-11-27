@@ -1,5 +1,18 @@
 # @neon-pixels/nuxt-auth
 
+## 0.8.0
+
+### Minor Changes
+
+- efc2571: Add an optional `errorData` function to the store passed to `defineAuthUsers`, so an app can shape the `data` of the 401, 403, and 503 responses the layer sends.
+
+### Patch Changes
+
+- 62a98a1: Server-rendered pages now enforce `auth.authorizedParties` like `/api` does, so a session issued for another origin renders signed out.
+- Updated dependencies [96fa3df]
+- Updated dependencies [0751204]
+  - @neon-pixels/nuxt-base@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

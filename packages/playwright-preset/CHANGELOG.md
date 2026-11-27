@@ -1,5 +1,13 @@
 # @neon-pixels/playwright-preset
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [9319d71]
+- Updated dependencies [fe1c913]
+  - @neon-pixels/consent@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
