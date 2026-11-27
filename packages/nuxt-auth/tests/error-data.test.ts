@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthUsersStore } from "../shared/types/auth.ts";
 import { stubNitro } from "./stubs.ts";
 
 const reportErrorMock = vi.fn();
@@ -16,11 +17,7 @@ vi.mock("@clerk/backend", async (importOriginal) => {
   };
 });
 
-type ErrorData = (details: {
-  statusCode: number;
-  statusMessage: string;
-  code: string | undefined;
-}) => Record<string, unknown> | undefined;
+type ErrorData = NonNullable<AuthUsersStore["errorData"]>;
 
 const jsonApiFormat: ErrorData = ({ statusCode, statusMessage }) => ({
   errors: [{ status: String(statusCode), title: statusMessage }],
@@ -142,6 +139,17 @@ describe("errorData", () => {
     });
     expect(() => assertRecentReverification(eventWith(staleSession))).toThrow(
       expect.objectContaining({ data: { code: "custom" } }),
+    );
+  });
+
+  it("adds the code when the format sets it to undefined", async () => {
+    const { assertRecentReverification } = await load({
+      errorData: () => ({ errors: [], code: undefined }),
+    });
+    expect(() => assertRecentReverification(eventWith(staleSession))).toThrow(
+      expect.objectContaining({
+        data: { errors: [], code: "reverification_required" },
+      }),
     );
   });
 

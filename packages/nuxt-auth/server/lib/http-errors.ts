@@ -16,8 +16,12 @@ function customData(error: AuthHttpError): Record<string, unknown> | undefined {
     statusMessage: error.statusMessage,
     code,
   });
-  if (!result || !code || "code" in result) {
-    return result ?? undefined;
+  if (!result || !code) {
+    return result;
+  }
+  // An explicit `code: undefined` would vanish from the JSON, so it counts as missing.
+  if (result.code !== undefined) {
+    return result;
   }
   return { ...result, code };
 }
