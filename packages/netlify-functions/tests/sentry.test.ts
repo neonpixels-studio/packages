@@ -38,7 +38,9 @@ describe("initFunctionSentry", () => {
   });
 
   it("passes beforeSendTransaction and maxValueLength to the SDK", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     const { initFunctionSentry } = await import("../src/index.ts");
     const beforeSend = vi.fn();
     const beforeSendTransaction = vi.fn();
@@ -53,6 +55,7 @@ describe("initFunctionSentry", () => {
     expect(sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({ beforeSendTransaction, maxValueLength: 8192 }),
     );
+    expect(logged).not.toHaveBeenCalled();
   });
 
   it("warns once but still starts when tracing runs without beforeSendTransaction", async () => {
@@ -71,7 +74,7 @@ describe("initFunctionSentry", () => {
     expect(sentry.init).toHaveBeenCalledTimes(1);
   });
 
-  it("does not warn when tracing is off or transactions are scrubbed", async () => {
+  it("does not warn when tracing is off", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -80,6 +83,7 @@ describe("initFunctionSentry", () => {
       dsn: FAKE_DSN,
       environment: "production",
       beforeSend: vi.fn(),
+      tracesSampleRate: 0,
     });
     expect(logged).not.toHaveBeenCalled();
   });

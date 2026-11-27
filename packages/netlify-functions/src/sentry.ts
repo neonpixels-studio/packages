@@ -18,7 +18,7 @@ export type FunctionSentryOptions = {
 
 let initialized = false;
 
-function warnWhenTransactionsAreUnscrubbed(
+function logWhenTransactionsAreUnscrubbed(
   options: FunctionSentryOptions,
 ): void {
   const tracing = (options.tracesSampleRate ?? 0) > 0;
@@ -42,7 +42,7 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
     );
     return;
   }
-  warnWhenTransactionsAreUnscrubbed(options);
+  logWhenTransactionsAreUnscrubbed(options);
   try {
     Sentry.init({
       dsn: options.dsn,
