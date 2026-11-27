@@ -18,6 +18,7 @@ export const FIXTURE_DIRECTORIES = {
 // Built and served by its own test file, so fixture-build's cleanup must not
 // delete its output while that file runs.
 export const CSP_FIXTURE_DIRECTORY = resolve(FIXTURES_DIRECTORY, "csp");
+export const SCRUB_FIXTURE_DIRECTORY = resolve(FIXTURES_DIRECTORY, "scrub");
 
 // Every variable the layer reads or retires, so a test never depends on the
 // environment it runs in.

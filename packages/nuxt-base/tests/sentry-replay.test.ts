@@ -1,4 +1,3 @@
-import { scrubRecordingEvent } from "@neon-pixels/sentry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sentry = vi.hoisted(() => ({
@@ -36,6 +35,9 @@ function enableSentry(dsn = "https://fixture@example.invalid/1") {
 
 function resetSentryMocks() {
   vi.resetAllMocks();
+  vi.stubGlobal("useRuntimeConfig", () => ({
+    public: { sentry: { scrubPatterns: ["acct-[0-9]{6}"] } },
+  }));
   sentry.replayIntegration.mockImplementation((options: object) => ({
     name: "Replay",
     options,
@@ -48,6 +50,7 @@ describe("startSentryReplay", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("warns and does nothing when there is no client", async () => {
@@ -73,9 +76,19 @@ describe("startSentryReplay", () => {
       maskAllText: true,
       maskAllInputs: true,
       blockAllMedia: true,
-      beforeAddRecordingEvent: scrubRecordingEvent,
+      beforeAddRecordingEvent: expect.any(Function),
     });
     expect(sentry.addIntegration).toHaveBeenCalledTimes(1);
+  });
+
+  it("scrubs recording events with the configured patterns", async () => {
+    enableSentry();
+    sentry.getReplay.mockReturnValue(undefined);
+    await startSentryReplay();
+    const { beforeAddRecordingEvent } =
+      sentry.replayIntegration.mock.calls[0]![0];
+    const result = beforeAddRecordingEvent({ data: { text: "acct-123456" } });
+    expect(JSON.stringify(result)).not.toContain("acct-123456");
   });
 
   it("adds the integration once when called twice at the same time", async () => {

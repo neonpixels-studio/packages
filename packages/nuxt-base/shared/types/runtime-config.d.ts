@@ -7,7 +7,7 @@ declare module "nuxt/schema" {
   }
   interface PublicRuntimeConfig {
     siteUrl: string;
-    sentry: { dsn: string; environment: string };
+    sentry: { dsn: string; environment: string; scrubPatterns: string[] };
   }
 }
 

@@ -32,6 +32,14 @@ describe("sentry.server.config", () => {
     });
   });
 
+  it("scrubs with the patterns baked into process.env", async () => {
+    vi.stubEnv("SENTRY_SCRUB_PATTERNS", JSON.stringify(["acct-[0-9]{6}"]));
+    await import("../sentry.server.config.ts");
+    const { beforeSend } = lastInitOptions();
+    const result = beforeSend({ message: "acct-123456" }, {});
+    expect(JSON.stringify(result)).not.toContain("acct-123456");
+  });
+
   it("does not throw and sends nothing with an empty DSN", async () => {
     vi.stubEnv("SENTRY_DSN", "");
     vi.stubEnv("SENTRY_ENVIRONMENT", "");
@@ -50,7 +58,11 @@ describe("sentry.client.config", () => {
     sentry.addEventProcessor.mockClear();
     vi.stubGlobal("useRuntimeConfig", () => ({
       public: {
-        sentry: { dsn: "https://k@example.invalid/1", environment: "preview" },
+        sentry: {
+          dsn: "https://k@example.invalid/1",
+          environment: "preview",
+          scrubPatterns: ["acct-[0-9]{6}"],
+        },
       },
     }));
   });
@@ -61,11 +73,20 @@ describe("sentry.client.config", () => {
 
   it("initialises with tracing only and registers the replay scrubber", async () => {
     await import("../sentry.client.config.ts");
-    const { scrubReplayEvent } = await import("@neon-pixels/sentry");
     const options = lastInitOptions();
     expect(options.dsn).toBe("https://k@example.invalid/1");
     expect(options.environment).toBe("preview");
     expect(options.integrations).toEqual([{ name: "BrowserTracing" }]);
-    expect(sentry.addEventProcessor).toHaveBeenCalledWith(scrubReplayEvent);
+    expect(sentry.addEventProcessor).toHaveBeenCalledTimes(1);
+  });
+
+  it("scrubs the client hooks and the replay event with the configured patterns", async () => {
+    await import("../sentry.client.config.ts");
+    const accountValue = "acct-123456";
+    const result = lastInitOptions().beforeSend({ message: accountValue });
+    expect(JSON.stringify(result)).not.toContain(accountValue);
+    const processor = sentry.addEventProcessor.mock.calls.at(-1)?.[0];
+    const replayEvent = processor({ type: "replay_event", note: accountValue });
+    expect(JSON.stringify(replayEvent)).not.toContain(accountValue);
   });
 });

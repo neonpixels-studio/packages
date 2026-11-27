@@ -3,9 +3,8 @@ import {
   IGNORED_ERRORS,
   MAX_SCRUB_LENGTH,
   dropExpectedClientErrors,
-  scrubEvent,
-  scrubSpan,
 } from "@neon-pixels/sentry";
+import { createError } from "h3";
 import { describe, expect, it } from "vitest";
 import {
   buildClientSentryOptions,
@@ -17,6 +16,9 @@ const production = {
   environment: "production",
   isProduction: true,
 };
+const ACCOUNT_VALUE = "acct-123456";
+const ACCOUNT_PATTERN = "acct-[0-9]{6}";
+const withPatterns = { ...production, scrubPatterns: [ACCOUNT_PATTERN] };
 const development = {
   dsn: "https://k@example.invalid/1",
   environment: "development",
@@ -29,8 +31,8 @@ describe("buildServerSentryOptions", () => {
     expect(options.dsn).toBe(production.dsn);
     expect(options.environment).toBe("production");
     expect(options.maxValueLength).toBe(MAX_SCRUB_LENGTH);
-    expect(options.beforeSendTransaction).toBe(scrubEvent);
-    expect(options.beforeSendSpan).toBe(scrubSpan);
+    expect(typeof options.beforeSendTransaction).toBe("function");
+    expect(typeof options.beforeSendSpan).toBe("function");
   });
 
   it("samples 10 percent of traces in production and all otherwise", () => {
@@ -73,12 +75,100 @@ describe("buildServerSentryOptions", () => {
   });
 });
 
+describe("buildServerSentryOptions with an h3 error", () => {
+  const options = buildServerSentryOptions(production);
+  const event = { type: undefined };
+
+  function unhandledH3Error(statusCode: number) {
+    return {
+      originalException: createError({ statusCode }),
+    };
+  }
+
+  const unhandledEvent = {
+    type: undefined,
+    exception: {
+      values: [{ mechanism: { type: "generic", handled: false } }],
+    },
+  };
+
+  it.each([401, 429, 404, 300, 499])("drops an unhandled %i", (statusCode) => {
+    expect(
+      options.beforeSend(unhandledEvent, unhandledH3Error(statusCode)),
+    ).toBeNull();
+  });
+
+  it.each([500, 503, 299, 500 + 99])("keeps a %i", (statusCode) => {
+    expect(
+      options.beforeSend(unhandledEvent, unhandledH3Error(statusCode)),
+    ).not.toBeNull();
+  });
+
+  it("keeps an unhandled error that only has a statusCode", () => {
+    const hint = { originalException: { statusCode: 404 } };
+    expect(options.beforeSend(unhandledEvent, hint)).not.toBeNull();
+  });
+
+  it("still drops a handled error that only has a statusCode", () => {
+    const hint = { originalException: { statusCode: 404 } };
+    expect(options.beforeSend(event, hint)).toBeNull();
+  });
+});
+
+describe("extra scrub patterns", () => {
+  const event = {
+    type: undefined,
+    message: `failed with ${ACCOUNT_VALUE}`,
+    request: { url: "https://example.com/" },
+  };
+  const span = { description: `GET ${ACCOUNT_VALUE}`, data: {} };
+
+  it("leaves a value the built-in patterns do not know when there are none", () => {
+    const options = buildServerSentryOptions(production);
+    expect(JSON.stringify(options.beforeSend(event, {}))).toContain(
+      ACCOUNT_VALUE,
+    );
+  });
+
+  it("scrubs in every server hook", () => {
+    const options = buildServerSentryOptions(withPatterns);
+    expect(JSON.stringify(options.beforeSend(event, {}))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+    expect(JSON.stringify(options.beforeSendTransaction(event))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+    expect(JSON.stringify(options.beforeSendSpan(span))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+  });
+
+  it("scrubs in every client hook", () => {
+    const options = buildClientSentryOptions(withPatterns);
+    expect(JSON.stringify(options.beforeSend(event))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+    expect(JSON.stringify(options.beforeSendTransaction(event))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+    expect(JSON.stringify(options.beforeSendSpan(span))).not.toContain(
+      ACCOUNT_VALUE,
+    );
+  });
+
+  it("fails with the key and position for an invalid pattern", () => {
+    expect(() =>
+      buildServerSentryOptions({ ...production, scrubPatterns: ["ok", "("] }),
+    ).toThrow("runtimeConfig.public.sentry.scrubPatterns[1]");
+  });
+});
+
 describe("buildClientSentryOptions", () => {
   it("wires the scrubbers, filters, and length limit", () => {
     const options = buildClientSentryOptions(production);
-    expect(options.beforeSend).toBe(scrubEvent);
-    expect(options.beforeSendTransaction).toBe(scrubEvent);
-    expect(options.beforeSendSpan).toBe(scrubSpan);
+    expect(typeof options.beforeSend).toBe("function");
+    expect(typeof options.beforeSendTransaction).toBe("function");
+    expect(typeof options.beforeSendSpan).toBe("function");
     expect(options.ignoreErrors).toEqual(IGNORED_ERRORS);
     expect(options.denyUrls).toEqual(DENIED_URLS);
     expect(options.maxValueLength).toBe(MAX_SCRUB_LENGTH);

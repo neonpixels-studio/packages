@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nuxt";
-import { scrubRecordingEvent } from "@neon-pixels/sentry";
+import { resolveScrubber } from "../../shared/lib/sentry-scrubber.ts";
 
 // Defaults are already true in the SDK; kept explicit so a future SDK default
 // change cannot weaken privacy.
@@ -62,7 +62,9 @@ function startReplayNow(): void {
   Sentry.addIntegration(
     Sentry.replayIntegration({
       ...REPLAY_PRIVACY_OPTIONS,
-      beforeAddRecordingEvent: scrubRecordingEvent,
+      beforeAddRecordingEvent: resolveScrubber(
+        useRuntimeConfig().public.sentry.scrubPatterns,
+      ).scrubRecordingEvent,
     }),
   );
 }
