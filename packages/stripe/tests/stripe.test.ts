@@ -9,6 +9,7 @@ import {
   InvalidSignatureError,
   StripeKitError,
   isEntitledStatus,
+  isSameSecondEvent,
   isStaleEvent,
   MissingSecretKeyError,
   MissingSignatureError,
@@ -327,6 +328,28 @@ describe("isStaleEvent", () => {
   it("is not stale when nothing was applied yet", () => {
     expect(isStaleEvent(event, null)).toBe(false);
     expect(isStaleEvent(event, undefined)).toBe(false);
+  });
+});
+
+describe("isSameSecondEvent", () => {
+  const event = { created: EVENT_CREATED };
+
+  it("is true when created matches the last applied second", () => {
+    expect(isSameSecondEvent(event, new Date(EVENT_CREATED * 1000))).toBe(true);
+  });
+
+  it("is false when the last applied event is older or newer", () => {
+    expect(isSameSecondEvent(event, new Date((EVENT_CREATED - 1) * 1000))).toBe(
+      false,
+    );
+    expect(isSameSecondEvent(event, new Date((EVENT_CREATED + 1) * 1000))).toBe(
+      false,
+    );
+  });
+
+  it("is false when nothing was applied yet", () => {
+    expect(isSameSecondEvent(event, null)).toBe(false);
+    expect(isSameSecondEvent(event, undefined)).toBe(false);
   });
 });
 
