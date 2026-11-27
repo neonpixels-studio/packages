@@ -58,7 +58,7 @@ describe("initFunctionSentry", () => {
     expect(logged).not.toHaveBeenCalled();
   });
 
-  it("warns once but still starts when tracing runs without beforeSendTransaction", async () => {
+  it("logs an error once but still starts when tracing runs without beforeSendTransaction", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -76,7 +76,7 @@ describe("initFunctionSentry", () => {
     expect(sentry.init).toHaveBeenCalledTimes(1);
   });
 
-  it("does not warn when tracing is off", async () => {
+  it("does not log when tracing is off", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -90,7 +90,7 @@ describe("initFunctionSentry", () => {
     expect(logged).not.toHaveBeenCalled();
   });
 
-  it("does not warn when tracing runs without beforeSend", async () => {
+  it("does not log when tracing runs without beforeSend", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -103,7 +103,7 @@ describe("initFunctionSentry", () => {
     expect(logged).not.toHaveBeenCalled();
   });
 
-  it("does not warn when tracesSampleRate is omitted", async () => {
+  it("does not log when tracesSampleRate is omitted", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -116,7 +116,7 @@ describe("initFunctionSentry", () => {
     expect(logged).not.toHaveBeenCalled();
   });
 
-  it("does not warn when beforeSendTransaction is given", async () => {
+  it("does not log when beforeSendTransaction is given", async () => {
     const logged = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);

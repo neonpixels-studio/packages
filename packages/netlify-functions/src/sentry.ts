@@ -42,7 +42,6 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
     );
     return;
   }
-  logWhenTransactionsAreUnscrubbed(options);
   try {
     Sentry.init({
       dsn: options.dsn,
@@ -53,6 +52,7 @@ export function initFunctionSentry(options: FunctionSentryOptions): void {
       tracesSampleRate: options.tracesSampleRate,
     });
     initialized = true;
+    logWhenTransactionsAreUnscrubbed(options);
   } catch (initError) {
     console.error("Failed to initialize Sentry", initError);
   }
