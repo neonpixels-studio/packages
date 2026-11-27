@@ -63,12 +63,14 @@ describe("initFunctionSentry", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
     const { initFunctionSentry } = await import("../src/index.ts");
-    initFunctionSentry({
+    const options = {
       dsn: FAKE_DSN,
       environment: "production",
       beforeSend: vi.fn(),
       tracesSampleRate: 0.1,
-    });
+    };
+    initFunctionSentry(options);
+    initFunctionSentry(options);
     expect(logged).toHaveBeenCalledTimes(1);
     expect(logged.mock.calls[0]?.[0]).toContain("beforeSendTransaction");
     expect(sentry.init).toHaveBeenCalledTimes(1);
@@ -84,6 +86,32 @@ describe("initFunctionSentry", () => {
       environment: "production",
       beforeSend: vi.fn(),
       tracesSampleRate: 0,
+    });
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("does not warn when tracing runs without beforeSend", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      tracesSampleRate: 0.1,
+    });
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("does not warn when tracesSampleRate is omitted", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { initFunctionSentry } = await import("../src/index.ts");
+    initFunctionSentry({
+      dsn: FAKE_DSN,
+      environment: "production",
+      beforeSend: vi.fn(),
     });
     expect(logged).not.toHaveBeenCalled();
   });
