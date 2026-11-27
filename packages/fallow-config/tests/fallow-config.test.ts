@@ -33,6 +33,8 @@ const CONFIG_ONLY_PACKAGES = [
   "@neon-pixels/prettier-config",
   "@neon-pixels/tsconfig",
 ];
+// A dependency nothing in the fixture uses, the control case for every check.
+const UNUSED_PACKAGE = "vue";
 const UNUSED_DEPENDENCY_KEYS = [
   "unused_dependencies",
   "unused_dev_dependencies",
@@ -55,7 +57,7 @@ function createConsumerProject(consumerConfig: object): string {
 
 function writeConsumerSources(projectDir: string): void {
   const devDependencies = Object.fromEntries(
-    [...CONFIG_ONLY_PACKAGES, "vue"].map((name) => [name, "*"]),
+    [...CONFIG_ONLY_PACKAGES, UNUSED_PACKAGE].map((name) => [name, "*"]),
   );
   writeFileSync(
     join(projectDir, "package.json"),
@@ -75,6 +77,20 @@ function writeConsumerSources(projectDir: string): void {
   writeFileSync(join(projectDir, "src/index.ts"), "export const value = 1;\n");
 }
 
+function assertDependencyReport(
+  report: Record<string, unknown>,
+  stderr: string,
+): void {
+  const missingKeys = UNUSED_DEPENDENCY_KEYS.filter(
+    (key) => !Array.isArray(report[key]),
+  );
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `fallow report missing ${missingKeys.join(", ")}: ${stderr}`,
+    );
+  }
+}
+
 function findUnusedDependencies(projectDir: string): string[] {
   const result = spawnSync(
     FALLOW_BIN,
@@ -88,8 +104,9 @@ function findUnusedDependencies(projectDir: string): string[] {
     throw new Error(`fallow dead-code produced no output: ${result.stderr}`);
   }
   const report = JSON.parse(result.stdout);
+  assertDependencyReport(report, result.stderr);
   return UNUSED_DEPENDENCY_KEYS.flatMap((key) =>
-    (report[key] ?? []).map(
+    report[key].map(
       (finding: { package_name: string }) => finding.package_name,
     ),
   ).sort();
@@ -158,7 +175,7 @@ describe("extended by a consumer through npm:", () => {
     const resolved = resolveConfig(projectDir);
 
     expect(resolved.entry).toEqual(["server/index.ts"]);
-    expect(resolved.ignoreDependencies).toEqual(["vue"]);
+    expect(resolved.ignoreDependencies).toEqual([UNUSED_PACKAGE]);
     expect(resolved.duplicates.ignore).toEqual(["*.test.*"]);
     expect(resolved.duplicates.minOccurrences).toBe(3);
   });
@@ -189,7 +206,7 @@ describe("unused dependency check on a consumer", () => {
     const projectDir = createConsumerProject({ ...EXTENDS_BASE });
     const unused = findUnusedDependencies(projectDir);
 
-    expect(unused).toEqual(["vue"]);
+    expect(unused).toEqual([UNUSED_PACKAGE]);
   });
 
   it("reports the extends and prettier packages when the preset is not extended", () => {
@@ -199,14 +216,14 @@ describe("unused dependency check on a consumer", () => {
     expect(unused).toEqual([
       "@neon-pixels/fallow-config",
       "@neon-pixels/prettier-config",
-      "vue",
+      UNUSED_PACKAGE,
     ]);
   });
 
   it("keeps the preset's packages used when the consumer repeats them", () => {
     const projectDir = createConsumerProject({
       ...EXTENDS_BASE,
-      ignoreDependencies: [...CONFIG_ONLY_PACKAGES, "vue"],
+      ignoreDependencies: [...CONFIG_ONLY_PACKAGES, UNUSED_PACKAGE],
     });
 
     expect(findUnusedDependencies(projectDir)).toEqual([]);
@@ -215,16 +232,12 @@ describe("unused dependency check on a consumer", () => {
   it("loses the preset's entries when the consumer sets its own list", () => {
     const projectDir = createConsumerProject({
       ...EXTENDS_BASE,
-      ignoreDependencies: ["vue"],
+      ignoreDependencies: [UNUSED_PACKAGE],
     });
-    const unused = findUnusedDependencies(projectDir);
 
-    expect(unused).not.toContain("vue");
-    expect(unused).toEqual(
-      expect.arrayContaining([
-        "@neon-pixels/fallow-config",
-        "@neon-pixels/prettier-config",
-      ]),
-    );
+    expect(findUnusedDependencies(projectDir)).toEqual([
+      "@neon-pixels/fallow-config",
+      "@neon-pixels/prettier-config",
+    ]);
   });
 });
