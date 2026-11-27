@@ -14,8 +14,8 @@ function withLayerCode(
   if (!result || !code) {
     return result;
   }
-  // An explicit `code: undefined` would vanish from the JSON, so it counts as missing.
-  if (result.code !== undefined) {
+  // An explicit `code: undefined` would vanish from the JSON, and null is no code either.
+  if (result.code !== undefined && result.code !== null) {
     return result;
   }
   return { ...result, code };

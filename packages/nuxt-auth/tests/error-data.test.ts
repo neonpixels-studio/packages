@@ -153,6 +153,28 @@ describe("errorData", () => {
     );
   });
 
+  it("adds the code when the format sets it to null", async () => {
+    const { assertRecentReverification } = await load({
+      errorData: () => ({ errors: [], code: null }),
+    });
+    expect(() => assertRecentReverification(eventWith(staleSession))).toThrow(
+      expect.objectContaining({
+        data: { errors: [], code: "reverification_required" },
+      }),
+    );
+  });
+
+  it("passes an undefined code for an error without one", async () => {
+    const errorData = vi.fn<ErrorData>(() => undefined);
+    const { requireAuth } = await load({ errorData });
+    expect(() => requireAuth(eventWith(undefined))).toThrow();
+    expect(errorData).toHaveBeenCalledWith({
+      statusCode: 401,
+      statusMessage: "Unauthorized",
+      code: undefined,
+    });
+  });
+
   it("passes the layer's code to the function", async () => {
     const errorData = vi.fn<ErrorData>(() => undefined);
     const { assertRecentReverification } = await load({ errorData });
