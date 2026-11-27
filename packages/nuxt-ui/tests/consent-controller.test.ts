@@ -298,6 +298,31 @@ describe.each([
   });
 });
 
+describe("an expired earlier grant", () => {
+  const EXPIRED_RECORD = JSON.stringify({
+    choice: "granted",
+    expiresAt: Date.now() - 1000,
+  });
+
+  it("clears _ga cookies on start without recording a denial", () => {
+    const harness = createHarness({
+      stored: { [CONSENT_KEY]: EXPIRED_RECORD },
+      cookies: "_ga=1; _ga_ABC=2; other=3",
+    });
+    harness.controller.start(harness.browser);
+    expect(harness.cookieNames()).toEqual(["other"]);
+    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(EXPIRED_RECORD);
+    expect(harness.state.status.value).toBe("unset");
+    expect(harness.loadAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("leaves cookies alone when nothing was ever granted", () => {
+    const harness = createHarness({ cookies: "_ga=1" });
+    harness.controller.start(harness.browser);
+    expect(harness.cookieNames()).toEqual(["_ga"]);
+  });
+});
+
 describe("a choice made in another tab", () => {
   it("starts what a grant there allows", () => {
     const harness = createHarness();

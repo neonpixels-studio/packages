@@ -34,8 +34,15 @@ export interface Consent {
   readonly shouldPrompt: boolean;
   /** The services the app configured, so a banner names only those. */
   readonly services: readonly ConsentService[];
+  /**
+   * True when the stored value recorded a grant, even one that has expired or
+   * is hidden by a privacy signal. Such a visitor may still hold `_ga` cookies.
+   */
+  readonly hadGrant: boolean;
   /** Stores a grant. No effect while a privacy signal is present. */
   grant(): ConsentStatus;
+  /** Expires the `_ga` and `_ga_*` cookies without touching storage. Never throws. */
+  clearCookies(): void;
   /** Stores a denial, switches analytics off for the page, and clears `_ga` cookies after an earlier grant. */
   deny(): ConsentStatus;
 }
@@ -112,8 +119,12 @@ export function createConsent(options: ConsentOptions): Consent {
     get shouldPrompt() {
       return services.length > 0 && status() === "unset";
     },
+    get hadGrant() {
+      return read().hadGrant;
+    },
     services,
     grant,
+    clearCookies: clearCookiesQuietly,
     deny,
   };
 }
