@@ -14,6 +14,7 @@ function pageAuthenticator(event: { path: string }): PageAuthenticator {
     return authenticatePage;
   }
   const { authorizedParties } = useRuntimeConfig(event as never).auth;
+  // An empty list keeps the no-argument call, so it behaves exactly as before.
   authenticatePage =
     authorizedParties.length > 0
       ? clerkMiddleware({ authorizedParties })

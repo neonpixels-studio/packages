@@ -93,6 +93,7 @@ describe("the page middleware", () => {
 
   it("does not build clerkMiddleware for a request that skips Clerk", async () => {
     await runMiddleware({ path: "/api/trips", headers: {} });
+    await runMiddleware({ path: "/pricing", headers: {} });
     expect(clerk.create).not.toHaveBeenCalled();
   });
 });

@@ -311,7 +311,9 @@ describe("a page request", () => {
   async function pageSignedIn(token: string): Promise<boolean> {
     const response = await fetch(`${origin}/whoami`, {
       headers: { cookie: `__session=${token}; __client_uat=1` },
+      redirect: "manual",
     });
+    expect(response.status).toBe(200);
     return (await response.json()).signedIn;
   }
 
