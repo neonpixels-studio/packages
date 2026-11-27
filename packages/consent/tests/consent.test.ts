@@ -449,6 +449,15 @@ describe("hadGrant", () => {
     ["denied", { [KEY]: record("denied", NOW + 1000) }, {}, false],
     ["granted", { [KEY]: record("granted", NOW + 1000) }, {}, true],
     ["an expired grant", { [KEY]: record("granted", NOW - 1) }, {}, true],
+    ["a legacy bare accepted value", { [KEY]: "accepted" }, {}, true],
+    ["a legacy bare declined value", { [KEY]: "declined" }, {}, false],
+    ["an accepted record", { [KEY]: record("accepted", NOW + 1000) }, {}, true],
+    [
+      "a legacy key grant",
+      { "old-key": "accepted" },
+      { legacyKey: "old-key" },
+      true,
+    ],
     [
       "a grant under a signal",
       { [KEY]: record("granted", NOW + 1000) },

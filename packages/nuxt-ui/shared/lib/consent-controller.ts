@@ -187,17 +187,11 @@ export function createConsentController(
     });
   }
 
-  // A signal visitor's grant is replaced by a denial. An expired grant has no
-  // choice worth overwriting, so only its cookies go and the visitor is asked again.
-  function withdrawEarlierGrant(active: Consent): void {
-    if (!active.hadGrant) {
-      return;
-    }
-    if (active.status === "signal") {
-      active.deny();
-      return;
-    }
-    if (active.status === "unset") {
+  // Only the cookies go: a stored grant is never overwritten with a denial.
+  // A signal keeps services off, and an expired grant means the visitor is asked again.
+  function clearEarlierGrantCookies(active: Consent): void {
+    const status = active.status;
+    if (active.hadGrant && (status === "signal" || status === "unset")) {
       active.clearCookies();
     }
   }
@@ -222,7 +216,7 @@ export function createConsentController(
     }
     browser = current;
     consent = createBrowserConsent(current);
-    withdrawEarlierGrant(consent);
+    clearEarlierGrantCookies(consent);
     refresh();
     state.isHydrated.value = true;
     current.window.addEventListener("storage", onStorage);

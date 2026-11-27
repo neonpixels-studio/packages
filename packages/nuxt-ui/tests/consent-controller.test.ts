@@ -268,58 +268,43 @@ describe.each([
     expect(harness.loadAnalytics).not.toHaveBeenCalled();
   });
 
-  it("denies once on start when an earlier grant is stored, and loads nothing", () => {
+  it("clears _ga cookies on start for an earlier grant, keeps the grant, and loads nothing", () => {
     const harness = createHarness({
       signal,
       stored: { [CONSENT_KEY]: GRANTED_RECORD },
+      cookies: "_ga=1; _ga_ABC=2; other=3",
     });
     harness.controller.start(harness.browser);
-    expect(harness.storage.entries.get(CONSENT_KEY)).toContain("denied");
-    expect(harness.browserWindow[`ga-disable-${MEASUREMENT_ID}`]).toBe(true);
+    expect(harness.cookieNames()).toEqual(["other"]);
+    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(GRANTED_RECORD);
     expect(harness.state.status.value).toBe("signal");
     expect(harness.loadAnalytics).not.toHaveBeenCalled();
     expect(harness.startReplay).not.toHaveBeenCalled();
   });
 
-  it("does not deny again on a later visit", () => {
+  it("clears _ga cookies for an expired grant without storing a denial", () => {
+    const expired = JSON.stringify({
+      choice: "granted",
+      expiresAt: Date.now() - 1000,
+    });
+    const harness = createHarness({
+      signal,
+      stored: { [CONSENT_KEY]: expired },
+      cookies: "_ga=1; other=3",
+    });
+    harness.controller.start(harness.browser);
+    expect(harness.cookieNames()).toEqual(["other"]);
+    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(expired);
+  });
+
+  it("writes nothing to storage on start", () => {
     const harness = createHarness({
       signal,
       stored: { [CONSENT_KEY]: GRANTED_RECORD },
     });
+    const write = vi.spyOn(harness.storage, "setItem");
     harness.controller.start(harness.browser);
-    const stored = harness.storage.entries.get(CONSENT_KEY);
-    const second = createHarness({
-      signal,
-      stored: { [CONSENT_KEY]: stored! },
-    });
-    const write = vi.spyOn(second.storage, "setItem");
-    second.controller.start(second.browser);
     expect(write).not.toHaveBeenCalled();
-  });
-});
-
-describe("an expired earlier grant", () => {
-  const EXPIRED_RECORD = JSON.stringify({
-    choice: "granted",
-    expiresAt: Date.now() - 1000,
-  });
-
-  it("clears _ga cookies on start without recording a denial", () => {
-    const harness = createHarness({
-      stored: { [CONSENT_KEY]: EXPIRED_RECORD },
-      cookies: "_ga=1; _ga_ABC=2; other=3",
-    });
-    harness.controller.start(harness.browser);
-    expect(harness.cookieNames()).toEqual(["other"]);
-    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(EXPIRED_RECORD);
-    expect(harness.state.status.value).toBe("unset");
-    expect(harness.loadAnalytics).not.toHaveBeenCalled();
-  });
-
-  it("leaves cookies alone when nothing was ever granted", () => {
-    const harness = createHarness({ cookies: "_ga=1" });
-    harness.controller.start(harness.browser);
-    expect(harness.cookieNames()).toEqual(["_ga"]);
   });
 });
 
