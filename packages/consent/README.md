@@ -30,6 +30,7 @@ const consent = createConsent({
 
 consent.status; // "granted" | "denied" | "unset" | "signal"
 consent.shouldPrompt; // show your banner
+consent.hadGrant; // true when storage holds a grant, even an expired one
 consent.services; // ["analytics", "sessionReplay"]: name only these in the banner
 
 if (consent.status === "granted") {
@@ -38,9 +39,10 @@ if (consent.status === "granted") {
 
 consent.grant(); // then call loadGoogleAnalytics
 consent.deny();
+consent.clearCookies(); // expire _ga cookies without recording a choice
 ```
 
-If a privacy signal appears after an earlier grant, `status` becomes `signal`; call `deny()` to clear the old `_ga` cookies. `status` and `shouldPrompt` read storage each time, so they are always current.
+If a privacy signal appears after an earlier grant, or a grant has expired, `hadGrant` is still true: call `clearCookies()` to remove the old `_ga` cookies without recording a denial. `status` and `shouldPrompt` read storage each time, so they are always current.
 
 ### Status
 
@@ -53,6 +55,14 @@ If a privacy signal appears after an earlier grant, `status` becomes `signal`; c
 ### Stored record
 
 `{ "choice": "granted" | "denied", "expiresAt": <epoch ms> }` under `<app>:analytics-consent`, expiring 180 days after the choice. The older values `accepted` and `declined` (inside a record, as a bare string, or under `legacyKey`) are read and rewritten in the current form. A bare legacy value starts a fresh 180 days.
+
+### `hadGrant`
+
+True when the stored value recorded a grant, including an expired grant and a grant hidden by a privacy signal. False when nothing is stored or the stored choice was a denial. Read it to decide whether old `_ga` cookies may exist.
+
+### `clearCookies()`
+
+Expires the `_ga` and `_ga_*` cookies on the host and each parent domain. It never writes to storage and never throws (cookie access can fail on an opaque origin).
 
 ### `deny()`
 

@@ -268,32 +268,56 @@ describe.each([
     expect(harness.loadAnalytics).not.toHaveBeenCalled();
   });
 
-  it("denies once on start when an earlier grant is stored, and loads nothing", () => {
+  it("clears _ga cookies on start for an earlier grant, keeps the grant, and loads nothing", () => {
     const harness = createHarness({
       signal,
       stored: { [CONSENT_KEY]: GRANTED_RECORD },
+      cookies: "_ga=1; _ga_ABC=2; other=3",
     });
     harness.controller.start(harness.browser);
-    expect(harness.storage.entries.get(CONSENT_KEY)).toContain("denied");
-    expect(harness.browserWindow[`ga-disable-${MEASUREMENT_ID}`]).toBe(true);
+    expect(harness.cookieNames()).toEqual(["other"]);
+    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(GRANTED_RECORD);
     expect(harness.state.status.value).toBe("signal");
     expect(harness.loadAnalytics).not.toHaveBeenCalled();
     expect(harness.startReplay).not.toHaveBeenCalled();
   });
 
-  it("does not deny again on a later visit", () => {
+  it("clears _ga cookies for an expired grant without storing a denial", () => {
+    const expired = JSON.stringify({
+      choice: "granted",
+      expiresAt: Date.now() - 1000,
+    });
+    const harness = createHarness({
+      signal,
+      stored: { [CONSENT_KEY]: expired },
+      cookies: "_ga=1; other=3",
+    });
+    harness.controller.start(harness.browser);
+    expect(harness.cookieNames()).toEqual(["other"]);
+    expect(harness.storage.entries.get(CONSENT_KEY)).toBe(expired);
+  });
+
+  it("honors the kept grant again once the signal is gone", () => {
+    const first = createHarness({
+      signal,
+      stored: { [CONSENT_KEY]: GRANTED_RECORD },
+    });
+    first.controller.start(first.browser);
+    const second = createHarness({
+      stored: { [CONSENT_KEY]: first.storage.entries.get(CONSENT_KEY)! },
+    });
+    second.controller.start(second.browser);
+    expect(second.state.status.value).toBe("granted");
+    expect(second.loadAnalytics).toHaveBeenCalledOnce();
+  });
+
+  it("writes nothing to storage on start", () => {
     const harness = createHarness({
       signal,
       stored: { [CONSENT_KEY]: GRANTED_RECORD },
     });
+    const write = vi.spyOn(harness.storage, "setItem");
     harness.controller.start(harness.browser);
-    const stored = harness.storage.entries.get(CONSENT_KEY);
-    const second = createHarness({
-      signal,
-      stored: { [CONSENT_KEY]: stored! },
-    });
-    const write = vi.spyOn(second.storage, "setItem");
-    second.controller.start(second.browser);
     expect(write).not.toHaveBeenCalled();
   });
 });

@@ -440,3 +440,73 @@ describe("deny() cookie clearing", () => {
     expect(fakeWindow.cookieNames()).toEqual(["_ga", "_ga_ABC", "other"]);
   });
 });
+
+describe("hadGrant", () => {
+  const signal = stubPrivacySignal({ globalPrivacyControl: true });
+
+  it.each([
+    ["unset", {}, {}, false],
+    ["denied", { [KEY]: record("denied", NOW + 1000) }, {}, false],
+    ["granted", { [KEY]: record("granted", NOW + 1000) }, {}, true],
+    ["an expired grant", { [KEY]: record("granted", NOW - 1) }, {}, true],
+    ["a legacy bare accepted value", { [KEY]: "accepted" }, {}, true],
+    ["a legacy bare declined value", { [KEY]: "declined" }, {}, false],
+    ["an accepted record", { [KEY]: record("accepted", NOW + 1000) }, {}, true],
+    [
+      "a legacy key grant",
+      { "old-key": "accepted" },
+      { legacyKey: "old-key" },
+      true,
+    ],
+    [
+      "a grant under a signal",
+      { [KEY]: record("granted", NOW + 1000) },
+      { navigator: signal },
+      true,
+    ],
+  ])("is correct for %s", (_name, stored, overrides, expected) => {
+    const { consent } = setup(stored, overrides);
+    expect(consent.hadGrant).toBe(expected);
+  });
+});
+
+describe("clearCookies()", () => {
+  it("clears _ga cookies and leaves the stored record unchanged", () => {
+    const stored = record("granted", NOW - 1);
+    const { consent, fakeWindow, storage } = setup({ [KEY]: stored });
+    consent.clearCookies();
+    expect(fakeWindow.cookieNames()).toEqual(["other"]);
+    expect(storage.entries.get(KEY)).toBe(stored);
+    expect(consent.status).toBe("unset");
+  });
+
+  it("writes nothing to storage when nothing is stored", () => {
+    const { consent, storage } = setup();
+    consent.clearCookies();
+    expect(storage.entries.size).toBe(0);
+  });
+
+  it("clears on the host and each parent domain", () => {
+    const fakeWindow = createFakeWindow({
+      hostname: "app.example.com",
+      cookies: "_ga=1",
+    });
+    const { consent } = setup({}, { window: fakeWindow });
+    consent.clearCookies();
+    expect(fakeWindow.writes.map((write) => write.domain)).toEqual([
+      undefined,
+      "app.example.com",
+      "example.com",
+    ]);
+  });
+
+  it("does not throw when cookie access throws", () => {
+    const throwingWindow = {
+      get document(): never {
+        throw new Error("opaque origin");
+      },
+    };
+    const { consent } = setup({}, { window: throwingWindow });
+    expect(() => consent.clearCookies()).not.toThrow();
+  });
+});
