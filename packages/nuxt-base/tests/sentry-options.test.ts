@@ -6,10 +6,8 @@ import {
 } from "@neon-pixels/sentry";
 import { createError } from "h3";
 import { describe, expect, it } from "vitest";
-import {
-  buildClientSentryOptions,
-  buildServerSentryOptions,
-} from "../shared/lib/sentry-options.ts";
+import { buildClientSentryOptions } from "../shared/lib/sentry-options.ts";
+import { buildServerSentryOptions } from "../shared/lib/sentry-server-options.ts";
 
 const production = {
   dsn: "https://k@example.invalid/1",
@@ -98,10 +96,14 @@ describe("buildServerSentryOptions with an h3 error", () => {
     ).toBeNull();
   });
 
-  it.each([500, 503, 299, 500 + 99])("keeps a %i", (statusCode) => {
+  it.each([500, 503, 299, 599])("keeps a %i", (statusCode) => {
     expect(
       options.beforeSend(unhandledEvent, unhandledH3Error(statusCode)),
     ).not.toBeNull();
+  });
+
+  it("keeps a handled 500", () => {
+    expect(options.beforeSend(event, unhandledH3Error(500))).not.toBeNull();
   });
 
   it("keeps an unhandled error that only has a statusCode", () => {
@@ -128,6 +130,14 @@ describe("extra scrub patterns", () => {
     expect(JSON.stringify(options.beforeSend(event, {}))).toContain(
       ACCOUNT_VALUE,
     );
+  });
+
+  it("scrubs every match in a value", () => {
+    const options = buildServerSentryOptions(withPatterns);
+    const twice = { type: undefined, message: "acct-123456 and acct-654321" };
+    const result = JSON.stringify(options.beforeSend(twice, {}));
+    expect(result).not.toContain("acct-123456");
+    expect(result).not.toContain("acct-654321");
   });
 
   it("scrubs in every server hook", () => {

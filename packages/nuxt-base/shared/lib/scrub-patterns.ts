@@ -28,6 +28,11 @@ function compilePattern(source: unknown, index: number): RegExp {
 export function compileScrubPatterns(
   sources: readonly unknown[] = [],
 ): RegExp[] {
+  if (!Array.isArray(sources)) {
+    throw new TypeError(
+      `${SCRUB_PATTERNS_KEY} must be an array of regular expression sources`,
+    );
+  }
   return sources.map(compilePattern);
 }
 

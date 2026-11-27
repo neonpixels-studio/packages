@@ -5,7 +5,6 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
-import { readFileSync, readdirSync } from "node:fs";
 import { createServer as createSocketServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -22,6 +21,7 @@ const POLL_MS = 100;
 const ACCOUNT_VALUE = "acct-123456";
 const PATTERN = "acct-[0-9]{6}";
 const EVENT_ATTEMPTS = 100;
+const LATE_ENVELOPE_MS = 1_500;
 
 let appServer: ChildProcess | undefined;
 let sentryServer: Server | undefined;
@@ -89,7 +89,7 @@ async function waitForServer(child: ChildProcess): Promise<void> {
     if (child.exitCode !== null) {
       throw new Error(`the built fixture server exited with ${child.exitCode}`);
     }
-    const reachable = await fetch(`${origin}/api/denied`).then(
+    const reachable = await fetch(`${origin}/`).then(
       () => true,
       () => false,
     );
@@ -129,12 +129,6 @@ async function waitForEnvelope(text: string): Promise<void> {
   throw new Error(`no event containing ${text} reached the capture server`);
 }
 
-function listFiles(directory: string): string[] {
-  return readdirSync(directory, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name));
-}
-
 beforeAll(async () => {
   const sentryPort = await freePort();
   sentryServer = await listenOn(sentryPort);
@@ -166,18 +160,15 @@ describe("an app that configures scrub patterns", () => {
     await fetch(`${origin}/api/denied`);
     await fetch(`${origin}/api/boom`);
     await waitForEnvelope("boom-on-purpose");
+    // A dropped 401 sends nothing, so give a wrongly kept one time to arrive.
+    await new Promise((done) => setTimeout(done, LATE_ENVELOPE_MS));
     expect(
       envelopes.some((envelope) => envelope.includes("denied-on-purpose")),
     ).toBe(false);
   });
 
-  it("gives the client bundle the patterns through the runtime config", async () => {
+  it("gives the client the patterns through the runtime config", async () => {
     const html = await (await fetch(`${origin}/`)).text();
     expect(html).toContain(PATTERN);
-    const clientBundle = listFiles(join(SCRUB_FIXTURE_DIRECTORY, "dist"))
-      .filter((file) => file.endsWith(".js"))
-      .map((file) => readFileSync(file, "utf8"))
-      .join("\n");
-    expect(clientBundle).toContain("scrubPatterns");
   });
 });

@@ -26,9 +26,9 @@ export { dropDeliberateH3Errors } from "./expected-http-errors.ts";
 export { resolveScrubber } from "./sentry-scrubber.ts";
 export {
   buildClientSentryOptions,
-  buildServerSentryOptions,
   type SentryOptionsInput,
 } from "./sentry-options.ts";
+export { buildServerSentryOptions } from "./sentry-server-options.ts";
 export {
   assertSiteUrlForBuild,
   isSecureOrigin,

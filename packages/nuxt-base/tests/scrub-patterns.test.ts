@@ -22,6 +22,12 @@ describe("compileScrubPatterns", () => {
     );
   });
 
+  it("rejects a value that is not an array", () => {
+    expect(() => compileScrubPatterns("acct-[0-9]+" as never)).toThrow(
+      "runtimeConfig.public.sentry.scrubPatterns must be an array",
+    );
+  });
+
   it("rejects an entry that is not a string", () => {
     expect(() => compileScrubPatterns([42])).toThrow(
       "runtimeConfig.public.sentry.scrubPatterns[0] must be a string",

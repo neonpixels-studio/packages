@@ -1,13 +1,10 @@
-import type { ErrorEvent, EventHint } from "@sentry/nuxt";
 import type { Scrubber } from "@neon-pixels/sentry";
 import {
   DENIED_URLS,
   IGNORED_ERRORS,
   MAX_SCRUB_LENGTH,
   SENTRY_ENVIRONMENT_DEVELOPMENT,
-  dropExpectedClientErrors,
 } from "@neon-pixels/sentry";
-import { dropDeliberateH3Errors } from "./expected-http-errors.ts";
 import { resolveScrubber } from "./sentry-scrubber.ts";
 
 export const PRODUCTION_TRACES_SAMPLE_RATE = 0.1;
@@ -32,7 +29,10 @@ function pickRate(
   return isProduction ? productionRate : developmentRate;
 }
 
-function buildSharedOptions(input: SentryOptionsInput, scrubber: Scrubber) {
+export function buildSharedOptions(
+  input: SentryOptionsInput,
+  scrubber: Scrubber,
+) {
   return {
     // An empty DSN disables the SDK, so nothing is sent and nothing throws.
     dsn: input.dsn || undefined,
@@ -45,28 +45,6 @@ function buildSharedOptions(input: SentryOptionsInput, scrubber: Scrubber) {
     maxValueLength: MAX_SCRUB_LENGTH,
     beforeSendTransaction: scrubber.scrubEvent,
     beforeSendSpan: scrubber.scrubSpan,
-  };
-}
-
-/**
- * Server options. An empty environment falls back to development, never to
- * Sentry's own default of production.
- */
-export function buildServerSentryOptions(input: SentryOptionsInput) {
-  const scrubber = resolveScrubber(input.scrubPatterns);
-  return {
-    ...buildSharedOptions(input, scrubber),
-    beforeSend: (event: ErrorEvent, hint: EventHint) => {
-      const withoutDeliberate = dropDeliberateH3Errors(event, hint);
-      if (!withoutDeliberate) {
-        return null;
-      }
-      const reportable = dropExpectedClientErrors(withoutDeliberate, hint);
-      if (!reportable) {
-        return null;
-      }
-      return scrubber.scrubEvent(reportable);
-    },
   };
 }
 
