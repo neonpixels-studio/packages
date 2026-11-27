@@ -16,6 +16,7 @@ export const TEMPLATE_FILES = [
   ".husky/pre-commit",
   ".husky/pre-push",
   ".husky/post-merge",
+  ".husky/post-checkout",
 ] as const;
 
 /** The repository's own `package.json`, where only the fields in the template below are synced. */
