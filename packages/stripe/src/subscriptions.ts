@@ -81,7 +81,8 @@ export function isStaleEvent(
  * True when the event has the same `created` second as the last one the app
  * applied, so the two cannot be ordered by timestamp. On a tie, re-fetch the
  * current object from Stripe instead of applying the event payload. False when
- * nothing was applied yet. `lastAppliedAt` follows the `isStaleEvent` contract.
+ * nothing was applied yet. `lastAppliedAt` follows the `isStaleEvent` contract
+ * and must be a whole second: a value with milliseconds never matches.
  */
 export function isSameSecondEvent(
   event: Pick<Stripe.Event, "created">,

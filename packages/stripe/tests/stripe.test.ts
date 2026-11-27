@@ -347,6 +347,12 @@ describe("isSameSecondEvent", () => {
     );
   });
 
+  it("requires a whole-second lastAppliedAt, like isStaleEvent", () => {
+    const withMilliseconds = new Date(EVENT_CREATED * 1000 + 500);
+    expect(isSameSecondEvent(event, withMilliseconds)).toBe(false);
+    expect(isStaleEvent(event, withMilliseconds)).toBe(true);
+  });
+
   it("is false when nothing was applied yet", () => {
     expect(isSameSecondEvent(event, null)).toBe(false);
     expect(isSameSecondEvent(event, undefined)).toBe(false);
