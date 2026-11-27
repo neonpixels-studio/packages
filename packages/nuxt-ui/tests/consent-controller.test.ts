@@ -297,6 +297,20 @@ describe.each([
     expect(harness.storage.entries.get(CONSENT_KEY)).toBe(expired);
   });
 
+  it("honors the kept grant again once the signal is gone", () => {
+    const first = createHarness({
+      signal,
+      stored: { [CONSENT_KEY]: GRANTED_RECORD },
+    });
+    first.controller.start(first.browser);
+    const second = createHarness({
+      stored: { [CONSENT_KEY]: first.storage.entries.get(CONSENT_KEY)! },
+    });
+    second.controller.start(second.browser);
+    expect(second.state.status.value).toBe("granted");
+    expect(second.loadAnalytics).toHaveBeenCalledOnce();
+  });
+
   it("writes nothing to storage on start", () => {
     const harness = createHarness({
       signal,
