@@ -17,6 +17,7 @@ import {
   runInBatches,
   scheduledFunction,
 } from "@neon-pixels/netlify-functions";
+import { MAX_SCRUB_LENGTH, scrubEvent } from "@neon-pixels/sentry";
 
 export default scheduledFunction(
   {
@@ -24,6 +25,8 @@ export default scheduledFunction(
     environment: (deployContext) =>
       deployContext === "production" ? "production" : "preview",
     beforeSend: scrubEvent,
+    beforeSendTransaction: scrubEvent,
+    maxValueLength: MAX_SCRUB_LENGTH,
     tracesSampleRate: 0.1,
     monitor: {
       slug: "purge-expired",
@@ -51,13 +54,15 @@ export default scheduledFunction(
 export const config = { schedule: "0 3 * * *" };
 ```
 
+Wire the scrubber to both `beforeSend` and `beforeSendTransaction`, and raise `maxValueLength`: transactions skip `beforeSend`, and Sentry truncates values (250 characters by default) before the scrubber runs, which can cut a secret in half and defeat its patterns.
+
 `scheduledFunction` runs, in order: resolve the deploy context, load env, start Sentry, run the job (inside the monitor when `monitor` is given), capture any error, flush, rethrow. The Sentry DSN is read from `SENTRY_DSN` after the env file is decrypted. The job receives `{ request, context, deployContext }`. Sentry starts after the env file is decrypted (the DSN normally lives there), so a failure to resolve the context or load env is rethrown and logged but not sent to Sentry.
 
 ### API
 
 - `resolveDeployContext(context)` reads `context.deploy.context` and returns `production`, `deploy-preview`, `branch-deploy`, or `dev`. It throws when the value is missing or unknown, because guessing could load the wrong env file.
 - `loadFunctionEnv(deployContext)` decrypts `.env.production` (production) or `.env.dev` (everything else) with dotenvx in strict mode, once per instance. It throws when decryption fails. Bundle both files with the function (`included_files` in `netlify.toml`) and set the matching `DOTENV_PRIVATE_KEY_*` variables in the Functions scope.
-- `initFunctionSentry({ dsn, environment, beforeSend, tracesSampleRate })` starts the Sentry Node SDK once and never throws. Without a DSN it logs once and does nothing.
+- `initFunctionSentry({ dsn, environment, beforeSend, beforeSendTransaction, maxValueLength, tracesSampleRate })` starts the Sentry Node SDK once and never throws. Without a DSN it logs once and does nothing. It logs one error, and still starts, when `tracesSampleRate` is above 0 and `beforeSend` is given without `beforeSendTransaction`.
 - `flushFunctionSentry(timeoutMs = 2000)` waits for queued events and never throws. A timeout is logged.
 - `withCronMonitor({ slug, schedule, checkinMargin, maxRuntime }, job)` sends an `in_progress` check-in, runs the job, then sends `ok` or `error`. A throw or a non-2xx response counts as `error`; the original response or error passes through. Without a DSN it runs the job with no check-ins. `schedule` is a crontab expression; the margin and runtime are in minutes.
 - `runInBatches({ loadBatch, handle, batchSize, timeBudgetMs })` loads up to `batchSize` items at a time until `loadBatch` returns none or the budget is spent (checked between batches). It returns `{ processed, failures, hasMore }`. One failed item does not stop its batch; a batch with failures ends the run with `hasMore: true`, so make `loadBatch` skip items that failed or were already handled. Failures are not reported automatically, and an error thrown by `loadBatch` propagates without the partial counts.
