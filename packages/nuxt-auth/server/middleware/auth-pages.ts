@@ -5,15 +5,15 @@ import { shouldDeferClerk } from "../../shared/lib/clerk-deferral.ts";
 type PageAuthenticator = ReturnType<typeof clerkMiddleware>;
 
 // Gives pages Clerk's signed-in state for server rendering. It never runs for
-// `/api`, which auth-api.ts authenticates by bearer token only. Built on the
+// `/api`, which auth-api.ts authenticates by bearer token only. Built once on the
 // first page request, because runtime config is not available at module load.
 let authenticatePage: PageAuthenticator | undefined;
 
-function pageAuthenticator(event: { path: string }): PageAuthenticator {
+function pageAuthenticator(): PageAuthenticator {
   if (authenticatePage) {
     return authenticatePage;
   }
-  const { authorizedParties } = useRuntimeConfig(event as never).auth;
+  const { authorizedParties } = useRuntimeConfig().auth;
   // An empty list keeps the no-argument call, so it behaves exactly as before.
   authenticatePage =
     authorizedParties.length > 0
@@ -38,5 +38,5 @@ export default defineEventHandler((event) => {
   }
   // @clerk/nuxt bundles its own h3 types, so its event type is nominally
   // different from Nitro's although the runtime object is the same.
-  return pageAuthenticator(event)(event as Parameters<PageAuthenticator>[0]);
+  return pageAuthenticator()(event as Parameters<PageAuthenticator>[0]);
 });

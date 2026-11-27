@@ -310,7 +310,11 @@ describe("a page request", () => {
 
   async function pageSignedIn(token: string): Promise<boolean> {
     const response = await fetch(`${origin}/whoami`, {
-      headers: { cookie: `__session=${token}; __client_uat=1` },
+      headers: {
+        cookie: `__session=${token}; __client_uat=1`,
+        accept: "text/html",
+        "sec-fetch-dest": "document",
+      },
       redirect: "manual",
     });
     expect(response.status).toBe(200);
