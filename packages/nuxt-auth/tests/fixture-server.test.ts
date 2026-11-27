@@ -302,7 +302,26 @@ describe("a page request", () => {
   it("reaches clerkMiddleware, which stores its own auth function", async () => {
     const response = await get("/whoami");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ authType: "function" });
+    expect(await response.json()).toEqual({
+      authType: "function",
+      signedIn: false,
+    });
+  });
+
+  async function pageSignedIn(token: string): Promise<boolean> {
+    const response = await fetch(`${origin}/whoami`, {
+      headers: { cookie: `__session=${token}; __client_uat=1` },
+    });
+    return (await response.json()).signedIn;
+  }
+
+  it("renders signed in for a session cookie issued for this origin", async () => {
+    expect(await pageSignedIn(sessionToken("user_page"))).toBe(true);
+  });
+
+  it("renders signed out for a session cookie issued for another origin", async () => {
+    const token = sessionToken("user_page", { azp: "https://evil.example" });
+    expect(await pageSignedIn(token)).toBe(false);
   });
 
   it("does not run the API middleware", async () => {

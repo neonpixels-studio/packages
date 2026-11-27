@@ -331,7 +331,7 @@ Values are read from `process.env` when the config loads, so they are fixed at b
 | `NUXT_PUBLIC_SITE_URL`              | `auth.authorizedParties`      | The site's origin, from `@neon-pixels/nuxt-base`. A production build fails when it is unset. Its origin is passed to Clerk as an authorized party.                                                               |
 | `CONTEXT`, `DEPLOY_PRIME_URL`       | `auth.authorizedParties`      | Set by Netlify. Outside the `production` context the origin of `DEPLOY_PRIME_URL` is added, so deploy previews can sign in.                                                                                      |
 
-`runtimeConfig.auth.authorizedParties` is the list of origins without duplicates. When it is not empty, a token issued for another origin is rejected.
+`runtimeConfig.auth.authorizedParties` is the list of origins without duplicates. When it is not empty, a token issued for another origin is rejected, on server-rendered pages and on `/api` alike.
 
 ## Pure functions
 
