@@ -111,4 +111,14 @@ describe("createBrowserStorage", () => {
     expect(storage.getItem("key")).toBe("denied");
     expect(real.entries.has("key")).toBe(false);
   });
+
+  it("still reports the new choice when deletes are refused too", () => {
+    const storage = createBrowserStorage(() => ({
+      getItem: () => "granted",
+      removeItem: refusingStorage().removeItem,
+      setItem: refusingStorage().setItem,
+    }));
+    storage.setItem("key", "denied");
+    expect(storage.getItem("key")).toBe("denied");
+  });
 });
