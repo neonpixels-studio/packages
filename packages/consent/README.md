@@ -64,7 +64,7 @@ Injects gtag.js once per window however often it is called, with Google signals 
 
 ### `createBrowserStorage(resolveStorage)`
 
-Wraps storage so a blocked browser never breaks consent: Safari with all cookies blocked throws on reading `window.localStorage` itself, so the resolver runs on each call, and a refused write is kept in memory for the page (the choice still applies, it just does not persist). It never throws.
+Wraps storage so a blocked browser never breaks consent: Safari with all cookies blocked throws on reading `window.localStorage` itself, so the resolver runs on each call, and a refused write is kept in memory for the page (the choice still applies, it just does not persist). While a refused write is held in memory, `removeItem` leaves other keys in storage alone, so a legacy key is not deleted before its replacement has persisted. It never throws.
 
 ### `hasPrivacySignal({ navigator, window })`
 
