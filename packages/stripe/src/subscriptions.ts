@@ -63,7 +63,9 @@ export function isEntitledStatus(status: string): boolean {
  * True when the event is strictly older than the last one the app applied.
  * `lastAppliedAt` must be the `created` time of that last event
  * (`new Date(event.created * 1000)`), not the time it was processed. An equal
- * timestamp is not stale: Stripe can emit two events in the same second.
+ * timestamp is not stale: Stripe can emit two events in the same second, and
+ * `created` has one-second resolution, so equal timestamps cannot be ordered.
+ * Use `isSameSecondEvent` to detect that tie.
  */
 export function isStaleEvent(
   event: Pick<Stripe.Event, "created">,
@@ -73,6 +75,23 @@ export function isStaleEvent(
     return false;
   }
   return event.created * MILLISECONDS_PER_SECOND < lastAppliedAt.getTime();
+}
+
+/**
+ * True when the event has the same `created` second as the last one the app
+ * applied, so the two cannot be ordered by timestamp. On a tie, re-fetch the
+ * current object from Stripe instead of applying the event payload. False when
+ * nothing was applied yet. `lastAppliedAt` follows the `isStaleEvent` contract
+ * and must be a whole second: a value with milliseconds never matches.
+ */
+export function isSameSecondEvent(
+  event: Pick<Stripe.Event, "created">,
+  lastAppliedAt: Date | null | undefined,
+): boolean {
+  if (!lastAppliedAt) {
+    return false;
+  }
+  return event.created * MILLISECONDS_PER_SECOND === lastAppliedAt.getTime();
 }
 
 type EventObject = {

@@ -18,6 +18,7 @@ export {
 export {
   extractSubscriptionData,
   isEntitledStatus,
+  isSameSecondEvent,
   isStaleEvent,
   resolveSubscriptionOwner,
   type SubscriptionData,
