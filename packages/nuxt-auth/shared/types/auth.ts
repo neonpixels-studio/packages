@@ -4,6 +4,14 @@ export type AuthUserRecord = { id: string; deleted: boolean };
 
 export type OtherBearerResult = { userId: string } & Record<string, unknown>;
 
+/** What the layer knows about an error response it is about to send. */
+export type AuthErrorDetails = {
+  statusCode: number;
+  statusMessage: string;
+  /** The layer's own code (`reverification_required`), otherwise `undefined`. */
+  code: string | undefined;
+};
+
 export type AuthUsersStore<Event = unknown> = {
   findByProviderId(providerId: string): Promise<AuthUserRecord | null>;
   /** Must be safe when two requests create the same user at once. */
@@ -15,6 +23,14 @@ export type AuthUsersStore<Event = unknown> = {
   ): Promise<OtherBearerResult | null>;
   /** `true` for an `/api` route that needs no authentication. */
   isPublicApiPath?(path: string, method: string): boolean;
+  /**
+   * Returns the `data` for an error response the layer produces, so an app can
+   * keep its API's error format. Never changes the status code or message, and
+   * never applies to errors thrown by this store's own functions. Return
+   * `undefined` to keep the default response. The layer adds `code` to the
+   * result unless it already sets `code` to a value.
+   */
+  errorData?(details: AuthErrorDetails): Record<string, unknown> | undefined;
 };
 
 export type SessionAuthContext = {

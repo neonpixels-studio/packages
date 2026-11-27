@@ -149,6 +149,14 @@ describe("the API middleware", () => {
     expect((await get("/api/me")).status).toBe(401);
   });
 
+  it("answers a rejected request with the app's own error data", async () => {
+    const response = await get("/api/me");
+    expect(response.status).toBe(401);
+    expect((await response.json()).data).toEqual({
+      errors: [{ status: "401", title: "Unauthorized" }],
+    });
+  });
+
   it("answers 401 for a token that does not verify", async () => {
     expect((await get("/api/me", "a.b.c")).status).toBe(401);
     expect(

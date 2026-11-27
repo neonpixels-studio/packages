@@ -12,7 +12,7 @@ import {
   deletedUserProviderId,
 } from "../../shared/lib/webhook.ts";
 import { clearAuthUser } from "../utils/resolveAuthUser.ts";
-import { toNitroError } from "./http-errors.ts";
+import { toPlainNitroError } from "./http-errors.ts";
 import { reportError } from "./report-error.ts";
 import type { ClerkWebhookPayload } from "../../shared/types/webhook.d.ts";
 import type { H3Event } from "h3";
@@ -120,6 +120,6 @@ export async function handleClerkWebhook(
   try {
     return await verifyAndDispatch(event);
   } catch (error) {
-    throw toNitroError(error);
+    throw toPlainNitroError(error);
   }
 }

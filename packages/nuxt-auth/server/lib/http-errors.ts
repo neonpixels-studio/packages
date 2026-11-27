@@ -1,18 +1,78 @@
 import { AuthHttpError } from "../../shared/lib/http-error.ts";
+import { authStoreRegistry } from "./auth-users.ts";
+import { reportError } from "./report-error.ts";
+
+const ERROR_DATA_FAILED_SOURCE = "auth-error-data";
+
+type ErrorDataResult = Record<string, unknown> | undefined;
+
+/** Keeps the layer's code reachable for the client, whatever the app's format. */
+function withLayerCode(
+  result: ErrorDataResult,
+  code: string | undefined,
+): ErrorDataResult {
+  if (!result || !code) {
+    return result;
+  }
+  // An explicit `code: undefined` would vanish from the JSON, and null is no code either.
+  if (result.code !== undefined && result.code !== null) {
+    return result;
+  }
+  return { ...result, code };
+}
+
+/** Asks the app's `errorData` for the data of one of the layer's own errors. */
+function customData(error: AuthHttpError): ErrorDataResult {
+  const store = authStoreRegistry.current();
+  if (!store?.errorData) {
+    return undefined;
+  }
+  const code = error.data?.code;
+  const result = store.errorData({
+    statusCode: error.statusCode,
+    statusMessage: error.statusMessage,
+    code,
+  });
+  return withLayerCode(result, code);
+}
+
+/** A formatter that throws must not hide the original status. */
+function safeCustomData(error: AuthHttpError): ErrorDataResult {
+  try {
+    return customData(error);
+  } catch (formatterError) {
+    console.error("[nuxt-auth] errorData failed:", formatterError);
+    reportError(formatterError, { source: ERROR_DATA_FAILED_SOURCE });
+    return undefined;
+  }
+}
+
+function nitroError(error: AuthHttpError, data: ErrorDataResult): unknown {
+  return createError({
+    statusCode: error.statusCode,
+    statusMessage: error.statusMessage,
+    data: data ?? error.data,
+  });
+}
 
 /**
  * Turns the layer's own errors into Nitro errors, and leaves every other
- * error (including an app store's) as it is.
+ * error (including an app store's) as it is. The store's `errorData` shapes
+ * the data of the layer's errors.
  */
 export function toNitroError(error: unknown): unknown {
   if (!(error instanceof AuthHttpError)) {
     return error;
   }
-  return createError({
-    statusCode: error.statusCode,
-    statusMessage: error.statusMessage,
-    data: error.data,
-  });
+  return nitroError(error, safeCustomData(error));
+}
+
+/** Like `toNitroError`, without `errorData`: only Clerk reads these responses. */
+export function toPlainNitroError(error: unknown): unknown {
+  if (!(error instanceof AuthHttpError)) {
+    return error;
+  }
+  return nitroError(error, undefined);
 }
 
 export async function withNitroErrors<Result>(
