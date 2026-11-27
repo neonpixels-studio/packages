@@ -73,7 +73,7 @@ describe("createBrowserStorage", () => {
     expect(storage.getItem("key")).toBeNull();
   });
 
-  it("keeps other stored values on removeItem while writes are refused", () => {
+  it("keeps other stored values on removeItem after a refused write", () => {
     const real = createMemoryStorage({ legacy: "accepted" });
     let blocked = true;
     const storage = createBrowserStorage(() =>
@@ -83,5 +83,32 @@ describe("createBrowserStorage", () => {
     blocked = false;
     storage.removeItem("legacy");
     expect(real.entries.get("legacy")).toBe("accepted");
+  });
+
+  it("removes other stored values again once memory is empty", () => {
+    const real = createMemoryStorage({ legacy: "accepted" });
+    let blocked = true;
+    const storage = createBrowserStorage(() =>
+      blocked ? refusingStorage() : real,
+    );
+    storage.setItem("current", "granted");
+    blocked = false;
+    storage.setItem("current", "granted");
+    storage.removeItem("legacy");
+    expect(real.entries.has("legacy")).toBe(false);
+  });
+
+  it("clears an older stored choice when the new write is refused", () => {
+    const real = createMemoryStorage({ key: "granted" });
+    const storage = createBrowserStorage(() => ({
+      getItem: real.getItem,
+      removeItem: real.removeItem,
+      setItem: () => {
+        throw new DOMException("full", "QuotaExceededError");
+      },
+    }));
+    storage.setItem("key", "denied");
+    expect(storage.getItem("key")).toBe("denied");
+    expect(real.entries.has("key")).toBe(false);
   });
 });

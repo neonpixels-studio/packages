@@ -38,6 +38,8 @@ export function createBrowserStorage(
         memory.delete(key);
       } catch {
         memory.set(key, value);
+        // Never let an older, opposite choice come back on the next page load.
+        removePersistent(key);
       }
     },
     removeItem(key) {
