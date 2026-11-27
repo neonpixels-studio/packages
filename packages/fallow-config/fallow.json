@@ -6,5 +6,10 @@
   "health": {
     "maxCyclomatic": 20,
     "maxCognitive": 15
-  }
+  },
+  "ignoreDependencies": [
+    "@neon-pixels/fallow-config",
+    "@neon-pixels/prettier-config",
+    "@neon-pixels/tsconfig"
+  ]
 }

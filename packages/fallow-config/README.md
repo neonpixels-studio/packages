@@ -25,6 +25,20 @@ fallow [extends a config from an npm package](https://fallow.tools/docs/configur
 
 Add only what is specific to your repo. Objects merge key by key, and an array or single value in your file replaces the base's.
 
+Because arrays are replaced, setting your own `ignoreDependencies` drops the base's entries (see below). Repeat them in your list:
+
+```json
+{
+  "extends": "npm:@neon-pixels/fallow-config",
+  "ignoreDependencies": [
+    "@neon-pixels/fallow-config",
+    "@neon-pixels/prettier-config",
+    "@neon-pixels/tsconfig",
+    "vue"
+  ]
+}
+```
+
 ## What the base sets
 
 | Key                         | Value | Why                                                      |
@@ -32,6 +46,18 @@ Add only what is specific to your repo. Objects merge key by key, and an array o
 | `duplicates.minOccurrences` | `3`   | Report only clone groups that appear three or more times |
 | `health.maxCyclomatic`      | `20`  | fallow's default, pinned so an upgrade cannot move it    |
 | `health.maxCognitive`       | `15`  | fallow's default, pinned so an upgrade cannot move it    |
+
+### Packages treated as used
+
+`ignoreDependencies` lists the `@neon-pixels` packages that an app references only from non-JavaScript config, so fallow cannot see an import and `fallow fix` would otherwise delete them from `package.json`:
+
+| Package                        | Referenced from                        |
+| ------------------------------ | -------------------------------------- |
+| `@neon-pixels/fallow-config`   | the `npm:` extends in `.fallowrc.json` |
+| `@neon-pixels/prettier-config` | the `prettier` key in `package.json`   |
+| `@neon-pixels/tsconfig`        | `extends` in `tsconfig.json`           |
+
+Packages imported from JavaScript or TypeScript (such as `eslint-config` from `eslint.config.js`) are not listed, because fallow sees those imports.
 
 Entry points, ignores, and rule severities depend on the app, so each repo sets its own.
 

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -28,6 +28,17 @@ afterEach(() => {
   }
 });
 
+const CONFIG_ONLY_PACKAGES = [
+  "@neon-pixels/fallow-config",
+  "@neon-pixels/prettier-config",
+  "@neon-pixels/tsconfig",
+];
+const UNUSED_DEPENDENCY_KEYS = [
+  "unused_dependencies",
+  "unused_dev_dependencies",
+  "unused_optional_dependencies",
+];
+
 function createConsumerProject(consumerConfig: object): string {
   const projectDir = mkdtempSync(join(tmpdir(), "fallow-config-"));
   projectDirs.push(projectDir);
@@ -38,7 +49,44 @@ function createConsumerProject(consumerConfig: object): string {
     join(projectDir, ".fallowrc.json"),
     JSON.stringify(consumerConfig),
   );
+  writeConsumerSources(projectDir);
   return projectDir;
+}
+
+function writeConsumerSources(projectDir: string): void {
+  const devDependencies = Object.fromEntries(
+    [...CONFIG_ONLY_PACKAGES, "vue"].map((name) => [name, "*"]),
+  );
+  writeFileSync(
+    join(projectDir, "package.json"),
+    JSON.stringify({
+      name: "consumer",
+      private: true,
+      type: "module",
+      prettier: "@neon-pixels/prettier-config",
+      devDependencies,
+    }),
+  );
+  writeFileSync(
+    join(projectDir, "tsconfig.json"),
+    JSON.stringify({ extends: "@neon-pixels/tsconfig" }),
+  );
+  mkdirSync(join(projectDir, "src"));
+  writeFileSync(join(projectDir, "src/index.ts"), "export const value = 1;\n");
+}
+
+function findUnusedDependencies(projectDir: string): string[] {
+  const result = spawnSync(
+    FALLOW_BIN,
+    ["dead-code", "--format", "json", "--quiet"],
+    { cwd: projectDir, encoding: "utf8", timeout: FALLOW_TIMEOUT_MS },
+  );
+  const report = JSON.parse(result.stdout);
+  return UNUSED_DEPENDENCY_KEYS.flatMap((key) =>
+    (report[key] ?? []).map(
+      (finding: { package_name: string }) => finding.package_name,
+    ),
+  ).sort();
 }
 
 function resolveConfig(projectDir: string) {
@@ -61,11 +109,16 @@ describe("base config file", () => {
     expect(baseConfig.health).toEqual({ maxCyclomatic: 20, maxCognitive: 15 });
   });
 
+  it("lists the packages that are referenced only from config files", () => {
+    expect(baseConfig.ignoreDependencies).toEqual(CONFIG_ONLY_PACKAGES);
+  });
+
   it("holds nothing that is specific to one app", () => {
     expect(Object.keys(baseConfig).sort()).toEqual([
       "$schema",
       "duplicates",
       "health",
+      "ignoreDependencies",
     ]);
   });
 });
@@ -122,5 +175,51 @@ describe("extended by a consumer through npm:", () => {
 
     expect(resolved.health.maxCyclomatic).toBe(25);
     expect(resolved.health.maxCognitive).toBe(15);
+  });
+});
+
+describe("unused dependency check on a consumer", () => {
+  it("does not report config-only packages as unused", () => {
+    const projectDir = createConsumerProject({ ...EXTENDS_BASE });
+    const unused = findUnusedDependencies(projectDir);
+
+    expect(unused).toEqual(["vue"]);
+  });
+
+  it("reports the extends and prettier packages when the preset is not extended", () => {
+    const projectDir = createConsumerProject({});
+    const unused = findUnusedDependencies(projectDir);
+
+    expect(unused).toEqual(
+      expect.arrayContaining([
+        "@neon-pixels/fallow-config",
+        "@neon-pixels/prettier-config",
+      ]),
+    );
+  });
+
+  it("keeps the preset's packages used when the consumer repeats them", () => {
+    const projectDir = createConsumerProject({
+      ...EXTENDS_BASE,
+      ignoreDependencies: [...CONFIG_ONLY_PACKAGES, "vue"],
+    });
+
+    expect(findUnusedDependencies(projectDir)).toEqual([]);
+  });
+
+  it("loses the preset's entries when the consumer sets its own list", () => {
+    const projectDir = createConsumerProject({
+      ...EXTENDS_BASE,
+      ignoreDependencies: ["vue"],
+    });
+    const unused = findUnusedDependencies(projectDir);
+
+    expect(unused).not.toContain("vue");
+    expect(unused).toEqual(
+      expect.arrayContaining([
+        "@neon-pixels/fallow-config",
+        "@neon-pixels/prettier-config",
+      ]),
+    );
   });
 });
