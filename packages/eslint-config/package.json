@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/eslint-config",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Shared ESLint flat configuration for Neon Pixels projects (Nuxt, VitePress, Node).",
   "license": "MIT",
   "type": "module",

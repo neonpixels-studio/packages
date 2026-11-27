@@ -1,5 +1,11 @@
 # @neon-pixels/nuxt-auth
 
+## 0.9.0
+
+### Patch Changes
+
+- @neon-pixels/nuxt-base@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

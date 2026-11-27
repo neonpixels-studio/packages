@@ -1,6 +1,6 @@
 {
   "name": "@neon-pixels/api-keys",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "API token mechanics: generate, hash, verify, expire, and scope personal API keys.",
   "license": "MIT",
   "type": "module",
