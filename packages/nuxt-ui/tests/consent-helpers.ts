@@ -4,11 +4,10 @@ import {
   stubPrivacySignal,
   type PrivacySignalStubOptions,
 } from "@neon-pixels/consent/testing";
-import { consentStorageKey } from "@neon-pixels/consent";
+import { consentStorageKey, createBrowserStorage } from "@neon-pixels/consent";
 import { createFakeWindow } from "../../consent/tests/fakes.ts";
 import {
   createConsentController,
-  createResilientStorage,
   type ConsentBrowser,
   type ConsentControllerDependencies,
   type ConsentSettings,
@@ -78,8 +77,8 @@ export function createHarness(options: HarnessOptions = {}) {
   const controller = createConsentController({
     settings: options.settings ?? ANALYTICS_AND_REPLAY,
     state,
-    // Like the plugin, the controller reads through the resilient wrapper.
-    storage: createResilientStorage(() => storage),
+    // Like the plugin, the controller reads through createBrowserStorage.
+    storage: createBrowserStorage(() => storage),
     loadAnalytics,
     startReplay,
     stopReplay,

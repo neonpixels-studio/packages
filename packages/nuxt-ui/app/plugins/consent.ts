@@ -1,10 +1,13 @@
 import {
   createConsentController,
-  createResilientStorage,
   resolveConsentSettings,
   type ConsentBrowser,
 } from "../../shared/lib/index.ts";
-import { loadGoogleAnalytics, type ConsentStatus } from "@neon-pixels/consent";
+import {
+  createBrowserStorage,
+  loadGoogleAnalytics,
+  type ConsentStatus,
+} from "@neon-pixels/consent";
 
 // Builds the one consent controller of this app instance. The browser half
 // (stored choice, privacy signal, other tabs, analytics, replay) starts only
@@ -24,7 +27,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   const controller = createConsentController({
     settings,
     state,
-    storage: createResilientStorage(() => window.localStorage),
+    storage: createBrowserStorage(() => window.localStorage),
     loadAnalytics: loadGoogleAnalytics,
     startReplay: startSentryReplay,
     stopReplay: stopSentryReplay,

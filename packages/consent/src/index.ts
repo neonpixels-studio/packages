@@ -3,6 +3,7 @@ export {
   CONSENT_LIFETIME_MS,
   consentStorageKey,
 } from "./constants.ts";
+export { createBrowserStorage } from "./browser-storage.ts";
 export { createConsent } from "./consent.ts";
 export type { Consent, ConsentOptions } from "./consent.ts";
 export { hasPrivacySignal } from "./signals.ts";
