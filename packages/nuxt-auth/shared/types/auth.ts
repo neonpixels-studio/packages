@@ -28,7 +28,7 @@ export type AuthUsersStore<Event = unknown> = {
    * keep its API's error format. Never changes the status code or message, and
    * never applies to errors thrown by this store's own functions. Return
    * `undefined` to keep the default response. The layer adds `code` to the
-   * result unless it already has a `code` property.
+   * result unless it already sets `code` to a value.
    */
   errorData?(details: AuthErrorDetails): Record<string, unknown> | undefined;
 };

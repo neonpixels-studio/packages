@@ -4,18 +4,13 @@ import { reportError } from "./report-error.ts";
 
 const ERROR_DATA_FAILED_SOURCE = "auth-error-data";
 
-/** Asks the app's `errorData` for the data of one of the layer's own errors. */
-function customData(error: AuthHttpError): Record<string, unknown> | undefined {
-  const store = authStoreRegistry.current();
-  if (!store?.errorData) {
-    return undefined;
-  }
-  const code = error.data?.code;
-  const result = store.errorData({
-    statusCode: error.statusCode,
-    statusMessage: error.statusMessage,
-    code,
-  });
+type ErrorDataResult = Record<string, unknown> | undefined;
+
+/** Keeps the layer's code reachable for the client, whatever the app's format. */
+function withLayerCode(
+  result: ErrorDataResult,
+  code: string | undefined,
+): ErrorDataResult {
   if (!result || !code) {
     return result;
   }
@@ -26,10 +21,23 @@ function customData(error: AuthHttpError): Record<string, unknown> | undefined {
   return { ...result, code };
 }
 
+/** Asks the app's `errorData` for the data of one of the layer's own errors. */
+function customData(error: AuthHttpError): ErrorDataResult {
+  const store = authStoreRegistry.current();
+  if (!store?.errorData) {
+    return undefined;
+  }
+  const code = error.data?.code;
+  const result = store.errorData({
+    statusCode: error.statusCode,
+    statusMessage: error.statusMessage,
+    code,
+  });
+  return withLayerCode(result, code);
+}
+
 /** A formatter that throws must not hide the original status. */
-function safeCustomData(
-  error: AuthHttpError,
-): Record<string, unknown> | undefined {
+function safeCustomData(error: AuthHttpError): ErrorDataResult {
   try {
     return customData(error);
   } catch (formatterError) {
@@ -39,10 +47,7 @@ function safeCustomData(
   }
 }
 
-function nitroError(
-  error: AuthHttpError,
-  data: Record<string, unknown> | undefined,
-): unknown {
+function nitroError(error: AuthHttpError, data: ErrorDataResult): unknown {
   return createError({
     statusCode: error.statusCode,
     statusMessage: error.statusMessage,
