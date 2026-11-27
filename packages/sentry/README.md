@@ -80,9 +80,22 @@ export const { scrubEvent, scrubSpan, scrubRecordingEvent, scrubReplayEvent } =
 
 Extra patterns run before the built-in ones, are made global, and replace every match with `[redacted]`. The default exports above use no extra patterns. `scrubText`, `scrubUrl`, and `scrubValue` scrub a string, a URL, or any value on their own.
 
-### `dropExpectedClientErrors(event, hint)`
+### `dropExpectedClientErrors(event, hint, options?)`
 
 Returns `null` for a handled error whose `statusCode` is 300 to 499 (a 404 or a validation failure thrown on purpose), so it never reaches Sentry. It detects the error by shape, with no framework import. An error with `unhandled: true`, or an exception mechanism with `handled: false`, is always kept.
+
+By shape alone it also drops an upstream failure you report on purpose, such as a `$fetch` 401 from another service. Pass `isExpected` to drop only the errors you threw yourself. With it, an error is dropped only when it has a 300 to 499 `statusCode` and `isExpected(error)` returns exactly `true`. Any other return value counts as `false`, and so does a predicate that throws, so the event is kept and the call never throws.
+
+```ts
+import { dropExpectedClientErrors } from "@neon-pixels/sentry";
+
+const beforeSend = (event, hint) =>
+  dropExpectedClientErrors(event, hint, {
+    // A 401 from an upstream $fetch is a real failure: keep it. Match by name,
+    // because instanceof fails when two copies of ofetch are installed.
+    isExpected: (error) => (error as { name?: string })?.name !== "FetchError",
+  });
+```
 
 ### Filter lists
 

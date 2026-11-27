@@ -18,7 +18,10 @@ export {
   resolveSentryEnvironment,
   type SentryEnvironmentInput,
 } from "./environment.ts";
-export { dropExpectedClientErrors } from "./expected-errors.ts";
+export {
+  dropExpectedClientErrors,
+  type ExpectedClientErrorOptions,
+} from "./expected-errors.ts";
 export { DENIED_URLS, IGNORED_ERRORS, allowUrlsFor } from "./filters.ts";
 export {
   createScrubber,

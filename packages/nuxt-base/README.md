@@ -139,7 +139,7 @@ requireSiteUrlForBuild(process.env);
 The layer ships `sentry.client.config.ts` and `sentry.server.config.ts`.
 
 - Both: `dsn` and `environment` come from the runtime config values above, `tracesSampleRate` is `0.1` in production and `1.0` otherwise, `maxValueLength` is `MAX_SCRUB_LENGTH`, `beforeSendTransaction` is `scrubEvent`, and `beforeSendSpan` is `scrubSpan`.
-- Server: `beforeSend` drops deliberate h3 errors (see below), then runs `dropExpectedClientErrors`, then the scrubber. An empty environment falls back to `development`, never to Sentry's default of `production`.
+- Server: `beforeSend` drops deliberate h3 errors (see below), then runs `dropExpectedClientErrors` with `isError` from `h3` as its `isExpected` predicate, then the scrubber. An empty environment falls back to `development`, never to Sentry's default of `production`.
 - Client: `beforeSend` is `scrubEvent`, `ignoreErrors` is `IGNORED_ERRORS`, `denyUrls` is `DENIED_URLS`, and the only integration is `browserTracingIntegration()`. `replaysOnErrorSampleRate` is `1.0` and `replaysSessionSampleRate` is `0.1` in production and `1.0` otherwise. `scrubReplayEvent` is registered as an event processor.
 - With an empty DSN nothing is sent and nothing throws.
 - The scrubber is `createScrubber()` from `@neon-pixels/sentry`, built once per bundle with your extra patterns (below). With none, it behaves like the default `scrubEvent`, `scrubSpan`, `scrubReplayEvent`, and `scrubRecordingEvent`.
@@ -165,7 +165,7 @@ A pattern that is not a valid regular expression fails the build with a message 
 
 ### Deliberate HTTP errors on the server
 
-`@sentry/nuxt` captures an error thrown in server middleware as unhandled, so `dropExpectedClientErrors` would keep a 401 or 429 you threw on purpose. On the server, `beforeSend` first drops any h3 error (`isError` from `h3`) with a status from 300 to 499, whatever `mechanism.handled` says. An object that merely has a `statusCode` is not an h3 error and is left to `dropExpectedClientErrors`, and so is an error h3 wrapped itself from another thrown value (marked `unhandled`), such as a failed upstream request. A 5xx is never dropped. `h3` is a peer dependency, and `nuxt` already installs it.
+`@sentry/nuxt` captures an error thrown in server middleware as unhandled, so `dropExpectedClientErrors` would keep a 401 or 429 you threw on purpose. On the server, `beforeSend` first drops any h3 error (`isError` from `h3`) with a status from 300 to 499, whatever `mechanism.handled` says. An object that merely has a `statusCode` is not an h3 error and is kept, and so is an error h3 wrapped itself from another thrown value (marked `unhandled`), such as a failed upstream request. A 5xx is never dropped. `h3` is a peer dependency, and `nuxt` already installs it.
 
 ### Session Replay
 

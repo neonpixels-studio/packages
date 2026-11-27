@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DENIED_URLS,
   IGNORED_ERRORS,
@@ -249,6 +249,82 @@ describe("dropExpectedClientErrors", () => {
         originalException: { statusCode: 404 },
       }),
     ).toBe(unhandledEvent);
+  });
+});
+
+describe("dropExpectedClientErrors with isExpected", () => {
+  const event = { message: "boom" };
+  const hint = { originalException: { statusCode: 401 } };
+
+  it("drops a handled 401 without a predicate", () => {
+    expect(dropExpectedClientErrors(event, hint)).toBeNull();
+    expect(dropExpectedClientErrors(event, hint, {})).toBeNull();
+  });
+
+  it("keeps it when the predicate returns false", () => {
+    expect(
+      dropExpectedClientErrors(event, hint, { isExpected: () => false }),
+    ).toBe(event);
+  });
+
+  it("drops it when the predicate returns true", () => {
+    expect(
+      dropExpectedClientErrors(event, hint, { isExpected: () => true }),
+    ).toBeNull();
+  });
+
+  it("passes the original exception to the predicate", () => {
+    const isExpected = vi.fn(() => true);
+    dropExpectedClientErrors(event, hint, { isExpected });
+    expect(isExpected).toHaveBeenCalledWith(hint.originalException);
+  });
+
+  it("treats a truthy non-boolean return as not expected", () => {
+    const isExpected = (() => 1) as unknown as (error: unknown) => boolean;
+    expect(dropExpectedClientErrors(event, hint, { isExpected })).toBe(event);
+  });
+
+  it("keeps the event when the predicate throws, and never throws", () => {
+    const isExpected = () => {
+      throw new Error("predicate failed");
+    };
+    expect(() =>
+      dropExpectedClientErrors(event, hint, { isExpected }),
+    ).not.toThrow();
+    expect(dropExpectedClientErrors(event, hint, { isExpected })).toBe(event);
+  });
+
+  it("keeps unhandled and 5xx errors even when the predicate says true", () => {
+    const isExpected = () => true;
+    expect(
+      dropExpectedClientErrors(
+        event,
+        { originalException: { statusCode: 401, unhandled: true } },
+        { isExpected },
+      ),
+    ).toBe(event);
+    expect(
+      dropExpectedClientErrors(
+        event,
+        { originalException: { statusCode: 500 } },
+        { isExpected },
+      ),
+    ).toBe(event);
+  });
+
+  it("does not call the predicate for an error that is kept anyway", () => {
+    const isExpected = vi.fn(() => true);
+    dropExpectedClientErrors(
+      event,
+      { originalException: { statusCode: 500 } },
+      { isExpected },
+    );
+    dropExpectedClientErrors(
+      event,
+      { originalException: { statusCode: 401, unhandled: true } },
+      { isExpected },
+    );
+    expect(isExpected).not.toHaveBeenCalled();
   });
 });
 

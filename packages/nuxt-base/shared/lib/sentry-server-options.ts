@@ -1,5 +1,6 @@
 import type { ErrorEvent, EventHint } from "@sentry/nuxt";
 import { dropExpectedClientErrors } from "@neon-pixels/sentry";
+import { isError } from "h3";
 import { dropDeliberateH3Errors } from "./expected-http-errors.ts";
 import {
   buildSharedOptions,
@@ -22,7 +23,11 @@ export function buildServerSentryOptions(input: SentryOptionsInput) {
       if (!withoutDeliberate) {
         return null;
       }
-      const reportable = dropExpectedClientErrors(withoutDeliberate, hint);
+      // Only an h3 error counts as expected here, so an object that merely
+      // carries a statusCode (an upstream $fetch failure) is kept.
+      const reportable = dropExpectedClientErrors(withoutDeliberate, hint, {
+        isExpected: isError,
+      });
       if (!reportable) {
         return null;
       }
